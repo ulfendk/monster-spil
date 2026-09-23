@@ -8,6 +8,12 @@ const strings = {
   setup_start: "Start!",
   starter_title: "Vælg din starter!",
   overworld_welcome_prefix: "Velkommen tilbage,",
+  battle_flee: "Flygt",
+  battle_won: "Du vandt!",
+  battle_lost: "Dit monster besvimede...",
+  battle_fled: "Du løb væk!",
+  battle_effective_strong: "Effektivt!",
+  battle_effective_weak: "Ikke så effektivt...",
 } as const;
 
 export type StringKey = keyof typeof strings;

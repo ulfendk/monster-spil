@@ -32,4 +32,8 @@ export interface BattleLogEntry {
   turn: number;
   kind: "damage" | "miss" | "faint" | "catch-success" | "catch-fail" | "flee";
   text: string;
+  /** playerId of the participant this entry happened to, so a UI can animate the right sprite. */
+  targetPlayerId?: string;
+  /** Set on "damage" entries so the UI can show type-advantage feedback. */
+  effectiveness?: "strong" | "weak" | "neutral";
 }

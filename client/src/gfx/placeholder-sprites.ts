@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { CreatureSpecies, TypeId } from "@shared";
 
-const TYPE_COLOURS: Record<TypeId, number> = {
+export const TYPE_COLOURS: Record<TypeId, number> = {
   ild: 0xff6b35,
   vand: 0x4cc9f0,
   graes: 0x6bbf59,

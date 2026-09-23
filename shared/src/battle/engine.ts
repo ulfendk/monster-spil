@@ -47,7 +47,12 @@ export function resolveTurn(
     if (!action) continue;
 
     if (action.kind === "flee") {
-      log.push({ turn, kind: "flee", text: `${speciesName(participant)} løb væk!` });
+      log.push({
+        turn,
+        kind: "flee",
+        text: `${speciesName(participant)} løb væk!`,
+        targetPlayerId: participant.playerId,
+      });
       return { ...state, turn, log: [...state.log, ...log], outcome: "fled" };
     }
 
@@ -58,6 +63,7 @@ export function resolveTurn(
         turn,
         kind: success ? "catch-success" : "catch-fail",
         text: success ? `${speciesName(opponent)} blev fanget!` : `${speciesName(opponent)} slap fri!`,
+        targetPlayerId: opponent.playerId,
       });
       return {
         ...state,
@@ -87,20 +93,33 @@ export function resolveTurn(
     if (!move) continue;
 
     if (rng.next() > move.accuracy) {
-      log.push({ turn, kind: "miss", text: `${speciesName(attacker)}s ${move.navn} ramte ikke!` });
+      log.push({
+        turn,
+        kind: "miss",
+        text: `${speciesName(attacker)}s ${move.navn} ramte ikke!`,
+        targetPlayerId: defender.playerId,
+      });
       continue;
     }
 
-    const damage = calculateDamage(attacker.species, defender.species, move);
+    const multiplier = getMultiplier(move.type, defender.species.type);
+    const damage = calculateDamage(attacker.species, defender.species, move, multiplier);
     defender.active.currentHp = Math.max(0, defender.active.currentHp - damage);
     log.push({
       turn,
       kind: "damage",
       text: `${speciesName(attacker)} brugte ${move.navn} og gav ${damage} skade!`,
+      targetPlayerId: defender.playerId,
+      effectiveness: multiplier > 1 ? "strong" : multiplier < 1 ? "weak" : "neutral",
     });
 
     if (defender.active.currentHp === 0) {
-      log.push({ turn, kind: "faint", text: `${speciesName(defender)} besvimede!` });
+      log.push({
+        turn,
+        kind: "faint",
+        text: `${speciesName(defender)} besvimede!`,
+        targetPlayerId: defender.playerId,
+      });
     }
   }
 
@@ -115,8 +134,7 @@ export function resolveTurn(
   return { ...state, turn, participants, log: [...state.log, ...log], outcome };
 }
 
-function calculateDamage(attacker: CreatureSpecies, defender: CreatureSpecies, move: Move): number {
-  const multiplier = getMultiplier(move.type, defender.type);
+function calculateDamage(attacker: CreatureSpecies, defender: CreatureSpecies, move: Move, multiplier: number): number {
   const raw = (move.power * (attacker.baseStats.angreb / defender.baseStats.forsvar)) / 5;
   return Math.max(1, Math.round(raw * multiplier));
 }
