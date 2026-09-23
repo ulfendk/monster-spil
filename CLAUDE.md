@@ -12,7 +12,8 @@ hobby project: optimise for easy extension by non-programmers, not feature count
 - **UI language is Danish**, kept minimal (the 6-year-old reads little) — icons,
   colour and sound carry the core actions. Touch targets are ≥64px.
 - **No third-party services.** The only network calls (Milestone 2+) go to our own
-  self-hosted family game server. No ads, no tracking, no accounts/passwords.
+  self-hosted family game server. No ads, no tracking, no accounts. (A single
+  shared family code gates the server; there are no per-person passwords.)
 - **Each device's IndexedDB save is that player's source of truth.**
 
 ## Milestone status
@@ -21,20 +22,22 @@ Milestone 1 (solo MVP) is done: first-launch setup, starter pick, one area with
 tap-to-move, random encounters, turn-based battles, catching, and the Monsterbog
 collection screen. Deployed to GitHub Pages for solo/offline play.
 
-Not built yet: the server (Milestone 2 — lobby, trading) and PvP (Milestone 3).
-See "What Milestone 2/3 need from `/shared`" below for what NOT to break.
+Milestone 2 (family server) is built: a Colyseus lobby room, one-to-one creature
+trading, a shared family code as the access gate, and a ghcr-published Docker
+image. See "Family server (Milestone 2)" below. Not built yet: PvP (Milestone 3).
+See "What Milestone 3 needs from `/shared`" for what NOT to break.
 
 ## Monorepo layout
 
 ```
 shared/   Types, content (creatures/moves/areas as JSON), and the battle engine.
           Plain data + pure functions only — no DOM, no network, no Node-only APIs.
-client/   Vite + TypeScript + Phaser 3. The only thing built for Milestone 1.
-server/   Node + TypeScript + Colyseus. Currently a stub; real work starts in M2.
+client/   Vite + TypeScript + Phaser 3.
+server/   Node + TypeScript + Colyseus lobby/trading server (Milestone 2).
 ```
 
 `shared` is consumed two ways: `client` imports it as TypeScript source directly
-(via the `@shared` Vite alias, no build step in dev); `server` will import the
+(via the `@shared` Vite alias, no build step in dev); `server` imports the
 compiled `shared/dist` output, since it runs under plain Node.
 
 ## How to run
@@ -49,7 +52,7 @@ npm run build              # production build of shared + client -> client/dist
 
 `--host` is what lets an iPad on the same WiFi hit `https://<mac-ip>:5173`. Note
 Safari requires HTTPS even in dev for service-worker registration and PWA-install
-testing — see `docs/self-hosting.md` for HTTPS setup (Caddy or Tailscale).
+testing — see `docs/self-hosting.md` for HTTPS setup (Nginx Proxy Manager).
 
 ## Content format — adding a creature or area needs zero TypeScript changes
 
@@ -140,22 +143,53 @@ schema change, never silently drop fields. `persist()` is called at explicit
 checkpoints (setup complete, starter chosen, catch/battle end, area transition,
 completed tap-to-move) — not on every tile step, to avoid IndexedDB thrash.
 
-## What Milestone 2/3 need from `/shared` (don't design against this)
+## Family server (Milestone 2)
 
-- **Trading** (M2) = moving a `CreatureInstance` between two players' `creatures[]`
-  arrays by `instanceId`. That's already the unit of ownership (`ownerId` field),
-  so this should be additive, not a rewrite.
+`server/` is a Colyseus 0.16 server (pinned to 0.16 because `colyseus.js` — the
+client SDK — tops out at 0.16; server and client must stay on the same line).
+One room, `lobby` (`server/src/LobbyRoom.ts`), no schema state — plain messages
+typed in `shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
+
+- **Trading** is a pure state machine in `shared/src/trade/trade-session.ts`
+  (invite → accept → each offers one creature → both confirm; changing an offer
+  clears confirmations) plus `applyDelivery`, all covered by `node --test`. The
+  server never owns creatures: on completion it sends each side a
+  `tradeComplete` delivery (give `instanceId`, receive a `CreatureInstance` with
+  `ownerId` rewritten), keeps it until the client `ack`s (after persisting), and
+  re-sends on rejoin. `applyDelivery` is idempotent, so re-sends are harmless.
+  Keep new trade logic pure and in `shared`.
+- **Access = family code.** `FAMILY_CODE` env on the server; checked in
+  `LobbyRoom.onAuth` via `FamilyGate` (constant-time compare, 5 wrong guesses per
+  address per 10 min locks that address out). Rejection is `ServerError` code
+  `FAMILY_CODE_REJECTED` (4401). The client asks for the code once (canvas
+  screen with a DOM input) and keeps it in `localStorage` — not in the save. No
+  accounts; the server does not verify creature contents (family-trust design).
+- **Client** (`client/src/scenes/LobbyScene.ts`, `client/src/net/lobby.ts`): the
+  🤝 button on the overworld only exists when the build has `VITE_SERVER_URL`
+  (unset = solo-only build, so GitHub Pages stays fully offline-capable). The
+  lobby connection lives only while the lobby overlay is open. A creature whose
+  species the device doesn't know can't be confirmed; the last creature can't be
+  traded away (battles use `creatures[0]`).
+- **Deployment:** `server/Dockerfile` (build context = repo root) →
+  `.github/workflows/publish-server.yml` publishes
+  `ghcr.io/ulfendk/monsterjagt-server`; run it in Portainer behind Nginx Proxy
+  Manager with **Websockets Support on**. Full steps in `docs/self-hosting.md`.
+- **Manual testing without a second device:** two tabs in one Chrome window don't
+  work (background tabs get frozen); drive the second player from a
+  `colyseus.js` script, or use two real devices/windows.
+
+## What Milestone 3 needs from `/shared` (don't design against this)
+
 - **PvP** (M3) = the server collecting one real human action per connected player
-  and calling the exact same `resolveTurn` used for solo battles today.
-- **Server Docker image**: `server/Dockerfile` is currently a stub. Milestone 2
-  work should make it a real image, deployable behind an HTTPS/WSS reverse proxy
-  (Caddy or Tailscale — see `docs/self-hosting.md`), since PWA + Safari require
-  HTTPS/WSS even for the self-hosted multiplayer server.
+  and calling the exact same `resolveTurn` used for solo battles today. The
+  lobby room and `FamilyGate` already exist to hang matchmaking on.
 
 ## Dependency policy
 
-Pre-approved: Phaser, Vite, TypeScript, Colyseus, the (not-yet-built) image
-script, and `vite-plugin-pwa` (added for PWA manifest/service-worker generation).
+Pre-approved: Phaser, Vite, TypeScript, Colyseus (server `@colyseus/core` +
+`@colyseus/ws-transport` + `@colyseus/schema`, client `colyseus.js`), the
+(not-yet-built) image script, and `vite-plugin-pwa` (added for PWA
+manifest/service-worker generation).
 **Ask before adding anything else.**
 
 ## Testing convention

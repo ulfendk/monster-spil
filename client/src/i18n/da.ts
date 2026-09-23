@@ -16,6 +16,17 @@ const strings = {
   battle_caught: "Du fangede den!",
   battle_effective_strong: "Effektivt!",
   battle_effective_weak: "Ikke så effektivt...",
+  lobby_offline: "Ingen forbindelse",
+  lobby_code_title: "Familiekode",
+  lobby_code_wrong: "Forkert kode",
+  lobby_alone: "Ingen andre er online",
+  trade_waiting: "Venter på",
+  trade_invite_suffix: "vil bytte!",
+  trade_pick: "Vælg et monster",
+  trade_done: "Byttet!",
+  trade_cancelled: "Byttet blev afbrudt",
+  trade_last_creature: "Du skal beholde mindst ét monster",
+  trade_unknown_species: "Opdater spillet for at bytte",
 } as const;
 
 export type StringKey = keyof typeof strings;

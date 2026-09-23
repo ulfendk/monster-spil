@@ -6,6 +6,8 @@ import { getAreaAssets } from "../content/load-areas";
 import { persist } from "../save/game-state";
 import type { BattleSceneData } from "./BattleScene";
 import type { MonsterbogSceneData } from "./MonsterbogScene";
+import type { LobbySceneData } from "./LobbyScene";
+import { multiplayerEnabled } from "../net/lobby";
 import { createButton } from "../ui/Button";
 
 export interface OverworldSceneData {
@@ -100,6 +102,21 @@ export class OverworldScene extends Phaser.Scene {
       fontSize: "28px",
       backgroundColor: 0x4a4e7a,
     });
+
+    if (multiplayerEnabled) {
+      createButton(this, this.scale.width - 140, 60, "🤝", () => this.openLobby(), {
+        width: 64,
+        height: 64,
+        fontSize: "28px",
+        backgroundColor: 0x4a4e7a,
+      });
+    }
+  }
+
+  private openLobby(): void {
+    const data: LobbySceneData = { content: this.content, save: this.save };
+    this.scene.launch("Lobby", data);
+    this.scene.pause();
   }
 
   private openMonsterbog(): void {

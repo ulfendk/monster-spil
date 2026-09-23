@@ -1,5 +1,30 @@
-# Stub — not yet functional. Milestone 1 has no server component to ship.
-# Milestone 2 will build a real image here for the self-hosted Colyseus server.
+# Build from the repo root so the npm workspaces resolve:
+#   docker build -f server/Dockerfile -t monsterjagt-server .
+# (server/docker-compose.yml does this for you.)
+
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY shared/package.json shared/
+COPY server/package.json server/
+COPY client/package.json client/
+RUN npm ci --include-workspace-root --workspace shared --workspace server
+COPY shared shared
+COPY server server
+RUN npx tsc -b shared server
+
 FROM node:22-slim
 WORKDIR /app
-CMD ["echo", "monster-spil server: not yet implemented (Milestone 2)"]
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+COPY shared/package.json shared/
+COPY server/package.json server/
+COPY client/package.json client/
+RUN npm ci --omit=dev --workspace shared --workspace server
+COPY --from=build /app/shared/dist shared/dist
+COPY --from=build /app/server/dist server/dist
+USER node
+ENV PORT=2567
+EXPOSE 2567
+HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://localhost:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+CMD ["node", "server/dist/index.js"]

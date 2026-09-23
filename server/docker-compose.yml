@@ -1,0 +1,25 @@
+# Run from this folder:  FAMILY_CODE=<code> docker compose up -d --build
+#
+# Nginx Proxy Manager reaches the server over a shared Docker network by
+# container name, so no port needs publishing on the host. Set the name of the
+# network NPM is on below (find it with: docker network ls).
+services:
+  monsterjagt-server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: monsterjagt-server
+    restart: unless-stopped
+    environment:
+      PORT: "2567"
+      # Required: the shared family code. Set it in the shell or a .env file next to this one.
+      FAMILY_CODE: ${FAMILY_CODE:?set FAMILY_CODE to the family code}
+      # Origin(s) of the client, comma-separated. Leave unset to allow any origin.
+      # ALLOWED_ORIGINS: "https://<user>.github.io"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: npm_default # <- the network your Nginx Proxy Manager container is on
