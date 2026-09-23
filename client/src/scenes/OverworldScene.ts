@@ -1,8 +1,10 @@
 import Phaser from "phaser";
+import type { CreatureInstance, AreaMeta } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
 import { persist } from "../save/game-state";
+import type { BattleSceneData } from "./BattleScene";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -20,8 +22,10 @@ const MOVE_DURATION_MS = 160;
 export class OverworldScene extends Phaser.Scene {
   private save!: SaveData;
   private content!: GameContent;
+  private areaMeta!: AreaMeta;
   private map!: Phaser.Tilemaps.Tilemap;
   private groundLayer!: Phaser.Tilemaps.TilemapLayer;
+  private grassLayer!: Phaser.Tilemaps.TilemapLayer;
   private player!: Phaser.GameObjects.Arc;
   private playerTile: TileCoord = { x: 0, y: 0 };
   private isMoving = false;
@@ -44,6 +48,7 @@ export class OverworldScene extends Phaser.Scene {
 
   create(): void {
     const area = getAreaAssets(this.save.position.areaId);
+    this.areaMeta = area.meta;
 
     this.map = this.make.tilemap({ key: "area-map" });
     const tilesetName = this.map.tilesets[0]?.name;
@@ -54,6 +59,7 @@ export class OverworldScene extends Phaser.Scene {
     const grassLayer = this.map.createLayer(area.meta.encounterZoneLayer, tileset, 0, 0);
     if (!groundLayer || !grassLayer) throw new Error("Kunne ikke indlæse lag til området");
     this.groundLayer = groundLayer;
+    this.grassLayer = grassLayer;
     this.groundLayer.setCollision(area.meta.collisionGids);
 
     // (0,0) sits inside the border wall, so it can never be a real position —
@@ -153,8 +159,61 @@ export class OverworldScene extends Phaser.Scene {
           void persist();
         }
 
+        if (this.isEncounterTile(next.x, next.y) && this.rollEncounter()) {
+          this.pendingPath = [];
+          return;
+        }
+
         this.advancePath();
       },
     });
   }
+
+  private isEncounterTile(x: number, y: number): boolean {
+    return !!this.grassLayer.getTileAt(x, y);
+  }
+
+  /** Returns true (and starts a battle) if the roll triggers a wild encounter. */
+  private rollEncounter(): boolean {
+    if (Math.random() > this.areaMeta.encounterRate) return false;
+
+    const speciesId = pickWeightedSpecies(this.areaMeta.encounterTable);
+    const species = speciesId ? this.content.speciesById[speciesId] : undefined;
+    if (!species) return false;
+
+    const wildInstance: CreatureInstance = {
+      instanceId: crypto.randomUUID(),
+      speciesId: species.id,
+      ownerId: "wild",
+      niveau: 1,
+      currentHp: species.baseStats.hp,
+      caughtAt: new Date().toISOString(),
+    };
+
+    if (!this.save.seenSpeciesIds.includes(species.id)) {
+      this.save.seenSpeciesIds.push(species.id);
+      void persist();
+    }
+
+    const data: BattleSceneData = {
+      save: this.save,
+      content: this.content,
+      wildInstance,
+      wildSpecies: species,
+    };
+    this.scene.start("Battle", data);
+    return true;
+  }
+}
+
+function pickWeightedSpecies(table: AreaMeta["encounterTable"]): string | undefined {
+  const total = table.reduce((sum, entry) => sum + entry.weight, 0);
+  if (total <= 0) return undefined;
+
+  let roll = Math.random() * total;
+  for (const entry of table) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.speciesId;
+  }
+  return table[table.length - 1]?.speciesId;
 }

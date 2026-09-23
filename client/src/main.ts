@@ -4,6 +4,7 @@ import { PreloadScene } from "./scenes/PreloadScene";
 import { SetupScene } from "./scenes/SetupScene";
 import { StarterScene } from "./scenes/StarterScene";
 import { OverworldScene } from "./scenes/OverworldScene";
+import { BattleScene } from "./scenes/BattleScene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -18,5 +19,5 @@ new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene],
+  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene],
 });
