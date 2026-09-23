@@ -9,6 +9,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "paths": {
+      "@shared": ["../shared/src/index.ts"],
       "@shared/*": ["../shared/src/*"]
     }
   },

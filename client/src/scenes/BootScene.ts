@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { loadInitialState } from "../save/game-state";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -15,5 +16,13 @@ export class BootScene extends Phaser.Scene {
         color: "#ffce54",
       })
       .setOrigin(0.5);
+
+    loadInitialState().then((save) => {
+      if (save) {
+        this.scene.start("Overworld", { save });
+      } else {
+        this.scene.start("Setup");
+      }
+    });
   }
 }

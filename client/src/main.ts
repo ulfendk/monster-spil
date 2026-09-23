@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { BootScene } from "./scenes/BootScene";
+import { SetupScene } from "./scenes/SetupScene";
+import { OverworldScene } from "./scenes/OverworldScene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -11,5 +13,5 @@ new Phaser.Game({
     width: 1024,
     height: 768,
   },
-  scene: [BootScene],
+  scene: [BootScene, SetupScene, OverworldScene],
 });
