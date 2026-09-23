@@ -5,6 +5,8 @@ import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
 import { persist } from "../save/game-state";
 import type { BattleSceneData } from "./BattleScene";
+import type { MonsterbogSceneData } from "./MonsterbogScene";
+import { createButton } from "../ui/Button";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -78,6 +80,9 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // A UI button (e.g. the Monsterbog corner button) already handled this tap.
+      if (this.input.hitTestPointer(pointer).length > 0) return;
+
       const targetTile: TileCoord = {
         x: Math.floor(pointer.worldX / TILE_SIZE),
         y: Math.floor(pointer.worldY / TILE_SIZE),
@@ -88,6 +93,19 @@ export class OverworldScene extends Phaser.Scene {
         this.advancePath();
       }
     });
+
+    createButton(this, this.scale.width - 60, 60, "📖", () => this.openMonsterbog(), {
+      width: 64,
+      height: 64,
+      fontSize: "28px",
+      backgroundColor: 0x4a4e7a,
+    });
+  }
+
+  private openMonsterbog(): void {
+    const data: MonsterbogSceneData = { content: this.content, save: this.save };
+    this.scene.launch("Monsterbog", data);
+    this.scene.pause();
   }
 
   private isWalkable(x: number, y: number): boolean {

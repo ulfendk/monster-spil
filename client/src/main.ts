@@ -5,6 +5,7 @@ import { SetupScene } from "./scenes/SetupScene";
 import { StarterScene } from "./scenes/StarterScene";
 import { OverworldScene } from "./scenes/OverworldScene";
 import { BattleScene } from "./scenes/BattleScene";
+import { MonsterbogScene } from "./scenes/MonsterbogScene";
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -19,5 +20,5 @@ new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene],
+  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene],
 });
