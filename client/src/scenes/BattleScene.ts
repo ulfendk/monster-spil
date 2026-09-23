@@ -100,8 +100,9 @@ export class BattleScene extends Phaser.Scene {
     const player = this.battleState.participants[0];
     const moveIds = player.species.moveIds;
     const y = height - 90;
-    const spacing = Math.min(220, (width - 80) / (moveIds.length + 1));
-    const startX = width / 2 - (spacing * moveIds.length) / 2;
+    const buttonCount = moveIds.length + 2; // moves + flee + catch
+    const spacing = Math.min(220, (width - 80) / buttonCount);
+    const startX = width / 2 - (spacing * (buttonCount - 1)) / 2;
 
     moveIds.forEach((moveId, i) => {
       const move = player.moves[moveId];
@@ -126,11 +127,53 @@ export class BattleScene extends Phaser.Scene {
       { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: 0x555555 }
     );
     this.actionButtons.push(fleeButton);
+
+    const catchButton = createButton(
+      this,
+      startX + (moveIds.length + 1) * spacing,
+      y,
+      t("battle_catch"),
+      () => this.performCatch(),
+      { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: 0xe63946 }
+    );
+    this.actionButtons.push(catchButton);
   }
 
   private clearActionButtons(): void {
     for (const button of this.actionButtons) button.destroy();
     this.actionButtons = [];
+  }
+
+  private performCatch(): void {
+    if (this.busy || this.battleState.outcome !== "ongoing") return;
+    this.busy = true;
+    this.clearActionButtons();
+    this.playBallThrowAnimation(() => {
+      this.busy = false;
+      this.performTurn({ kind: "catch" });
+    });
+  }
+
+  private playBallThrowAnimation(onComplete: () => void): void {
+    const ball = this.add.circle(this.playerSprite.x, this.playerSprite.y, 14, 0xe63946).setStrokeStyle(3, 0xffffff);
+    this.tweens.add({
+      targets: ball,
+      x: this.wildSprite.x,
+      y: this.wildSprite.y,
+      duration: 450,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: ball,
+          scale: 0,
+          duration: 200,
+          onComplete: () => {
+            ball.destroy();
+            onComplete();
+          },
+        });
+      },
+    });
   }
 
   private performTurn(playerAction: BattleAction): void {
@@ -207,6 +250,7 @@ export class BattleScene extends Phaser.Scene {
     if (outcome === "won") this.logText.setText(t("battle_won"));
     else if (outcome === "lost") this.logText.setText(t("battle_lost"));
     else if (outcome === "fled") this.logText.setText(t("battle_fled"));
+    else if (outcome === "caught") this.logText.setText(t("battle_caught"));
   }
 
   private endBattle(): void {
@@ -218,6 +262,15 @@ export class BattleScene extends Phaser.Scene {
       saved.currentHp =
         this.battleState.outcome === "lost" ? player.species.baseStats.hp : player.active.currentHp;
     }
+
+    if (this.battleState.outcome === "caught") {
+      const wild = this.battleState.participants[1];
+      this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
+      if (!this.battleData.save.seenSpeciesIds.includes(wild.species.id)) {
+        this.battleData.save.seenSpeciesIds.push(wild.species.id);
+      }
+    }
+
     void persist();
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
