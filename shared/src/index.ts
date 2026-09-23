@@ -2,4 +2,9 @@ export type { TypeId, StatBlock, CreatureSpecies, CreatureInstance } from "./typ
 export type { Move } from "./types/move.js";
 export { TYPE_ADVANTAGE, getMultiplier } from "./types/type-chart.js";
 export type { EncounterTableEntry, AreaMeta } from "./types/area.js";
+export type { BattleParticipant, BattleState, BattleAction, BattleLogEntry } from "./types/battle.js";
 export { indexCreatures, indexMoves, validateContent } from "./content/content-loader.js";
+export type { Rng } from "./battle/rng.js";
+export { createRng } from "./battle/rng.js";
+export { attemptCatch } from "./battle/catch.js";
+export { createBattle, resolveTurn } from "./battle/engine.js";
