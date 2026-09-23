@@ -1,0 +1,17 @@
+{
+  "name": "@monster-spil/server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsc -b -w",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@monster-spil/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2"
+  }
+}
