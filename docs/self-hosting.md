@@ -34,11 +34,15 @@ The server refuses every join without the shared **family code**, so outsiders
 can't get in even if they find the URL.
 
 - Choose a code (a short passphrase, not something guessable) and set it as
-  `FAMILY_CODE` on the container. The container should not run without it: if
-  it is unset the server starts *open* and logs a warning (meant for local dev).
+  `FAMILY_CODE` on the container. In production (the Docker image) the server
+  **refuses to start** without it and logs `FAMILY_CODE is not set`, so a
+  forgotten variable shows up as a crash-looping container instead of an open
+  server. Outside production (local dev) it starts open and logs a warning.
 - The first time a device taps 🤝 it asks for the code (🔑). A parent types it
   once; it is remembered on that device. If the code changes or is wrong, the
-  device asks again.
+  device asks again. To type a different code on purpose, tap the 🔑 button at
+  the bottom-left of the lobby (or of the "Ingen forbindelse" screen); the old
+  code stays until a new one is entered, so backing out with ✕ changes nothing.
 - Wrong guesses are counted per client address: after 5 within 10 minutes that
   address is refused — even with the right code — until the window passes. (If
   you lock yourself out, wait 10 minutes or restart the container.)

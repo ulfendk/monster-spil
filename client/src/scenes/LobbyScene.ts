@@ -127,7 +127,7 @@ export class LobbyScene extends Phaser.Scene {
     listen(room, "tradeComplete", (delivery) => void this.receive(delivery));
     listen(room, "problem", ({ reason }) => console.warn("Lobby:", reason));
     room.onLeave(() => {
-      if (this.closing) return;
+      if (this.closing || this.room !== room) return;
       this.room = undefined;
       this.trade = null;
       this.players = [];
@@ -152,6 +152,18 @@ export class LobbyScene extends Phaser.Scene {
     }
     this.trade = null;
     this.received = delivery.receive;
+    this.requestDraw();
+  }
+
+  /** Lets a parent type a different family code; the old one stays stored until a new one is entered. */
+  private changeCode(): void {
+    const room = this.room;
+    this.room = undefined;
+    void room?.leave();
+    this.trade = null;
+    this.players = [];
+    this.notice = undefined;
+    this.status = "needCode";
     this.requestDraw();
   }
 
@@ -222,11 +234,13 @@ export class LobbyScene extends Phaser.Scene {
     this.addText(width / 2, height / 2 - 70, "📵", 96);
     this.addText(width / 2, height / 2 + 20, t("lobby_offline"), 30, "#cccccc");
     this.addButton(width / 2, height / 2 + 110, "🔄", () => void this.connect(), 120);
+    this.addButton(90, this.scale.height - 50, "🔑", () => this.changeCode(), 72, GREY);
   }
 
   private drawLobby(): void {
     const { width } = this.scale;
     this.addText(width / 2, 50, "🤝", 56);
+    this.addButton(90, this.scale.height - 50, "🔑", () => this.changeCode(), 72, GREY);
     if (this.notice) this.addText(width / 2, 110, this.notice, 24, "#ffce54");
 
     if (this.players.length === 0) {

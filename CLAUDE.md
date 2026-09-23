@@ -162,8 +162,11 @@ typed in `shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
   `LobbyRoom.onAuth` via `FamilyGate` (constant-time compare, 5 wrong guesses per
   address per 10 min locks that address out). Rejection is `ServerError` code
   `FAMILY_CODE_REJECTED` (4401). The client asks for the code once (canvas
-  screen with a DOM input) and keeps it in `localStorage` — not in the save. No
+  screen with a DOM input; a 🔑 button in the lobby re-opens it) and keeps it in
+  `localStorage` — not in the save. No
   accounts; the server does not verify creature contents (family-trust design).
+  With `NODE_ENV=production` (the Docker image) it exits at startup if
+  `FAMILY_CODE` is unset; only local dev may run open.
 - **Client** (`client/src/scenes/LobbyScene.ts`, `client/src/net/lobby.ts`): the
   🤝 button on the overworld only exists when the build has `VITE_SERVER_URL`
   (unset = solo-only build, so GitHub Pages stays fully offline-capable). The

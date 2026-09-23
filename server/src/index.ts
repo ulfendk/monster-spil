@@ -35,14 +35,17 @@ const httpServer = http.createServer((req, res) => {
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
 const gate = new FamilyGate(process.env.FAMILY_CODE?.trim() || undefined);
-if (gate.isOpen) console.warn("WARNING: FAMILY_CODE is not set — anyone who can reach this server can join. Fine for local dev only.");
+if (gate.isOpen) {
+  // The Docker image sets NODE_ENV=production. A missing code there would silently leave the server open to anyone, so fail loudly instead.
+  if (process.env.NODE_ENV === "production") {
+    console.error("FAMILY_CODE is not set — refusing to start. Set it to the family code (see docs/self-hosting.md).");
+    process.exit(1);
+  }
+  console.warn("WARNING: FAMILY_CODE is not set — anyone who can reach this server can join. Fine for local dev only.");
+}
 gameServer.define(LOBBY_ROOM, LobbyRoom, { gate });
 
 await gameServer.listen(port);
 console.log(`Monsterjagt server listening on :${port}`);
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    void gameServer.gracefullyShutdown().finally(() => process.exit(0));
-  });
-}
+// Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.
