@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { BootScene } from "./scenes/BootScene";
 import { SetupScene } from "./scenes/SetupScene";
+import { StarterScene } from "./scenes/StarterScene";
 import { OverworldScene } from "./scenes/OverworldScene";
 
 new Phaser.Game({
@@ -13,5 +14,8 @@ new Phaser.Game({
     width: 1024,
     height: 768,
   },
-  scene: [BootScene, SetupScene, OverworldScene],
+  dom: {
+    createContainer: true,
+  },
+  scene: [BootScene, SetupScene, StarterScene, OverworldScene],
 });
