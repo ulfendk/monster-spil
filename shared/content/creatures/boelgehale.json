@@ -1,0 +1,10 @@
+{
+  "id": "boelgehale",
+  "navn": "Bølgehale",
+  "type": "vand",
+  "baseStats": { "hp": 36, "angreb": 14, "forsvar": 8, "fart": 11 },
+  "moveIds": ["vandpist", "kloer", "stormflod"],
+  "spriteFront": "creatures/boelgehale_front.png",
+  "spriteBack": "creatures/boelgehale_back.png",
+  "catchRate": 0.5
+}

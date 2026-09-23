@@ -1,0 +1,10 @@
+{
+  "id": "flammepels",
+  "navn": "Flammepels",
+  "type": "ild",
+  "baseStats": { "hp": 38, "angreb": 13, "forsvar": 8, "fart": 12 },
+  "moveIds": ["gloedslag", "kloer", "varmeboelge"],
+  "spriteFront": "creatures/flammepels_front.png",
+  "spriteBack": "creatures/flammepels_back.png",
+  "catchRate": 0.45
+}

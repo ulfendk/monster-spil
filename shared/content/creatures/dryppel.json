@@ -1,0 +1,10 @@
+{
+  "id": "dryppel",
+  "navn": "Dryppel",
+  "type": "vand",
+  "baseStats": { "hp": 42, "angreb": 10, "forsvar": 11, "fart": 9 },
+  "moveIds": ["vandpist", "kloer", "boelgebrus"],
+  "spriteFront": "creatures/dryppel_front.png",
+  "spriteBack": "creatures/dryppel_back.png",
+  "catchRate": 0.5
+}

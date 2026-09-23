@@ -1,0 +1,10 @@
+{
+  "id": "lovgro",
+  "navn": "Løvgro",
+  "type": "graes",
+  "baseStats": { "hp": 40, "angreb": 11, "forsvar": 10, "fart": 10 },
+  "moveIds": ["bladsving", "kloer", "tornranke"],
+  "spriteFront": "creatures/lovgro_front.png",
+  "spriteBack": "creatures/lovgro_back.png",
+  "catchRate": 0.5
+}

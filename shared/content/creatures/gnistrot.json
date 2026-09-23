@@ -1,0 +1,10 @@
+{
+  "id": "gnistrot",
+  "navn": "Gnistrot",
+  "type": "lyn",
+  "baseStats": { "hp": 34, "angreb": 12, "forsvar": 7, "fart": 15 },
+  "moveIds": ["gnistestoed", "kloer", "lynnedslag"],
+  "spriteFront": "creatures/gnistrot_front.png",
+  "spriteBack": "creatures/gnistrot_back.png",
+  "catchRate": 0.45
+}

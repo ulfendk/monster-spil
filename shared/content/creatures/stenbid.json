@@ -1,0 +1,10 @@
+{
+  "id": "stenbid",
+  "navn": "Stenbid",
+  "type": "sten",
+  "baseStats": { "hp": 46, "angreb": 9, "forsvar": 14, "fart": 6 },
+  "moveIds": ["stenkast", "kloer", "jordrystelse"],
+  "spriteFront": "creatures/stenbid_front.png",
+  "spriteBack": "creatures/stenbid_back.png",
+  "catchRate": 0.35
+}
