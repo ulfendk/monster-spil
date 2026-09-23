@@ -1,0 +1,15 @@
+{
+  "id": "startskoven",
+  "tiledMapPath": "areas/startskoven.json",
+  "tilesetImagePath": "areas/startskoven-tileset.png",
+  "encounterZoneLayer": "graes",
+  "collisionLayer": "bund",
+  "collisionGids": [2],
+  "encounterTable": [
+    { "speciesId": "gnistrot", "weight": 3 },
+    { "speciesId": "stenbid", "weight": 2 },
+    { "speciesId": "boelgehale", "weight": 2 }
+  ],
+  "encounterRate": 0.1,
+  "playerStart": { "x": 3, "y": 6 }
+}

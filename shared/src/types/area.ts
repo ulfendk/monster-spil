@@ -12,7 +12,11 @@ export interface EncounterTableEntry {
 export interface AreaMeta {
   id: string;
   tiledMapPath: string;
+  tilesetImagePath: string;
   encounterZoneLayer: string;
+  collisionLayer: string;
+  /** Tile GIDs on collisionLayer that block movement */
+  collisionGids: number[];
   encounterTable: EncounterTableEntry[];
   /** 0-1 chance per step taken inside the encounter zone */
   encounterRate: number;
