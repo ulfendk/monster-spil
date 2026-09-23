@@ -6,6 +6,7 @@ const strings = {
   setup_title_farve: "Vælg din farve",
   setup_next: "Næste",
   setup_start: "Start!",
+  starter_title: "Vælg din starter!",
   overworld_welcome_prefix: "Velkommen tilbage,",
 } as const;
 

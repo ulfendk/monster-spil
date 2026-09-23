@@ -1,8 +1,10 @@
 import Phaser from "phaser";
 import type { SaveData } from "../save/schema";
+import type { GameContent } from "../content/load-content";
 
 export interface OverworldSceneData {
   save: SaveData;
+  content: GameContent;
 }
 
 export class OverworldScene extends Phaser.Scene {

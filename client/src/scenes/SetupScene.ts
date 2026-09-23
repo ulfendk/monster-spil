@@ -1,8 +1,13 @@
 import Phaser from "phaser";
 import type { SaveData } from "../save/schema";
+import type { GameContent } from "../content/load-content";
 import { setState, persist } from "../save/game-state";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
+
+export interface SetupSceneData {
+  content: GameContent;
+}
 
 const AVATARS = ["figur1", "figur2", "figur3", "figur4"] as const;
 const COLOURS = ["#e63946", "#f4a261", "#e9c46a", "#2a9d8f", "#457b9d", "#9b5de5"];
@@ -23,12 +28,14 @@ export class SetupScene extends Phaser.Scene {
   private nameInput?: Phaser.GameObjects.DOMElement;
   private stepChildren: Phaser.GameObjects.GameObject[] = [];
   private nextButton?: Phaser.GameObjects.Container;
+  private content!: GameContent;
 
   constructor() {
     super("Setup");
   }
 
-  create(): void {
+  create(data: SetupSceneData): void {
+    this.content = data.content;
     this.step = "navn";
     this.navn = "";
     this.avatarId = "";
@@ -167,7 +174,7 @@ export class SetupScene extends Phaser.Scene {
     };
     setState(save);
     persist().then(() => {
-      this.scene.start("Starter");
+      this.scene.start("Starter", { content: this.content });
     });
   }
 }
