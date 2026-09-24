@@ -27,6 +27,14 @@ const strings = {
   trade_cancelled: "Byttet blev afbrudt",
   trade_last_creature: "Du skal beholde mindst ét monster",
   trade_unknown_species: "Opdater spillet for at bytte",
+  lobby_server_old: "Serveren skal opdateres for at kæmpe",
+  lobby_pick_title: "Hvad vil du?",
+  duel_waiting: "Venter på",
+  duel_invite_suffix: "vil kæmpe!",
+  duel_waiting_move: "Venter på modstanderen...",
+  duel_opponent_left: "Modstanderen gik væk",
+  duel_cancelled: "Kampen blev afbrudt",
+  duel_connection_lost: "Forbindelsen røg",
 } as const;
 
 export type StringKey = keyof typeof strings;

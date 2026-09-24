@@ -42,8 +42,8 @@ export async function joinLobby(options: LobbyJoinOptions): Promise<Room> {
 }
 
 /** Typed wrappers so message names and payloads stay tied to the shared protocol. */
-export function listen<K extends keyof ServerMessages>(room: Room, type: K, handler: (payload: ServerMessages[K]) => void): void {
-  room.onMessage(type, handler);
+export function listen<K extends keyof ServerMessages>(room: Room, type: K, handler: (payload: ServerMessages[K]) => void): () => void {
+  return room.onMessage(type, handler);
 }
 
 export function say<K extends keyof ClientMessages>(room: Room, type: K, payload: ClientMessages[K]): void {

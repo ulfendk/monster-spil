@@ -1,6 +1,6 @@
 # Self-hosting the family server
 
-The multiplayer server (lobby + trading) is a small Node/Colyseus container.
+The multiplayer server (lobby + trading + duels) is a small Node/Colyseus container.
 Solo play never needs it — the client only shows the 🤝 button when it was built
 with a server URL.
 
@@ -135,3 +135,18 @@ trusted dev certificate, or put the dev server behind NPM too.
   monster.
 - Devices must run compatible content: a monster whose species one device
   doesn't know can't be traded to it (the ✓ stays disabled). Update both devices.
+- Duels (⚔️) are server-authoritative but live only in server memory: a restart
+  ends any duel in progress, and nobody's save changes either way (HP is full at
+  the start, nothing is won or lost).
+- A player who disconnects mid-duel forfeits. A player who doesn't pick a move
+  within 30 seconds is skipped for that turn; two skipped turns in a row is a
+  forfeit. Behind a proxy, keep the read/send timeouts generous (see above), or
+  an idle connection is dropped and counts as leaving.
+- The server sends its protocol version when a device joins. An updated app
+  talking to an **older server image** shows "Serveren skal opdateres for at
+  kæmpe" and hides ⚔️, but trading keeps working. Fix: pull the latest
+  `monsterjagt-server` image in Portainer and redeploy.
+- Both devices should run the same content version. The server takes each
+  player's creature, species and moves from their device (it has no content
+  files) and clamps the numbers, so it cannot check them against the real
+  content; this fits the family-trust design.

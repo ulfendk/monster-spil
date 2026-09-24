@@ -24,8 +24,10 @@ collection screen. Deployed to GitHub Pages for solo/offline play.
 
 Milestone 2 (family server) is built: a Colyseus lobby room, one-to-one creature
 trading, a shared family code as the access gate, and a ghcr-published Docker
-image. See "Family server (Milestone 2)" below. Not built yet: PvP (Milestone 3).
-See "What Milestone 3 needs from `/shared`" for what NOT to break.
+image. See "Family server (Milestone 2)" below.
+
+Milestone 3 (PvP duels) is built and tested against a local server with scripted
+clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
 ## Monorepo layout
 
@@ -130,10 +132,11 @@ server-authoritative for PvP in Milestone 3, without a rewrite. Rules to keep:
   and `effectiveness`) so the UI picks the right animation/sound/feedback rather
   than parsing prose text.
 - `participants[0]` is "the player", `participants[1]` is the opponent — that's
-  what the asymmetric `"won" | "lost"` outcome values are relative to. Fine for
-  Milestone 1's solo wild encounters; Milestone 3 PvP will need its own
-  per-client interpretation of outcome (or a `winnerId` field) since there's no
-  privileged side in a real PvP match.
+  what the asymmetric `"won" | "lost"` values of `outcome` are relative to. For
+  anything that isn't slot-relative (PvP) read `winnerId` or call
+  `outcomeFor(state, playerId)`. `BattleState.mode` is `"wild"` (catching allowed)
+  or `"pvp"` (`catch` is ignored, `flee` is a forfeit that gives the other side
+  the win). Turns resolve one side after the other, so a double KO can't happen.
 
 ## Save schema (`client/src/save/schema.ts`)
 
@@ -181,11 +184,29 @@ typed in `shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
   work (background tabs get frozen); drive the second player from a
   `colyseus.js` script, or use two real devices/windows.
 
-## What Milestone 3 needs from `/shared` (don't design against this)
+## PvP duels (Milestone 3)
 
-- **PvP** (M3) = the server collecting one real human action per connected player
-  and calling the exact same `resolveTurn` used for solo battles today. The
-  lobby room and `FamilyGate` already exist to hang matchmaking on.
+- **Same lobby room, no new room.** Tapping a player in the lobby offers 🤝 trade
+  or ⚔️ duel. Messages `duelInvite/duelAccept/duelAction/duelCancel` (client) and
+  `duel/duelEnded/hello` (server) are typed in `shared/src/trade/protocol.ts`.
+- **The state machine is pure and lives in `shared/src/duel/duel-session.ts`**
+  (invite → accept → both answer → `resolveTurn` → repeat). The server
+  (`LobbyRoom`) only owns timers and connections: 30 s per turn, two silent
+  turns in a row or a disconnect = forfeit. Each turn's RNG is derived from
+  `battle.seed` and the turn number, so a session stays plain data and is
+  replayable. `duelView()` is what clients get — it never contains the
+  opponent's pending choice.
+- **The server has no content files**, so each client sends its first creature
+  plus species and moves as a "seat"; `sanitizeSeat` (`shared/src/duel/sanitize.ts`)
+  rebuilds it from known fields, clamps the numbers and starts HP full. Duels
+  never change anyone's save.
+- **Client:** `LobbyScene` keeps the room and launches `BattleScene` on top with
+  `data.duel`; `BattleScene` then registers its own listeners, sends
+  `duelAction`, and resumes the lobby when it ends. Wild battles are unchanged.
+- **Version handshake:** the server sends `hello { protocolVersion }` on join
+  (`PROTOCOL_VERSION` in the protocol file; bump it on incompatible changes). A
+  client that gets no `hello` within 3 s assumes an older server, shows a Danish
+  "server needs updating" note and hides ⚔️ — trading still works.
 
 ## Dependency policy
 

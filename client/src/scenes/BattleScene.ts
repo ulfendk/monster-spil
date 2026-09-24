@@ -1,14 +1,17 @@
 import Phaser from "phaser";
+import type { Room } from "colyseus.js";
 import type {
   CreatureInstance,
   CreatureSpecies,
-  Move,
   BattleState,
   BattleParticipant,
   BattleAction,
   BattleLogEntry,
+  DuelView,
 } from "@shared";
-import { createBattle, resolveTurn, createRng } from "@shared";
+import { createBattle, resolveTurn, createRng, outcomeFor } from "@shared";
+import { listen, say } from "../net/lobby";
+import { makeParticipant } from "../battle-participant";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { persist } from "../save/game-state";
@@ -19,11 +22,20 @@ import { TYPE_COLOURS } from "../gfx/placeholder-sprites";
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 
+/** A player-vs-player battle: the server resolves every turn, this scene only shows it and sends move choices. */
+export interface DuelSceneData {
+  room: Room;
+  view: DuelView;
+  myId: string;
+}
+
+/** Either a wild encounter (wildInstance/wildSpecies) or a duel (duel), never both. */
 export interface BattleSceneData {
   save: SaveData;
   content: GameContent;
-  wildInstance: CreatureInstance;
-  wildSpecies: CreatureSpecies;
+  wildInstance?: CreatureInstance;
+  wildSpecies?: CreatureSpecies;
+  duel?: DuelSceneData;
 }
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -45,6 +57,10 @@ export class BattleScene extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private busy = false;
+  /** "player" in wild battles, the real player id in duels. */
+  private myId = "player";
+  private duel?: DuelSceneData;
+  private finished = false;
 
   constructor() {
     super("Battle");
@@ -53,33 +69,96 @@ export class BattleScene extends Phaser.Scene {
   create(data: BattleSceneData): void {
     this.battleData = data;
     this.busy = false;
+    this.finished = false;
+    this.duel = data.duel;
 
-    const playerSpecies = data.content.speciesById[data.save.creatures[0].speciesId];
-    const playerParticipant: BattleParticipant = {
-      playerId: "player",
-      active: { ...data.save.creatures[0] },
-      species: playerSpecies,
-      moves: resolveMoves(playerSpecies, data.content.movesById),
-    };
-    const wildParticipant: BattleParticipant = {
-      playerId: "wild",
-      active: { ...data.wildInstance },
-      species: data.wildSpecies,
-      moves: resolveMoves(data.wildSpecies, data.content.movesById),
-    };
-
-    this.battleState = createBattle(Date.now(), playerParticipant, wildParticipant);
+    if (data.duel) {
+      this.myId = data.duel.myId;
+      this.battleState = data.duel.view.battle!;
+      // This scene runs on top of the paused lobby, so it needs its own opaque background.
+      this.cameras.main.setBackgroundColor("#1b1f3b");
+      this.wireDuel(data.duel);
+    } else {
+      this.myId = "player";
+      const playerSpecies = data.content.speciesById[data.save.creatures[0].speciesId];
+      const player = makeParticipant("player", data.save.creatures[0], playerSpecies, data.content);
+      const wild = makeParticipant("wild", data.wildInstance!, data.wildSpecies!, data.content);
+      this.battleState = createBattle(Date.now(), player, wild);
+    }
     this.buildUi();
+  }
+
+  private me(): BattleParticipant {
+    return this.battleState.participants.find((p) => p.playerId === this.myId)!;
+  }
+
+  private foe(): BattleParticipant {
+    return this.battleState.participants.find((p) => p.playerId !== this.myId)!;
+  }
+
+  /** A species this device has no picture for (different content version) shows Phaser's placeholder box. */
+  private textureFor(key: string): string {
+    return this.textures.exists(key) ? key : "__MISSING";
+  }
+
+  private wireDuel(duel: DuelSceneData): void {
+    const stops = [
+      listen(duel.room, "duel", (view) => this.onDuelUpdate(view)),
+      listen(duel.room, "duelEnded", ({ reason }) =>
+        this.abortDuel(reason === "left" ? t("duel_opponent_left") : t("duel_cancelled"))
+      ),
+      // A rejected action must not leave us stuck on "waiting".
+      listen(duel.room, "problem", () => {
+        if (this.busy && !this.finished) {
+          this.busy = false;
+          this.renderActions();
+        }
+      }),
+    ];
+    duel.room.onLeave(() => this.abortDuel(t("duel_connection_lost")));
+    this.events.once("shutdown", () => stops.forEach((stop) => stop()));
+  }
+
+  private onDuelUpdate(view: DuelView): void {
+    if (this.finished || view.id !== this.duel?.view.id || !view.battle) return;
+    const next = view.battle;
+    // The server also pushes a view when only the opponent has answered; nothing new to show yet.
+    if (next.turn === this.battleState.turn && next.outcome === "ongoing") return;
+
+    const previousLogLength = this.battleState.log.length;
+    this.battleState = next;
+    this.busy = true;
+    this.updateHpBars();
+    this.reactToEntries(next.log.slice(previousLogLength));
+
+    if (next.outcome !== "ongoing") {
+      this.finished = true;
+      this.showOutcomeMessage(outcomeFor(next, this.myId));
+      this.clearActionButtons();
+      this.time.delayedCall(1400, () => this.endBattle());
+    } else {
+      this.busy = false;
+      this.renderActions();
+    }
+  }
+
+  private abortDuel(message: string): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.clearActionButtons();
+    this.logText.setText(message);
+    this.time.delayedCall(1400, () => this.endBattle());
   }
 
   private buildUi(): void {
     const { width, height } = this.scale;
-    const [player, wild] = this.battleState.participants;
+    const player = this.me();
+    const wild = this.foe();
 
-    this.wildSprite = this.add.image(width * 0.72, height * 0.28, wild.species.spriteFront).setScale(1.4);
+    this.wildSprite = this.add.image(width * 0.72, height * 0.28, this.textureFor(wild.species.spriteFront)).setScale(1.4);
     this.wildHpBar = createHpBar(this, width * 0.72, height * 0.1, wild.species.navn);
 
-    this.playerSprite = this.add.image(width * 0.28, height * 0.62, player.species.spriteBack).setScale(1.4);
+    this.playerSprite = this.add.image(width * 0.28, height * 0.62, this.textureFor(player.species.spriteBack)).setScale(1.4);
     this.playerHpBar = createHpBar(this, width * 0.28, height * 0.46, player.species.navn);
 
     this.logText = this.add.text(width / 2, height * 0.36, "", TITLE_STYLE).setOrigin(0.5);
@@ -89,7 +168,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private updateHpBars(): void {
-    const [player, wild] = this.battleState.participants;
+    const player = this.me();
+    const wild = this.foe();
     this.playerHpBar.setHp(player.active.currentHp, player.species.baseStats.hp);
     this.wildHpBar.setHp(wild.active.currentHp, wild.species.baseStats.hp);
   }
@@ -97,10 +177,11 @@ export class BattleScene extends Phaser.Scene {
   private renderActions(): void {
     this.clearActionButtons();
     const { width, height } = this.scale;
-    const player = this.battleState.participants[0];
-    const moveIds = player.species.moveIds;
+    const player = this.me();
+    const moveIds = Object.keys(player.moves);
     const y = height - 90;
-    const buttonCount = moveIds.length + 2; // moves + flee + catch
+    const canCatch = !this.duel; // you can't catch another player's monster
+    const buttonCount = moveIds.length + (canCatch ? 2 : 1); // moves + flee (+ catch)
     const spacing = Math.min(220, (width - 80) / buttonCount);
     const startX = width / 2 - (spacing * (buttonCount - 1)) / 2;
 
@@ -127,6 +208,7 @@ export class BattleScene extends Phaser.Scene {
       { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: 0x555555 }
     );
     this.actionButtons.push(fleeButton);
+    if (!canCatch) return;
 
     const catchButton = createButton(
       this,
@@ -177,8 +259,16 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private performTurn(playerAction: BattleAction): void {
-    if (this.busy || this.battleState.outcome !== "ongoing") return;
+    if (this.busy || this.finished || this.battleState.outcome !== "ongoing") return;
     this.busy = true;
+
+    if (this.duel) {
+      if (playerAction.kind === "catch") return;
+      this.clearActionButtons();
+      this.logText.setText(t("duel_waiting_move"));
+      say(this.duel.room, "duelAction", { duelId: this.duel.view.id, action: playerAction });
+      return;
+    }
 
     const wild = this.battleState.participants[1];
     const wildMoveId = pickWildMoveId(wild.species);
@@ -214,7 +304,7 @@ export class BattleScene extends Phaser.Scene {
 
       if (entry.kind === "damage") {
         playHitSound();
-        this.shakeSprite(entry.targetPlayerId === "player" ? this.playerSprite : this.wildSprite);
+        this.shakeSprite(entry.targetPlayerId === this.myId ? this.playerSprite : this.wildSprite);
         if (entry.effectiveness === "strong") this.flashFeedback(t("battle_effective_strong"));
         else if (entry.effectiveness === "weak") this.flashFeedback(t("battle_effective_weak"));
       } else if (entry.kind === "miss") {
@@ -254,6 +344,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private endBattle(): void {
+    if (this.duel) {
+      // A duel changes nobody's save. Hand control back to the lobby underneath.
+      this.finished = true;
+      this.scene.resume("Lobby");
+      this.scene.stop();
+      return;
+    }
+
     const player = this.battleState.participants[0];
     const saved = this.battleData.save.creatures.find((c) => c.instanceId === player.active.instanceId);
     if (saved) {
@@ -275,15 +373,6 @@ export class BattleScene extends Phaser.Scene {
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
   }
-}
-
-function resolveMoves(species: CreatureSpecies, movesById: Record<string, Move>): Record<string, Move> {
-  const result: Record<string, Move> = {};
-  for (const id of species.moveIds) {
-    const move = movesById[id];
-    if (move) result[id] = move;
-  }
-  return result;
 }
 
 function pickWildMoveId(species: CreatureSpecies): string {

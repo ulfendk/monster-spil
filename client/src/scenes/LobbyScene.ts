@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import { FAMILY_CODE_REJECTED, applyDelivery, otherPlayerId } from "@shared";
-import type { CreatureInstance, CreatureSpecies, LobbyPlayer, TradeDelivery, TradeSession } from "@shared";
+import { FAMILY_CODE_REJECTED, PROTOCOL_VERSION, applyDelivery, otherPlayerId } from "@shared";
+import type { CreatureInstance, CreatureSpecies, DuelView, LobbyPlayer, TradeDelivery, TradeSession } from "@shared";
 import type { GameContent } from "../content/load-content";
 import type { SaveData } from "../save/schema";
 import { persist } from "../save/game-state";
 import { getFamilyCode, joinLobby, listen, say, setFamilyCode } from "../net/lobby";
+import { makeParticipant } from "../battle-participant";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
 
@@ -16,15 +17,19 @@ export interface LobbySceneData {
 
 type Status = "connecting" | "needCode" | "online" | "offline";
 
+/** How long after joining we wait for the server's "hello" before deciding it predates duels. */
+const HELLO_TIMEOUT_MS = 3000;
+
 const FONT = "sans-serif";
 const RED = 0xc62828;
 const GREY = 0x555555;
 
 /**
- * The family lobby and the trade screen in one overlay: who is online, invite
- * someone, pick one creature each, both tap ✓. The scene only ever draws from
- * its state (status / players / trade / received) — every server message or tap
- * updates that state and asks for a redraw.
+ * The family lobby, trade screen and duel invites in one overlay: who is online,
+ * tap someone to trade (🤝) or duel (⚔️). The scene only ever draws from its
+ * state (status / players / trade / duel / received) — every server message or
+ * tap updates that state and asks for a redraw. An accepted duel runs in the
+ * Battle scene on top of this one, which keeps the room connection.
  */
 export class LobbyScene extends Phaser.Scene {
   private sceneData!: LobbySceneData;
@@ -32,6 +37,13 @@ export class LobbyScene extends Phaser.Scene {
   private status: Status = "connecting";
   private players: LobbyPlayer[] = [];
   private trade: TradeSession | null = null;
+  /** A duel invite we sent or received (before it starts); once active it moves to the Battle scene. */
+  private duel: DuelView | null = null;
+  private battleRunning = false;
+  /** The player whose tile was tapped, while choosing trade or duel. */
+  private picked: LobbyPlayer | null = null;
+  /** Undefined until the server says hello; "old" if it never does (a server without duels). */
+  private serverVersion?: number | "old";
   /** One-shot message shown on the lobby view (e.g. "trade cancelled"). */
   private notice?: string;
   /** Set right after a completed trade, to show what arrived. */
@@ -51,6 +63,10 @@ export class LobbyScene extends Phaser.Scene {
     this.status = "connecting";
     this.players = [];
     this.trade = null;
+    this.duel = null;
+    this.battleRunning = false;
+    this.picked = null;
+    this.serverVersion = undefined;
     this.notice = undefined;
     this.received = undefined;
     this.closing = false;
@@ -64,6 +80,12 @@ export class LobbyScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       this.closing = true;
       void this.room?.leave();
+    });
+    // The Battle scene resumes us when a duel is over.
+    this.events.on("resume", () => {
+      this.battleRunning = false;
+      this.duel = null;
+      this.requestDraw();
     });
     void this.connect();
   }
@@ -125,15 +147,63 @@ export class LobbyScene extends Phaser.Scene {
       this.requestDraw();
     });
     listen(room, "tradeComplete", (delivery) => void this.receive(delivery));
+    listen(room, "hello", ({ protocolVersion }) => {
+      this.serverVersion = protocolVersion;
+      this.requestDraw();
+    });
+    // An old server never says hello, so silence means it can trade but not duel.
+    this.time.delayedCall(HELLO_TIMEOUT_MS, () => {
+      if (this.serverVersion === undefined) {
+        this.serverVersion = "old";
+        this.requestDraw();
+      }
+    });
+    listen(room, "duel", (view) => this.onDuel(view));
+    listen(room, "duelEnded", () => {
+      if (this.battleRunning) return; // the Battle scene shows this one
+      this.duel = null;
+      this.notice = t("duel_cancelled");
+      this.requestDraw();
+    });
     listen(room, "problem", ({ reason }) => console.warn("Lobby:", reason));
     room.onLeave(() => {
       if (this.closing || this.room !== room) return;
       this.room = undefined;
       this.trade = null;
+      this.duel = null;
       this.players = [];
       this.status = "offline";
       this.requestDraw();
     });
+  }
+
+  private get canDuel(): boolean {
+    return typeof this.serverVersion === "number" && this.serverVersion >= 2 && PROTOCOL_VERSION >= 2;
+  }
+
+  private onDuel(view: DuelView): void {
+    if (this.battleRunning) return; // the Battle scene listens for its own updates
+    this.notice = undefined;
+    if (view.phase === "active" && view.battle && this.room) {
+      this.battleRunning = true;
+      this.duel = null;
+      this.scene.launch("Battle", {
+        save: this.sceneData.save,
+        content: this.sceneData.content,
+        duel: { room: this.room, view, myId: this.me.id },
+      });
+      this.scene.pause();
+      return;
+    }
+    this.duel = view.phase === "invited" ? view : null;
+    this.requestDraw();
+  }
+
+  /** My own first creature as a battle seat, including its species and moves (the server has no content files). */
+  private mySeat() {
+    const { save, content } = this.sceneData;
+    const creature = save.creatures[0]!;
+    return makeParticipant(this.me.id, creature, content.speciesById[creature.speciesId]!, content);
   }
 
   /** Applies a finished trade to the save, persists it, and only then tells the server it's safe to forget. */
@@ -161,6 +231,7 @@ export class LobbyScene extends Phaser.Scene {
     this.room = undefined;
     void room?.leave();
     this.trade = null;
+    this.duel = null;
     this.players = [];
     this.notice = undefined;
     this.status = "needCode";
@@ -197,6 +268,8 @@ export class LobbyScene extends Phaser.Scene {
     if (this.status === "offline") return this.drawOffline();
     if (this.received) return this.drawReceived(this.received);
     if (this.trade) return this.drawTrade(this.trade);
+    if (this.duel) return this.drawDuelInvite(this.duel);
+    if (this.picked) return this.drawChoice(this.picked);
     this.drawLobby();
   }
 
@@ -242,6 +315,7 @@ export class LobbyScene extends Phaser.Scene {
     this.addText(width / 2, 50, "🤝", 56);
     this.addButton(90, this.scale.height - 50, "🔑", () => this.changeCode(), 72, GREY);
     if (this.notice) this.addText(width / 2, 110, this.notice, 24, "#ffce54");
+    else if (this.serverVersion === "old") this.addText(width / 2, 110, t("lobby_server_old"), 24, "#ffce54");
 
     if (this.players.length === 0) {
       this.addText(width / 2, 300, t("lobby_alone"), 30, "#cccccc");
@@ -269,9 +343,49 @@ export class LobbyScene extends Phaser.Scene {
     const tile = this.add.container(x, y, [bg, dot, name]).setSize(190, 150);
     if (!player.busy) {
       tile.setInteractive({ useHandCursor: true });
-      tile.on("pointerup", () => this.room && say(this.room, "invite", { toPlayerId: player.playerId }));
+      tile.on("pointerup", () => {
+        // Without duel support on the server there is only one thing to invite to.
+        if (this.serverVersion === "old" || !this.canDuel) return this.room && say(this.room, "invite", { toPlayerId: player.playerId });
+        this.picked = player;
+        this.requestDraw();
+      });
     }
     this.ui.add(tile);
+  }
+
+  /** After tapping a player: 🤝 to trade or ⚔️ to duel. */
+  private drawChoice(player: LobbyPlayer): void {
+    const { width, height } = this.scale;
+    this.addText(width / 2, height / 2 - 130, player.navn, 40);
+    this.addButton(width / 2 - 110, height / 2, "🤝", () => {
+      this.picked = null;
+      if (this.room) say(this.room, "invite", { toPlayerId: player.playerId });
+    }, 180);
+    this.addButton(width / 2 + 110, height / 2, "⚔️", () => {
+      this.picked = null;
+      if (this.room) say(this.room, "duelInvite", { toPlayerId: player.playerId, seat: this.mySeat() });
+    }, 180, 0xc62828);
+    this.addButton(width / 2, height / 2 + 120, "✗", () => {
+      this.picked = null;
+      this.requestDraw();
+    }, 120, GREY);
+  }
+
+  private drawDuelInvite(duel: DuelView): void {
+    const { width, height } = this.scale;
+    const iAmInviter = duel.inviterId === this.me.id;
+    const otherId = iAmInviter ? duel.inviteeId : duel.inviterId;
+    const otherName = this.players.find((p) => p.playerId === otherId)?.navn ?? "?";
+    const cancel = () => this.room && say(this.room, "duelCancel", { duelId: duel.id });
+    if (iAmInviter) {
+      this.addText(width / 2, height / 2 - 60, `${t("duel_waiting")} ${otherName}`, 34);
+      this.addText(width / 2, height / 2 + 10, "⚔️", 64);
+      this.addButton(width / 2, height / 2 + 110, "✗", cancel, 120, RED);
+    } else {
+      this.addText(width / 2, height / 2 - 60, `${otherName} ${t("duel_invite_suffix")}`, 34);
+      this.addButton(width / 2 - 90, height / 2 + 60, "⚔️", () => this.room && say(this.room, "duelAccept", { duelId: duel.id, seat: this.mySeat() }), 120, 0x2e7d32);
+      this.addButton(width / 2 + 90, height / 2 + 60, "✗", cancel, 120, RED);
+    }
   }
 
   private drawTrade(trade: TradeSession): void {
