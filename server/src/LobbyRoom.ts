@@ -14,6 +14,7 @@ import {
   duelView,
   forfeitDuel,
   involves,
+  isAdjacent,
   sanitizeSeat,
   setOffer,
   submitAction,
@@ -31,6 +32,7 @@ import type {
   TradeDelivery,
   TradeResult,
   TradeSession,
+  WorldPosition,
 } from "@monster-spil/shared";
 
 interface Online {
@@ -43,6 +45,15 @@ const TURN_MS = 30_000;
 
 const isText = (v: unknown, max = 40): v is string => typeof v === "string" && v.length > 0 && v.length <= max;
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** A tile position from a client: whole numbers in a sane range and a short area id, or nothing. */
+function cleanPosition(raw: unknown): WorldPosition | undefined {
+  const p = raw as Partial<WorldPosition> | null;
+  if (!p || typeof p !== "object") return undefined;
+  const whole = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 10_000;
+  if (typeof p.areaId !== "string" || p.areaId.length > 40 || !whole(p.x) || !whole(p.y)) return undefined;
+  return { areaId: p.areaId, x: p.x, y: p.y };
+}
 
 /** Rebuilds an offered creature from known fields only, so junk from a client never gets stored or forwarded. */
 function cleanCreature(raw: unknown): CreatureInstance | undefined {
@@ -94,11 +105,29 @@ export class LobbyRoom extends Room {
   onCreate(options: { gate: FamilyGate }): void {
     this.gate = options.gate;
 
+    this.onMessage("move", (client, msg: ClientMessages["move"]) => {
+      const me = this.playerOf(client);
+      const position = cleanPosition(msg);
+      if (!me || !position) return;
+      Object.assign(me.info, position);
+      for (const other of this.online.values()) {
+        if (other !== me) this.tell(other.client, "playerMoved", { playerId: me.info.playerId, ...position });
+      }
+    });
+
+    this.onMessage("away", (client, msg: ClientMessages["away"]) => {
+      const me = this.playerOf(client);
+      if (!me || typeof msg?.away !== "boolean") return;
+      me.info.away = msg.away;
+      this.broadcastPlayers();
+    });
+
     this.onMessage("invite", (client, msg: ClientMessages["invite"]) => {
       const me = this.playerOf(client);
       const target = this.online.get(msg?.toPlayerId);
-      if (!me || !target) return this.problem(client, "player not online");
-      if (me.info.busy || target.info.busy) return this.problem(client, "player is busy");
+      const refusal = this.inviteRefusal(me, target);
+      if (refusal) return this.problem(client, refusal);
+      if (!me || !target) return;
       const created = createTrade(randomUUID(), me.info.playerId, target.info.playerId);
       if (!created.ok) return this.problem(client, created.reason);
       this.trades.set(created.session.id, created.session);
@@ -128,8 +157,9 @@ export class LobbyRoom extends Room {
     this.onMessage("duelInvite", (client, msg: ClientMessages["duelInvite"]) => {
       const me = this.playerOf(client);
       const target = this.online.get(msg?.toPlayerId);
-      if (!me || !target) return this.problem(client, "player not online");
-      if (me.info.busy || target.info.busy) return this.problem(client, "player is busy");
+      const refusal = this.inviteRefusal(me, target);
+      if (refusal) return this.problem(client, refusal);
+      if (!me || !target) return;
       const seat = sanitizeSeat(msg.seat, me.info.playerId);
       if (!seat) return this.problem(client, "invalid creature");
       const created = createDuel(randomUUID(), me.info.playerId, target.info.playerId, seat);
@@ -183,6 +213,9 @@ export class LobbyRoom extends Room {
       avatarId: options.avatarId,
       farve: options.farve,
       busy: false,
+      away: false,
+      // Without a valid position (an older client) you are nowhere, so never adjacent to anyone.
+      ...(cleanPosition(options) ?? { areaId: "", x: 0, y: 0 }),
     };
     this.online.set(info.playerId, { client, info });
 
@@ -204,6 +237,14 @@ export class LobbyRoom extends Room {
       if (duelInvolves(session, me.info.playerId)) this.settleDuel(forfeitDuel(session, me.info.playerId), "left");
     }
     this.broadcastPlayers();
+  }
+
+  /** Why an invite from `me` to `target` must be refused, or undefined if it is fine. Shared by trades and duels. */
+  private inviteRefusal(me: Online | undefined, target: Online | undefined): string | undefined {
+    if (!me || !target) return "player not online";
+    if (me.info.busy || target.info.busy || me.info.away || target.info.away) return "player is busy";
+    if (!isAdjacent(me.info, target.info)) return "too far away";
+    return undefined;
   }
 
   private duelFor(client: Client, duelId: string | undefined): DuelSession | undefined {

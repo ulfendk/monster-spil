@@ -36,3 +36,5 @@ export {
 } from "./duel/duel-session.js";
 export type { DuelPhase, DuelAction, DuelSession, DuelView, DuelResult } from "./duel/duel-session.js";
 export { sanitizeSeat } from "./duel/sanitize.js";
+export { isAdjacent } from "./world/adjacency.js";
+export type { WorldPosition } from "./world/adjacency.js";
