@@ -9,18 +9,24 @@ export interface BattleParticipant {
   moves: Record<string, Move>;
 }
 
+/** "wild": one human vs. an AI-driven wild creature (catching allowed). "pvp": two humans, no catching. */
+export type BattleMode = "wild" | "pvp";
+
 /**
- * By convention participants[0] is "the player" and participants[1] is the
- * opponent — that's what "won"/"lost" below are relative to. Milestone 1 is
- * solo-only (wild encounters), so this asymmetry is fine; PvP in Milestone 3
- * will need its own per-client interpretation of outcome.
+ * participants[0] is "the player" and participants[1] is the opponent — that's
+ * what "won"/"lost" below are relative to. That's fine for solo wild battles;
+ * in PvP neither side is privileged, so read `winnerId` (or `outcomeFor`)
+ * instead of `outcome`.
  */
 export interface BattleState {
   seed: number;
   turn: number;
+  mode: BattleMode;
   participants: [BattleParticipant, BattleParticipant];
   log: BattleLogEntry[];
   outcome: "ongoing" | "won" | "lost" | "fled" | "caught";
+  /** playerId of the winner once a "won"/"lost" battle (or a PvP forfeit) is over. Absent for wild "fled"/"caught". */
+  winnerId?: string;
 }
 
 export type BattleAction =

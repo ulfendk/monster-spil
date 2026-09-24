@@ -1,18 +1,20 @@
 import type { CreatureSpecies } from "../types/creature.js";
 import type { Move } from "../types/move.js";
 import { getMultiplier } from "../types/type-chart.js";
-import type { BattleAction, BattleParticipant, BattleState, BattleLogEntry } from "../types/battle.js";
+import type { BattleAction, BattleMode, BattleParticipant, BattleState, BattleLogEntry } from "../types/battle.js";
 import type { Rng } from "./rng.js";
 import { attemptCatch } from "./catch.js";
 
 export function createBattle(
   seed: number,
   player: BattleParticipant,
-  opponent: BattleParticipant
+  opponent: BattleParticipant,
+  mode: BattleMode = "wild"
 ): BattleState {
   return {
     seed,
     turn: 0,
+    mode,
     participants: [player, opponent],
     log: [],
     outcome: "ongoing",
@@ -53,10 +55,17 @@ export function resolveTurn(
         text: `${speciesName(participant)} løb væk!`,
         targetPlayerId: participant.playerId,
       });
+      if (state.mode === "pvp") {
+        // Fleeing a duel is a forfeit. If both flee in one turn, the first
+        // in participants order forfeits (deterministic, no rng needed).
+        const winner = otherParticipant(participants, participant);
+        return finish(state, turn, log, participants, winner.playerId);
+      }
       return { ...state, turn, log: [...state.log, ...log], outcome: "fled" };
     }
 
-    if (action.kind === "catch") {
+    // You can't catch another player's creature.
+    if (action.kind === "catch" && state.mode === "wild") {
       const opponent = otherParticipant(participants, participant);
       const success = attemptCatch(opponent.active, opponent.species, rng);
       log.push({
@@ -124,14 +133,33 @@ export function resolveTurn(
   }
 
   const [player, opponent] = participants;
-  let outcome: BattleState["outcome"] = "ongoing";
-  if (player.active.currentHp === 0) {
-    outcome = "lost";
-  } else if (opponent.active.currentHp === 0) {
-    outcome = "won";
-  }
+  if (player.active.currentHp === 0) return finish(state, turn, log, participants, opponent.playerId);
+  if (opponent.active.currentHp === 0) return finish(state, turn, log, participants, player.playerId);
 
-  return { ...state, turn, participants, log: [...state.log, ...log], outcome };
+  return { ...state, turn, participants, log: [...state.log, ...log], outcome: "ongoing" };
+}
+
+/** The battle's result from one participant's point of view (PvP-safe; `outcome` alone is slot-0 relative). */
+export function outcomeFor(state: BattleState, playerId: string): BattleState["outcome"] {
+  if (state.outcome === "ongoing" || state.outcome === "caught" || state.outcome === "fled") return state.outcome;
+  return state.winnerId === playerId ? "won" : "lost";
+}
+
+function finish(
+  state: BattleState,
+  turn: number,
+  log: BattleLogEntry[],
+  participants: [BattleParticipant, BattleParticipant],
+  winnerId: string
+): BattleState {
+  return {
+    ...state,
+    turn,
+    participants,
+    log: [...state.log, ...log],
+    outcome: winnerId === participants[0].playerId ? "won" : "lost",
+    winnerId,
+  };
 }
 
 function calculateDamage(attacker: CreatureSpecies, defender: CreatureSpecies, move: Move, multiplier: number): number {
