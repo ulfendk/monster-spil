@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { getLayout } from "./layout";
 
 export interface ButtonOptions {
   width?: number;
@@ -50,4 +51,20 @@ export function createButton(
   container.on("pointerout", () => bg.setFillStyle(color, 1));
 
   return container;
+}
+
+/**
+ * The ✗/X close button every overlay has in its top-right corner, clear of the iPhone
+ * notch and status bar. Returns the button and how much height the header row takes.
+ */
+export function addCloseButton(scene: Phaser.Scene, onTap: () => void): { button: Phaser.GameObjects.Container; headerH: number; size: number } {
+  const layout = getLayout(scene);
+  const size = layout.touch(64);
+  const button = createButton(scene, layout.width - layout.safe.right - 12 - size / 2, layout.safe.top + 10 + size / 2, "X", onTap, {
+    width: size,
+    height: size,
+    fontSize: layout.font(28),
+    backgroundColor: 0x555555,
+  });
+  return { button, headerH: layout.safe.top + 10 + size + 10, size };
 }

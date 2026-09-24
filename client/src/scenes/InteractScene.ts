@@ -6,7 +6,8 @@ import type { SaveData } from "../save/schema";
 import { presence } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { t } from "../i18n/da";
-import { createButton } from "../ui/Button";
+import { addCloseButton, createButton } from "../ui/Button";
+import { getLayout, onRelayout } from "../ui/layout";
 
 export interface InteractSceneData {
   content: GameContent;
@@ -15,7 +16,6 @@ export interface InteractSceneData {
 
 const FONT = "sans-serif";
 const RED = 0xc62828;
-const GREY = 0x555555;
 
 /**
  * The trade and duel-invite screens, shown over the map whenever someone
@@ -42,8 +42,6 @@ export class InteractScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0);
-    overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
     this.ui = this.add.container(0, 0);
 
     const redraw = () => this.requestDraw();
@@ -58,6 +56,7 @@ export class InteractScene extends Phaser.Scene {
       () => presence.events.off("status", redraw),
       () => presence.events.off("duelActive", onDuelActive),
     ];
+    onRelayout(this, () => this.requestDraw());
     // The Battle scene resumes us when a duel is over.
     const onResume = () => this.requestDraw();
     this.events.on("resume", onResume);
@@ -117,7 +116,10 @@ export class InteractScene extends Phaser.Scene {
 
   private draw(): void {
     this.ui.removeAll(true);
-    const { width } = this.scale;
+    const { width, height } = this.scale;
+    // Redrawn with the rest, so it covers the whole screen after a rotation; also swallows taps meant for the map.
+    this.ui.add(this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0).setInteractive());
+    const close = () => this.ui.add(addCloseButton(this, () => this.leave()).button);
 
     if (presence.status !== "online" && !presence.received) {
       presence.interactNotice = undefined; // nothing to say over a dead connection
@@ -125,15 +127,15 @@ export class InteractScene extends Phaser.Scene {
     }
 
     if (presence.received) {
-      this.addButton(width - 90, 50, "X", () => this.leave(), 72, GREY);
+      close();
       return this.drawReceived(presence.received);
     }
     if (presence.trade) {
-      this.addButton(width - 90, 50, "X", () => this.leave(), 72, GREY);
+      close();
       return this.drawTrade(presence.trade);
     }
     if (presence.duel) {
-      this.addButton(width - 90, 50, "X", () => this.leave(), 72, GREY);
+      close();
       return this.drawDuelInvite(presence.duel);
     }
     if (presence.interactNotice) return this.drawNotice(presence.interactNotice);
@@ -190,49 +192,70 @@ export class InteractScene extends Phaser.Scene {
   }
 
   private drawPicking(trade: TradeSession, iAmInviter: boolean, otherName: string): void {
-    const { width, height } = this.scale;
+    const layout = getLayout(this);
+    const { width, height, safe, portrait } = layout;
     const mine = iAmInviter ? trade.inviter : trade.invitee;
     const theirs = iAmInviter ? trade.invitee : trade.inviter;
     const { save, content } = this.sceneData;
+    const buttonsH = layout.touch(72);
+    const bottom = height - safe.bottom - 16 - buttonsH; // top of the ✓ / ✗ row
+    const top = safe.top + layout.touch(64) + 20; // below the close button
 
-    // Left: my creatures to pick from.
-    this.addText(width * 0.27, 40, t("trade_pick"), 28, "#cccccc");
+    // My creatures to pick from: the left half, or the top part on a tall screen.
+    const mineArea = portrait
+      ? { x: safe.left + 12, y: top, w: width - safe.left - safe.right - 24, h: (bottom - top) * 0.58 }
+      : { x: safe.left + 12, y: safe.top + 16, w: width * 0.55 - safe.left - 24, h: bottom - safe.top - 32 };
+    this.addText(mineArea.x + mineArea.w / 2, mineArea.y + layout.px(20), t("trade_pick"), 28, "#cccccc");
     if (save.creatures.length <= 1) {
-      this.addText(width * 0.27, 200, t("trade_last_creature"), 24, "#ffce54");
+      this.addText(mineArea.x + mineArea.w / 2, mineArea.y + mineArea.h / 2, t("trade_last_creature"), 24, "#ffce54", mineArea.w);
     } else {
-      const cell = 130;
-      const columns = Math.max(1, Math.floor((width * 0.5 - 40) / cell));
+      const gridTop = mineArea.y + layout.px(56);
+      const cell = Math.min(130, this.fitCell(save.creatures.length, mineArea.w, mineArea.y + mineArea.h - gridTop));
+      const columns = Math.max(1, Math.floor(mineArea.w / cell));
+      const rowW = Math.min(columns, save.creatures.length) * cell;
       save.creatures.forEach((creature, i) => {
-        const x = 60 + cell / 2 + (i % columns) * cell;
-        const y = 140 + Math.floor(i / columns) * cell;
+        const x = mineArea.x + (mineArea.w - rowW) / 2 + cell / 2 + (i % columns) * cell;
+        const y = gridTop + cell / 2 + Math.floor(i / columns) * cell;
         const selected = mine.offer?.instanceId === creature.instanceId;
         this.addCreatureTile(x, y, content.speciesById[creature.speciesId], selected, () => {
           presence.send("offer", { tradeId: trade.id, creature });
-        });
+        }, cell - 12);
       });
     }
 
-    // Right: what the other player offers.
-    const rightX = width * 0.78;
-    this.addText(rightX, 40, otherName, 28, "#cccccc");
+    // What the other player offers: the right side, or below my creatures.
+    const theirs_ = portrait
+      ? { x: width / 2, y: mineArea.y + mineArea.h + (bottom - mineArea.y - mineArea.h) / 2 }
+      : { x: width * 0.78, y: top + layout.px(30) + (bottom - top - layout.px(30)) / 2 };
+    const radius = Math.min(80, (portrait ? bottom - mineArea.y - mineArea.h : bottom - top) * 0.3);
+    this.addText(theirs_.x, theirs_.y - radius - layout.px(28), otherName, 28, "#cccccc");
     const theirSpecies = theirs.offer ? content.speciesById[theirs.offer.speciesId] : undefined;
-    this.addOfferCircle(rightX, 190, theirs.offer ? theirSpecies : undefined, theirs.confirmed);
-    if (theirs.offer && !theirSpecies) this.addText(rightX, 300, t("trade_unknown_species"), 20, "#ffce54");
+    this.addOfferCircle(theirs_.x, theirs_.y, theirs.offer ? theirSpecies : undefined, theirs.confirmed, radius);
+    if (theirs.offer && !theirSpecies) this.addText(theirs_.x, theirs_.y + radius + layout.px(24), t("trade_unknown_species"), 20, "#ffce54", width * 0.4);
 
     // Bottom: confirm / cancel.
     const canConfirm = Boolean(mine.offer && theirs.offer && theirSpecies);
-    const confirm = this.addButton(width / 2 - 90, height - 70, "✓", () => presence.send("confirm", { tradeId: trade.id }), 120, mine.confirmed ? 0x1b5e20 : 0x2e7d32);
+    const by = bottom + buttonsH / 2;
+    const confirm = this.addButton(width / 2 - 90, by, "✓", () => presence.send("confirm", { tradeId: trade.id }), 120, mine.confirmed ? 0x1b5e20 : 0x2e7d32);
     if (!canConfirm || mine.confirmed) confirm.setAlpha(0.35).disableInteractive();
-    this.addButton(width / 2 + 90, height - 70, "✗", () => this.cancel(trade), 120, RED);
+    this.addButton(width / 2 + 90, by, "✗", () => this.cancel(trade), 120, RED);
+  }
+
+  /** The biggest square cell so `count` tiles fit in a w × h area. */
+  private fitCell(count: number, w: number, h: number): number {
+    let best = 0;
+    for (let cols = 1; cols <= count; cols++) best = Math.max(best, Math.min(w / cols, h / Math.ceil(count / cols)));
+    return best;
   }
 
   private drawReceived(creature: CreatureInstance): void {
     const { width, height } = this.scale;
     const species = this.sceneData.content.speciesById[creature.speciesId];
-    this.addText(width / 2, 100, presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, "#ffce54");
+    const layout = getLayout(this);
+    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, "#ffce54");
     this.addOfferCircle(width / 2, height / 2, species, false, 90);
     if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
-    this.addButton(width / 2, height - 90, "OK", () => {
+    this.addButton(width / 2, height - layout.safe.bottom - 24 - layout.touch(72) / 2, "OK", () => {
       presence.received = undefined;
       this.requestDraw();
     }, 160);
@@ -244,14 +267,18 @@ export class InteractScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- helpers
 
-  private addText(x: number, y: number, text: string, size: number, color = "#ffffff"): Phaser.GameObjects.Text {
-    const label = this.add.text(x, y, text, { fontFamily: FONT, fontSize: `${size}px`, color }).setOrigin(0.5);
+  private addText(x: number, y: number, text: string, size: number, color = "#ffffff", wrap?: number): Phaser.GameObjects.Text {
+    const layout = getLayout(this);
+    const label = this.add
+      .text(x, y, text, { fontFamily: FONT, fontSize: layout.font(size), color, align: "center", wordWrap: { width: wrap ?? layout.width - 40 } })
+      .setOrigin(0.5);
     this.ui.add(label);
     return label;
   }
 
   private addButton(x: number, y: number, label: string, onTap: () => void, width: number, color?: number): Phaser.GameObjects.Container {
-    const button = createButton(this, x, y, label, onTap, { width, height: 72, fontSize: "36px", backgroundColor: color });
+    const layout = getLayout(this);
+    const button = createButton(this, x, y, label, onTap, { width, height: layout.touch(72), fontSize: layout.font(36), backgroundColor: color });
     this.ui.add(button);
     return button;
   }
@@ -272,13 +299,14 @@ export class InteractScene extends Phaser.Scene {
     y: number,
     species: CreatureSpecies | undefined,
     selected: boolean,
-    onTap: () => void
+    onTap: () => void,
+    size = 118
   ): void {
-    const bg = this.add.rectangle(x, y, 118, 118, 0x2b2f52).setStrokeStyle(selected ? 6 : 3, selected ? 0xffce54 : 0xffffff, selected ? 1 : 0.5);
+    const bg = this.add.rectangle(x, y, size, size, 0x2b2f52).setStrokeStyle(selected ? 6 : 3, selected ? 0xffce54 : 0xffffff, selected ? 1 : 0.5);
     bg.setInteractive({ useHandCursor: true });
     bg.on("pointerup", onTap);
     this.ui.add(bg);
-    this.addSprite(x, y, species, 90);
+    this.addSprite(x, y, species, size * 0.76);
   }
 
   private addOfferCircle(x: number, y: number, species: CreatureSpecies | undefined, confirmed: boolean, radius = 80): void {

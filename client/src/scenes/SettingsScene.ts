@@ -2,7 +2,8 @@ import Phaser from "phaser";
 import { presence } from "../net/presence";
 import { setFamilyCode } from "../net/lobby";
 import { t } from "../i18n/da";
-import { createButton } from "../ui/Button";
+import { addCloseButton, createButton } from "../ui/Button";
+import { getLayout, onRelayout } from "../ui/layout";
 
 const FONT = "sans-serif";
 const GREY = 0x555555;
@@ -12,6 +13,7 @@ export class SettingsScene extends Phaser.Scene {
   private ui!: Phaser.GameObjects.Container;
   private codeInput?: Phaser.GameObjects.DOMElement;
   private enteringCode = false;
+  private typed = "";
   private closing = false;
   private off?: () => void;
 
@@ -26,9 +28,7 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { width, height } = this.scale;
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0);
-    overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
+
     this.ui = this.add.container(0, 0);
 
     const redraw = () => this.requestDraw();
@@ -39,6 +39,11 @@ export class SettingsScene extends Phaser.Scene {
       presence.events.off("players", redraw);
     };
     this.events.once("shutdown", () => this.off?.());
+    onRelayout(this, () => {
+      // Keep a half-typed family code across the redraw.
+      this.typed = (this.codeInput?.node as HTMLInputElement | undefined)?.value ?? "";
+      this.requestDraw();
+    });
     this.requestDraw();
   }
 
@@ -62,8 +67,11 @@ export class SettingsScene extends Phaser.Scene {
     this.codeInput?.destroy();
     this.codeInput = undefined;
     this.ui.removeAll(true);
-    const { width, height } = this.scale;
-    this.addButton(width - 90, 50, "X", () => this.close(), 72, GREY);
+    const layout = getLayout(this);
+    const { width, height } = layout;
+    // Redrawn with the rest, so it always covers the whole screen; also swallows taps meant for the map underneath.
+    this.ui.add(this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0).setInteractive());
+    this.ui.add(addCloseButton(this, () => this.close()).button);
 
     if (this.enteringCode) return this.drawCodeEntry();
 
@@ -78,7 +86,7 @@ export class SettingsScene extends Phaser.Scene {
     } else if (presence.status === "offline") {
       this.addText(width / 2, height / 2, t("lobby_offline"), 32, "#cccccc");
     }
-    this.addButton(90, height - 50, "🔑", () => {
+    this.addButton(layout.safe.left + 16 + 45, height - layout.safe.bottom - 16 - 36, "🔑", () => {
       this.enteringCode = true;
       this.requestDraw();
     }, 72, GREY);
@@ -92,9 +100,10 @@ export class SettingsScene extends Phaser.Scene {
       width / 2,
       height * 0.5,
       "input",
-      "font-size:32px;width:360px;padding:16px;border-radius:16px;border:none;text-align:center;"
+      `font-size:${getLayout(this).font(32)};width:${Math.min(360, width - 80)}px;padding:16px;border-radius:16px;border:none;text-align:center;`
     );
     const el = this.codeInput.node as HTMLInputElement;
+    el.value = this.typed;
     el.type = "password";
     el.autocomplete = "off";
     el.autocapitalize = "off";

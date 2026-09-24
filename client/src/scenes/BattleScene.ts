@@ -37,6 +37,7 @@ import {
 } from "../ui/icons";
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
+import { getLayout, onRelayout } from "../ui/layout";
 
 /** A player-vs-player battle: the server resolves every turn, this scene only shows it and sends move choices. */
 export interface DuelSceneData {
@@ -80,6 +81,9 @@ export class BattleScene extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   /** A big emoji above the message, so the battle can be followed without reading. */
   private logIcon!: Phaser.GameObjects.Text;
+  /** The message showing now, so a relayout can put it back. */
+  private logTextValue = "";
+  private logIconValue = "";
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private busy = false;
   /** "player" in wild battles, the real player id in duels. */
@@ -116,7 +120,11 @@ export class BattleScene extends Phaser.Scene {
       const wild = makeParticipant("wild", data.wildInstance!, data.wildSpecies!, data.content);
       this.battleState = createBattle(Date.now(), player, wild);
     }
+    this.logTextValue = "";
+    this.logIconValue = "";
     this.buildUi();
+    this.renderActions();
+    onRelayout(this, () => this.relayout());
     playCreatureSound(this, this.foe().species);
   }
 
@@ -222,6 +230,8 @@ export class BattleScene extends Phaser.Scene {
 
   /** Shows a battle message with its icon. */
   private say(text: string, icon: string): void {
+    this.logTextValue = text;
+    this.logIconValue = icon;
     this.logText.setText(text);
     this.logIcon.setText(icon);
   }
@@ -234,23 +244,69 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(1400, () => this.endBattle());
   }
 
+  /**
+   * Places everything for the current screen: portrait phones get the foe at the top,
+   * the player below and a grid of buttons at the bottom; landscape keeps the classic
+   * diagonal. Called again (after destroying the old objects) when the screen rotates.
+   */
   private buildUi(): void {
-    const { width, height } = this.scale;
+    const layout = getLayout(this);
+    const { width, portrait, safe } = layout;
     const player = this.me();
     const wild = this.foe();
+    const arena = this.arena();
+    const spriteBase = Math.min(arena.h * (portrait ? 0.26 : 0.34), width * (portrait ? 0.42 : 0.26)) / 128;
+    const spriteScale = Phaser.Math.Clamp(spriteBase, 0.55, 1.6);
+    const barSize = Phaser.Math.Clamp(Math.min(width * (portrait ? 0.5 : 0.24), 260) / 220, 0.6, 1.1);
 
+    const foe = portrait ? { x: width * 0.66, y: arena.top + arena.h * 0.3 } : { x: width * 0.72, y: arena.top + arena.h * 0.36 };
+    const me = portrait ? { x: width * 0.33, y: arena.top + arena.h * 0.8 } : { x: width * 0.28, y: arena.top + arena.h * 0.76 };
     // The dragon is drawn bigger than any monster.
-    this.wildSprite = this.add.image(width * 0.72, height * 0.28, this.textureFor(wild.species.spriteFront)).setScale(this.raid ? 2.1 : 1.4);
-    this.wildHpBar = createHpBar(this, width * 0.72, height * 0.1, wild.species.navn);
+    const foeScale = spriteScale * (this.raid ? 1.5 : 1);
+    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale);
+    this.wildHpBar = createHpBar(this, foe.x, foe.y - 64 * foeScale - layout.px(14), wild.species.navn, barSize);
+    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale);
+    this.playerHpBar = createHpBar(this, me.x, me.y - 64 * spriteScale - layout.px(14), player.species.navn, barSize);
 
-    this.playerSprite = this.add.image(width * 0.28, height * 0.62, this.textureFor(player.species.spriteBack)).setScale(1.4);
-    this.playerHpBar = createHpBar(this, width * 0.28, height * 0.46, player.species.navn);
-
-    this.logIcon = this.add.text(width / 2, height * 0.36 - 56, "", { fontFamily: "sans-serif", fontSize: "64px" }).setOrigin(0.5);
-    this.logText = this.add.text(width / 2, height * 0.36 + 10, "", TITLE_STYLE).setOrigin(0.5);
+    const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;
+    const iconSize = Math.max(40, layout.px(64));
+    this.logIcon = this.add.text(width / 2, logY - iconSize * 0.9, this.logIconValue, { fontFamily: "sans-serif", fontSize: `${iconSize}px` }).setOrigin(0.5);
+    this.logText = this.add
+      .text(width / 2, logY, this.logTextValue, { ...TITLE_STYLE, fontSize: layout.font(24), wordWrap: { width: width - safe.left - safe.right - 40 } })
+      .setOrigin(0.5);
 
     this.updateHpBars();
-    this.renderActions();
+  }
+
+  /** The area above the buttons, inside the safe area. */
+  private arena(): { top: number; h: number } {
+    const layout = getLayout(this);
+    const top = layout.safe.top + layout.px(12);
+    const grid = this.buttonGrid();
+    return { top, h: grid.top - layout.px(12) - top };
+  }
+
+  /** How many columns and rows the battle buttons need, and where the grid starts. */
+  private buttonGrid() {
+    const layout = getLayout(this);
+    const count = Object.keys(this.me().moves).length + (this.duel || this.raid ? 1 : 2);
+    const gap = layout.px(14);
+    const usable = layout.width - layout.safe.left - layout.safe.right - gap * 2;
+    // As many per row as fit at a readable width (a label like "Varmebølge" needs ~110px).
+    const cols = Math.max(1, Math.min(count, Math.floor((usable + gap) / (110 + gap))));
+    const rows = Math.ceil(count / cols);
+    const w = Math.min(220, (usable - gap * (cols - 1)) / cols);
+    const h = layout.touch(84);
+    const top = layout.height - layout.safe.bottom - gap - rows * h - (rows - 1) * gap;
+    return { count, cols, rows, w, h, gap, top };
+  }
+
+  /** Rebuilds the screen for a new size, keeping the battle, the message and whether the buttons are showing. */
+  private relayout(): void {
+    const showingActions = this.actionButtons.length > 0;
+    for (const o of [this.wildSprite, this.playerSprite, this.logIcon, this.logText, this.wildHpBar.container, this.playerHpBar.container]) o.destroy();
+    this.buildUi();
+    if (showingActions) this.renderActions();
   }
 
   private updateHpBars(): void {
@@ -262,49 +318,33 @@ export class BattleScene extends Phaser.Scene {
 
   private renderActions(): void {
     this.clearActionButtons();
-    const { width, height } = this.scale;
+    const layout = getLayout(this);
     const player = this.me();
-    const moveIds = Object.keys(player.moves);
-    const y = height - 90;
+    const grid = this.buttonGrid();
     const canCatch = !this.duel && !this.raid; // you can't catch another player's monster, or the dragon
-    const buttonCount = moveIds.length + (canCatch ? 2 : 1); // moves + flee (+ catch)
-    const spacing = Math.min(220, (width - 80) / buttonCount);
-    const startX = width / 2 - (spacing * (buttonCount - 1)) / 2;
+    const actions: Array<{ label: string; icon: string; colour: number; onTap: () => void }> = Object.keys(player.moves).map((moveId) => {
+      const move = player.moves[moveId]!;
+      return { label: move.navn, icon: TYPE_ICONS[move.type], colour: TYPE_COLOURS[move.type], onTap: () => this.performTurn({ kind: "move", moveId }) };
+    });
+    actions.push({ label: t("battle_flee"), icon: FLEE_ICON, colour: 0x555555, onTap: () => this.performTurn({ kind: "flee" }) });
+    if (canCatch) actions.push({ label: t("battle_catch"), icon: CATCH_ICON, colour: 0xe63946, onTap: () => this.performCatch() });
 
-    moveIds.forEach((moveId, i) => {
-      const move = player.moves[moveId];
-      if (!move) return;
-      const button = createButton(
-        this,
-        startX + i * spacing,
-        y,
-        move.navn,
-        () => this.performTurn({ kind: "move", moveId }),
-        { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: TYPE_COLOURS[move.type], icon: TYPE_ICONS[move.type] }
-      );
+    actions.forEach((action, i) => {
+      const row = Math.floor(i / grid.cols);
+      const inRow = Math.min(grid.cols, actions.length - row * grid.cols);
+      const rowW = inRow * grid.w + (inRow - 1) * grid.gap;
+      const col = i - row * grid.cols;
+      const x = layout.width / 2 - rowW / 2 + grid.w / 2 + col * (grid.w + grid.gap);
+      const y = grid.top + grid.h / 2 + row * (grid.h + grid.gap);
+      const button = createButton(this, x, y, action.label, action.onTap, {
+        width: grid.w,
+        height: grid.h,
+        fontSize: layout.font(20),
+        backgroundColor: action.colour,
+        icon: action.icon,
+      });
       this.actionButtons.push(button);
     });
-
-    const fleeButton = createButton(
-      this,
-      startX + moveIds.length * spacing,
-      y,
-      t("battle_flee"),
-      () => this.performTurn({ kind: "flee" }),
-      { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: 0x555555, icon: FLEE_ICON }
-    );
-    this.actionButtons.push(fleeButton);
-    if (!canCatch) return;
-
-    const catchButton = createButton(
-      this,
-      startX + (moveIds.length + 1) * spacing,
-      y,
-      t("battle_catch"),
-      () => this.performCatch(),
-      { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: 0xe63946, icon: CATCH_ICON }
-    );
-    this.actionButtons.push(catchButton);
   }
 
   private clearActionButtons(): void {
@@ -421,9 +461,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private flashFeedback(label: string): void {
-    const { width, height } = this.scale;
+    const layout = getLayout(this);
     const text = this.add
-      .text(width / 2, height * 0.5, label, { fontFamily: "sans-serif", fontSize: "26px", color: "#ffce54" })
+      .text(layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: "sans-serif", fontSize: layout.font(26), color: "#ffce54" })
       .setOrigin(0.5)
       .setAlpha(0);
     this.tweens.add({ targets: text, alpha: 1, duration: 150, yoyo: true, hold: 500, onComplete: () => text.destroy() });

@@ -1,13 +1,16 @@
 # Monsterjagt
 
 A Pokémon-style creature-collecting game built for a family — two kids (6 and 8)
-and their dad — to play on iPad Safari and extend together over months. All
+and their dad — to play on iPad and iPhone Safari and extend together over months. All
 creatures, names and art are original (no Pokémon IP). This is a long-running
 hobby project: optimise for easy extension by non-programmers, not feature count.
 
 ## Hard constraints (don't break these)
 
-- **iPad Safari only**, landscape, touch-only. No keyboard/mouse assumptions.
+- **iPad and iPhone Safari**, portrait and landscape, touch-only. No keyboard/mouse
+  assumptions. Every screen must work from a ~390×844 phone to a 1024×1366 iPad in
+  both orientations, and re-lay itself out when the device is rotated (see "Screen
+  layout").
 - **PWA**: installable via Add to Home Screen, works fully offline for solo play.
 - **UI language is Danish**, kept minimal (the 6-year-old reads little) — icons,
   colour and sound carry the core actions. Touch targets are ≥64px.
@@ -160,7 +163,7 @@ now) so the monster book can show both; older saves get it filled in on load
 a `version` field from day one; bump it and write a migration on any breaking
 schema change, never silently drop fields. `persist()` is called at explicit
 checkpoints (setup complete, starter chosen, catch/battle end, area transition,
-completed tap-to-move) — not on every tile step, to avoid IndexedDB thrash.
+the player stopping after a walk) — not on every tile step, to avoid IndexedDB thrash.
 
 ## Family server (Milestone 2)
 
@@ -291,9 +294,9 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 ## Overview map
 
 `client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture
-(nearest filtering), fixed top-left, with dots for me (white ring), other players
-(dark ring), 🐉 at the lair and the camera frame. Tap to enlarge, tap again to
-close. Which tile ids are trees, water or paths comes from `minimap` in the area's
+(nearest filtering), opened as an overlay from the 🗺️ button, with dots for me
+(white ring), other players (dark ring), 🐉 at the lair and the camera frame. Tap
+anywhere (or ✗) to close. Which tile ids are trees, water or paths comes from `minimap` in the area's
 `.meta.json` sidecar (without it, blocking tiles are drawn as trees).
 
 ## Danish texts
@@ -303,6 +306,38 @@ engine (`shared/src/battle/engine.ts`, which also has the `genitive` helper for
 names ending in s/x/z: "Flammepels' Glødslag"). Write "gjorde N i skade", not "gav
 N skade"; Danish compounds without hyphens ("biplyd", "monsterfil"); only the first
 word of a name capitalised. Keep sentences short: the youngest player reads little.
+
+## Moving on the map
+
+Drag-to-steer, like an invisible joystick (`OverworldScene`): touch anywhere, drag
+past an 18px dead zone, and the player keeps stepping in that direction — 8 ways —
+until the finger lifts; a ring and knob show under the finger. The pure step rules
+are in `shared/src/world/steps.ts`: `dragDirection` (45° sectors), `chooseStep`
+(no squeezing diagonally past a corner; a blocked diagonal slides along the free
+axis the finger leans towards) and `DIAGONAL_TIME_FACTOR` (√2: a diagonal step
+covers √2 tiles at the same speed, so it takes longer). A short tap without a drag
+is still a tap: on another player or the dragon it offers 🤝/⚔️ (walking over with
+BFS pathfinding if needed); on the ground it does nothing.
+
+## Screen layout (iPad and iPhone, both orientations)
+
+- **`client/src/ui/layout.ts`** is the one place for screen geometry: `getLayout(scene)`
+  gives the size, `portrait`, `compact` (phone), the iPhone **safe area** (notch,
+  status bar, home indicator — read from `env(safe-area-inset-*)`), and a size factor
+  `s` with helpers `px()`, `font()` (never below 16px) and `touch()` (never below
+  64px). Sizes in scenes are written for the ~1024×768 iPad and passed through these.
+- **Rotation:** `onRelayout(scene, fn)` calls `fn` after a resize; `restartOnResize`
+  restarts screens that are pure drawings of their data (monster book, info page,
+  starter pick). Stateful screens re-lay out in place: the battle rebuilds its
+  sprites/bars/buttons from the live battle state; the map rebuilds its HUD.
+- **Arrangements:** portrait phones stack what landscape shows side by side (battle:
+  foe above, player below, a grid of buttons; monster info; trade screen). Grids pick
+  their column count to fit (`wrapGrid`, the monster book's best-fit search).
+- **Overlays** get their close button from `addCloseButton` (top-right, clear of the
+  notch). The map HUD is a right-aligned row: 🗺️ (overview map overlay) 🏆 ⚙ 📖.
+- **Testing:** in dev builds `window.__game` exposes the Phaser game, so a headless
+  browser can open any scene at any size (390×844, 844×390, 768×1024, 1024×768) and
+  resize it mid-scene to simulate a rotation.
 
 ## Dependency policy
 
@@ -315,9 +350,9 @@ manifest/service-worker generation).
 ## Testing convention
 
 `node --test` for everything in `shared` (battle engine, content loader) — pure
-logic, no browser needed. For client UI work, a manual check at an iPad-sized
-viewport (e.g. Safari responsive mode ~1024×768 landscape) before calling a
-feature done; there's no automated UI test suite for `client` yet.
+logic, no browser needed. For client UI work, a check at phone and iPad sizes in both
+orientations (e.g. Safari responsive mode 390×844, 844×390, 1024×768, 768×1024)
+before calling a feature done; there's no automated UI test suite for `client` yet.
 
 ## Deployment
 

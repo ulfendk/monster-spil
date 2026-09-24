@@ -14,7 +14,7 @@ import { keepAppUpToDate } from "./pwa-update";
 
 keepAppUpToDate();
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
   backgroundColor: "#1b1f3b",
@@ -29,3 +29,6 @@ new Phaser.Game({
   },
   scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene],
 });
+
+// Development only: lets automated checks drive scenes (e.g. at iPhone sizes) without guessing tap positions.
+if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game;

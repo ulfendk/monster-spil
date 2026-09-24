@@ -4,6 +4,7 @@ import type { GameContent } from "../content/load-content";
 import { setState, persist } from "../save/game-state";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
+import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 
 export interface SetupSceneData {
   content: GameContent;
@@ -41,6 +42,10 @@ export class SetupScene extends Phaser.Scene {
     this.avatarId = "";
     this.farve = "";
     this.renderStep();
+    onRelayout(this, () => {
+      if (this.step === "navn") this.navn = this.readName(); // keep what was typed
+      this.renderStep();
+    });
   }
 
   private clearStep(): void {
@@ -54,17 +59,20 @@ export class SetupScene extends Phaser.Scene {
 
   private renderStep(): void {
     this.clearStep();
-    const { width, height } = this.scale;
+    const layout = getLayout(this);
+    const { width, height, safe } = layout;
+    const title = { ...TITLE_STYLE, fontSize: layout.font(36) };
+    const usableW = width - safe.left - safe.right - 32;
 
     if (this.step === "navn") {
       this.stepChildren.push(
-        this.add.text(width / 2, height * 0.25, t("setup_title_navn"), TITLE_STYLE).setOrigin(0.5)
+        this.add.text(width / 2, height * 0.25, t("setup_title_navn"), title).setOrigin(0.5)
       );
       this.nameInput = this.add.dom(
         width / 2,
-        height * 0.45,
+        height * 0.42,
         "input",
-        "font-size:32px;width:360px;padding:16px;border-radius:16px;border:none;text-align:center;"
+        `font-size:${layout.font(32)};width:${Math.min(360, usableW - 40)}px;padding:16px;border-radius:16px;border:none;text-align:center;`
       );
       const el = this.nameInput.node as HTMLInputElement;
       el.placeholder = t("setup_placeholder_navn");
@@ -72,13 +80,11 @@ export class SetupScene extends Phaser.Scene {
       el.value = this.navn;
     } else if (this.step === "figur") {
       this.stepChildren.push(
-        this.add.text(width / 2, height * 0.2, t("setup_title_figur"), TITLE_STYLE).setOrigin(0.5)
+        this.add.text(width / 2, height * 0.2, t("setup_title_figur"), title).setOrigin(0.5)
       );
-      const spacing = 160;
-      const startX = width / 2 - (spacing * (AVATARS.length - 1)) / 2;
+      const spots = wrapGrid(AVATARS.length, 160, 150, usableW, width / 2, height * 0.48);
       AVATARS.forEach((id, i) => {
-        const x = startX + i * spacing;
-        const y = height * 0.5;
+        const { x, y } = spots[i]!;
         const circle = this.add
           .circle(x, y, 56, 0x2b2f52)
           .setStrokeStyle(this.avatarId === id ? 6 : 3, 0xffffff, this.avatarId === id ? 1 : 0.4);
@@ -92,13 +98,11 @@ export class SetupScene extends Phaser.Scene {
       });
     } else {
       this.stepChildren.push(
-        this.add.text(width / 2, height * 0.2, t("setup_title_farve"), TITLE_STYLE).setOrigin(0.5)
+        this.add.text(width / 2, height * 0.2, t("setup_title_farve"), title).setOrigin(0.5)
       );
-      const spacing = 110;
-      const startX = width / 2 - (spacing * (COLOURS.length - 1)) / 2;
+      const spots = wrapGrid(COLOURS.length, 115, 115, usableW, width / 2, height * 0.48);
       COLOURS.forEach((hex, i) => {
-        const x = startX + i * spacing;
-        const y = height * 0.5;
+        const { x, y } = spots[i]!;
         const colorNum = Phaser.Display.Color.HexStringToColor(hex).color;
         const circle = this.add.circle(x, y, 48, colorNum);
         if (this.farve === hex) circle.setStrokeStyle(6, 0xffffff);
@@ -112,12 +116,15 @@ export class SetupScene extends Phaser.Scene {
     }
 
     const isLast = this.step === "farve";
+    const buttonW = Math.min(220, usableW);
+    const buttonH = layout.touch(72);
     this.nextButton = createButton(
       this,
-      width - 140,
-      height - 100,
+      width - safe.right - 16 - buttonW / 2,
+      height - safe.bottom - 24 - buttonH / 2,
       isLast ? t("setup_start") : t("setup_next"),
-      () => this.onNext()
+      () => this.onNext(),
+      { width: buttonW, height: buttonH, fontSize: layout.font(28) }
     );
   }
 

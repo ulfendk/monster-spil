@@ -19,7 +19,8 @@ export default defineConfig({
         description: "Et monster-fangerspil til hele familien",
         lang: "da",
         display: "fullscreen",
-        orientation: "landscape",
+        // iPad and iPhone, held either way; every screen lays itself out for the current shape.
+        orientation: "any",
         start_url: "/monster-spil/",
         scope: "/monster-spil/",
         background_color: "#1b1f3b",

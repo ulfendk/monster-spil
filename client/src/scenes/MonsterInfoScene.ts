@@ -7,6 +7,7 @@ import { createButton } from "../ui/Button";
 import { CAUGHT_ICON, OWNED_ICON, POWER_ICON, SOUND_ICON, STAT_ICONS, TYPE_ICONS } from "../ui/icons";
 import { t } from "../i18n/da";
 import type { StringKey } from "../i18n/da";
+import { getLayout, restartOnResize } from "../ui/layout";
 
 export interface MonsterInfoSceneData {
   content: GameContent;
@@ -15,7 +16,13 @@ export interface MonsterInfoSceneData {
   caught: boolean;
   owned: number;
   caughtCount: number;
+  /** Set when the page is rebuilt after a rotation, so the cry doesn't play again. */
+  relayout?: boolean;
 }
+
+/** The two panels' design sizes (iPad); they are scaled and placed side by side or stacked. */
+const HERO = { w: 440, h: 480 };
+const DETAILS = { w: 470, h: 600 };
 
 const FONT = "sans-serif";
 /** Bar length is stat / max, so the six starting monsters fill a bar sensibly. */
@@ -34,60 +41,90 @@ export class MonsterInfoScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { width, height } = this.scale;
+    restartOnResize(this, this.info);
+    const layout = getLayout(this);
+    const { width, height, safe } = layout;
     const { species, caught, owned, caughtCount } = this.info;
 
     const overlay = this.add.rectangle(0, 0, width, height, 0x10132a, 1).setOrigin(0, 0);
     overlay.setInteractive(); // swallow taps so they don't reach the scenes underneath
 
-    // Left: the monster itself.
-    const cx = width * 0.29;
-    this.add.circle(cx, 290, 150, 0x2b2f52).setStrokeStyle(4, 0xffffff, 0.9);
-    const sprite = this.add.image(cx, 290, this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING").setScale(2.2);
+    // The monster itself, drawn in panel coordinates.
+    const hero = this.add.container(0, 0);
+    const cx = HERO.w / 2;
+    hero.add(this.add.circle(cx, 160, 150, 0x2b2f52).setStrokeStyle(4, 0xffffff, 0.9));
+    const sprite = this.add.image(cx, 160, this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING").setScale(2.2);
     if (!caught) sprite.setTint(0x000000);
-    this.add.text(cx, 480, species.navn, { fontFamily: FONT, fontSize: "40px", color: "#ffffff" }).setOrigin(0.5);
+    hero.add(sprite);
+    hero.add(this.add.text(cx, 355, species.navn, { fontFamily: FONT, fontSize: "40px", color: "#ffffff" }).setOrigin(0.5));
+    const badge = this.add.rectangle(cx - 60, 430, 190, 56, TYPE_COLOURS[species.type]).setStrokeStyle(3, 0xffffff);
+    hero.add(badge);
+    hero.add(this.add.text(badge.x, badge.y, `${TYPE_ICONS[species.type]} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: "#ffffff" }).setOrigin(0.5));
+    hero.add(createButton(this, cx + 100, 430, SOUND_ICON, () => playCreatureSound(this, species), { width: 84, height: 64, fontSize: "32px", backgroundColor: 0x4a4e7a }));
 
-    const badge = this.add.rectangle(cx - 60, 545, 190, 56, TYPE_COLOURS[species.type]).setStrokeStyle(3, 0xffffff);
-    this.add.text(badge.x, badge.y, `${TYPE_ICONS[species.type]} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: "#ffffff" }).setOrigin(0.5);
-    createButton(this, cx + 100, 545, SOUND_ICON, () => playCreatureSound(this, species), { width: 84, height: 64, fontSize: "32px", backgroundColor: 0x4a4e7a });
-
-    // Right: stats, moves and counters.
-    const left = width * 0.56;
+    // Stats, moves and counters.
+    const details = this.add.container(0, 0);
     if (caught) {
-      this.drawStats(left, 130);
-      this.drawMoves(left, 400);
+      this.drawStats(details, 10, 40);
+      this.drawMoves(details, 10, 310);
     } else {
-      this.add.text(left + 160, 300, "?", { fontFamily: FONT, fontSize: "120px", color: "#555555" }).setOrigin(0.5);
+      details.add(this.add.text(DETAILS.w / 2, 260, "?", { fontFamily: FONT, fontSize: "120px", color: "#555555" }).setOrigin(0.5));
     }
-    this.add.text(left + 40, height - 80, `${CAUGHT_ICON} ${caughtCount}      ${OWNED_ICON} ${owned}`, { fontFamily: FONT, fontSize: "44px", color: "#ffffff" }).setOrigin(0, 0.5);
+    details.add(this.add.text(DETAILS.w / 2, DETAILS.h - 40, `${CAUGHT_ICON} ${caughtCount}      ${OWNED_ICON} ${owned}`, { fontFamily: FONT, fontSize: "44px", color: "#ffffff" }).setOrigin(0.5));
 
-    createButton(this, width - 90, 50, "X", () => this.close(), { width: 72, height: 64, fontSize: "28px", backgroundColor: 0x555555 });
+    // Side by side on a wide screen, stacked on a tall one; scaled to fit either way.
+    const closeSize = layout.touch(64);
+    const top = safe.top + closeSize + layout.px(16);
+    const area = { x: safe.left + 12, y: top, w: width - safe.left - safe.right - 24, h: height - top - safe.bottom - 12 };
+    const gap = 24;
+    const sideBySide = !layout.portrait;
+    const totalW = sideBySide ? HERO.w + gap + DETAILS.w : Math.max(HERO.w, DETAILS.w);
+    const totalH = sideBySide ? Math.max(HERO.h, DETAILS.h) : HERO.h + gap + DETAILS.h;
+    const k = Math.min(1.25, area.w / totalW, area.h / totalH);
+    const ox = area.x + (area.w - totalW * k) / 2;
+    const oy = area.y + (area.h - totalH * k) / 2;
+    hero.setScale(k).setPosition(sideBySide ? ox : ox + ((totalW - HERO.w) * k) / 2, sideBySide ? oy + ((totalH - HERO.h) * k) / 2 : oy);
+    details.setScale(k).setPosition(
+      sideBySide ? ox + (HERO.w + gap) * k : ox + ((totalW - DETAILS.w) * k) / 2,
+      sideBySide ? oy : oy + (HERO.h + gap) * k
+    );
 
-    playCreatureSound(this, species);
+    createButton(this, width - safe.right - 12 - closeSize / 2, safe.top + 10 + closeSize / 2, "X", () => this.close(), {
+      width: closeSize,
+      height: closeSize,
+      fontSize: layout.font(28),
+      backgroundColor: 0x555555,
+    });
+
+    if (!this.info.relayout) playCreatureSound(this, species);
   }
 
-  private drawStats(x: number, y: number): void {
+  private drawStats(panel: Phaser.GameObjects.Container, x: number, y: number): void {
     const stats = this.info.species.baseStats;
     (Object.keys(STAT_ICONS) as Array<keyof typeof STAT_ICONS>).forEach((key, i) => {
       const rowY = y + i * 62;
-      this.add.text(x, rowY, STAT_ICONS[key], { fontFamily: FONT, fontSize: "38px" }).setOrigin(0, 0.5);
-      this.add.rectangle(x + 70, rowY, 260, 26, 0x2b2f52).setOrigin(0, 0.5).setStrokeStyle(2, 0xffffff, 0.5);
       const fill = Math.min(1, stats[key] / STAT_MAX[key]);
-      this.add.rectangle(x + 70, rowY, 260 * fill, 26, TYPE_COLOURS[this.info.species.type]).setOrigin(0, 0.5);
-      this.add.text(x + 350, rowY, String(stats[key]), { fontFamily: FONT, fontSize: "30px", color: "#ffffff" }).setOrigin(0, 0.5);
+      panel.add([
+        this.add.text(x, rowY, STAT_ICONS[key], { fontFamily: FONT, fontSize: "38px" }).setOrigin(0, 0.5),
+        this.add.rectangle(x + 70, rowY, 260, 26, 0x2b2f52).setOrigin(0, 0.5).setStrokeStyle(2, 0xffffff, 0.5),
+        this.add.rectangle(x + 70, rowY, 260 * fill, 26, TYPE_COLOURS[this.info.species.type]).setOrigin(0, 0.5),
+        this.add.text(x + 350, rowY, String(stats[key]), { fontFamily: FONT, fontSize: "30px", color: "#ffffff" }).setOrigin(0, 0.5),
+      ]);
     });
   }
 
-  private drawMoves(x: number, y: number): void {
+  private drawMoves(panel: Phaser.GameObjects.Container, x: number, y: number): void {
     const { species, content } = this.info;
     species.moveIds.forEach((id, i) => {
       const move = content.movesById[id];
       if (!move) return;
       const rowY = y + i * 58;
-      this.add.rectangle(x, rowY, 300, 50, TYPE_COLOURS[move.type]).setOrigin(0, 0.5).setStrokeStyle(3, 0xffffff);
-      this.add.text(x + 14, rowY, `${TYPE_ICONS[move.type]} ${move.navn}`, { fontFamily: FONT, fontSize: "24px", color: "#ffffff" }).setOrigin(0, 0.5);
       const power = move.power >= 50 ? 3 : move.power >= 30 ? 2 : 1;
-      this.add.text(x + 320, rowY, POWER_ICON.repeat(power), { fontFamily: FONT, fontSize: "28px" }).setOrigin(0, 0.5);
+      panel.add([
+        this.add.rectangle(x, rowY, 300, 50, TYPE_COLOURS[move.type]).setOrigin(0, 0.5).setStrokeStyle(3, 0xffffff),
+        this.add.text(x + 14, rowY, `${TYPE_ICONS[move.type]} ${move.navn}`, { fontFamily: FONT, fontSize: "24px", color: "#ffffff" }).setOrigin(0, 0.5),
+        this.add.text(x + 320, rowY, POWER_ICON.repeat(power), { fontFamily: FONT, fontSize: "28px" }).setOrigin(0, 0.5),
+      ]);
     });
   }
 

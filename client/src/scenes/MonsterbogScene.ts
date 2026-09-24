@@ -7,6 +7,7 @@ import type { SaveData } from "../save/schema";
 import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton } from "../ui/Button";
 import { t } from "../i18n/da";
+import { getLayout, restartOnResize } from "../ui/layout";
 import { CAUGHT_ICON, DRAGON_ICON, OWNED_ICON, STEPS_ICON } from "../ui/icons";
 import { bossesById } from "../content/load-raid";
 
@@ -17,8 +18,8 @@ export interface MonsterbogSceneData {
   position: Tile;
 }
 
+/** The iPad design size of one book entry; smaller screens scale it down to fit every monster. */
 const CELL_SIZE = 170;
-const COLUMNS = 3;
 const FONT = "sans-serif";
 
 export class MonsterbogScene extends Phaser.Scene {
@@ -30,38 +31,54 @@ export class MonsterbogScene extends Phaser.Scene {
 
   create(data: MonsterbogSceneData): void {
     this.bookData = data;
-    const { width, height } = this.scale;
+    restartOnResize(this, data);
+    const layout = getLayout(this);
+    const { width, height, safe } = layout;
 
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0, 0);
+    const overlay = this.add.rectangle(0, 0, width, height, 0x10132a, 0.94).setOrigin(0, 0);
     overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
 
-    this.add.text(width / 2, 36, t("monsterbog_title"), { fontFamily: FONT, fontSize: "36px", color: "#ffffff" }).setOrigin(0.5, 0);
+    const closeSize = layout.touch(64);
+    const headerH = safe.top + closeSize + layout.px(20);
+    this.add.text(width / 2, safe.top + layout.px(10) + closeSize / 2, t("monsterbog_title"), { fontFamily: FONT, fontSize: layout.font(36), color: "#ffffff" }).setOrigin(0.5);
 
     const speciesList = Object.values(data.content.speciesById);
     const owned = new Map<string, number>();
     for (const c of data.save.creatures) owned.set(c.speciesId, (owned.get(c.speciesId) ?? 0) + 1);
 
-    const gridWidth = COLUMNS * CELL_SIZE;
-    const startX = width / 2 - gridWidth / 2 + CELL_SIZE / 2;
-    const startY = 150;
+    // Pick the column count that gives the biggest entries while every monster still fits.
+    const areaW = width - safe.left - safe.right - 16;
+    const areaH = height - headerH - safe.bottom - 8;
+    let best = { cols: 1, cell: 0 };
+    for (let cols = 1; cols <= speciesList.length; cols++) {
+      const rows = Math.ceil(speciesList.length / cols);
+      const cell = Math.min(CELL_SIZE * Math.max(1, layout.s), areaW / cols, areaH / rows);
+      if (cell >= best.cell) best = { cols, cell }; // on a tie, more columns: a flatter grid reads better
+    }
+    const { cols, cell } = best;
+    const k = cell / CELL_SIZE; // everything inside an entry scales with it
+    const rows = Math.ceil(speciesList.length / cols);
+    const startX = width / 2 - (cols * cell) / 2 + cell / 2;
+    const startY = headerH + (areaH - rows * cell) / 2 + cell * 0.36;
+    const label = (px: number) => `${Math.max(13, Math.round(px * k))}px`;
 
     speciesList.forEach((species, i) => {
-      const col = i % COLUMNS;
-      const row = Math.floor(i / COLUMNS);
-      const x = startX + col * CELL_SIZE;
-      const y = startY + row * CELL_SIZE;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * cell;
+      const y = startY + row * cell;
       const ownedCount = owned.get(species.id) ?? 0;
       const caughtCount = data.save.caughtCounts[species.id] ?? 0;
       const caught = ownedCount > 0 || caughtCount > 0;
       const seen = data.save.seenSpeciesIds.includes(species.id);
-      const ring = this.add.circle(x, y, 58, 0x2b2f52).setStrokeStyle(3, 0xffffff, caught ? 1 : 0.4);
+      const ring = this.add.circle(x, y, 58 * k, 0x2b2f52).setStrokeStyle(3, 0xffffff, caught ? 1 : 0.4);
 
       if (caught || seen) {
-        const image = this.add.image(x, y, species.spriteFront);
+        const image = this.add.image(x, y, species.spriteFront).setScale(k);
         if (!caught) image.setTint(0x000000);
-        this.add.text(x, y + 72, species.navn, { fontFamily: FONT, fontSize: "18px", color: caught ? "#ffffff" : "#777777" }).setOrigin(0.5);
+        this.add.text(x, y + 72 * k, species.navn, { fontFamily: FONT, fontSize: label(18), color: caught ? "#ffffff" : "#777777" }).setOrigin(0.5);
         if (caught) {
-          this.add.text(x, y + 97, `${CAUGHT_ICON} ${caughtCount}   ${OWNED_ICON} ${ownedCount}`, { fontFamily: FONT, fontSize: "18px", color: "#ffffff" }).setOrigin(0.5);
+          this.add.text(x, y + 97 * k, `${CAUGHT_ICON} ${caughtCount}   ${OWNED_ICON} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: "#ffffff" }).setOrigin(0.5);
         }
         // Tapping a known monster opens its page (and plays its cry).
         ring.setInteractive({ useHandCursor: true });
@@ -69,22 +86,22 @@ export class MonsterbogScene extends Phaser.Scene {
         image.setInteractive({ useHandCursor: true });
         image.on("pointerup", () => this.openInfo(species, caught, ownedCount, caughtCount));
       } else {
-        this.add.text(x, y, "?", { fontFamily: FONT, fontSize: "48px", color: "#555555" }).setOrigin(0.5);
+        this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: "#555555" }).setOrigin(0.5);
         const hint = this.hintFor(species);
         if (hint) {
           const text = hint.distance === 0 ? hint.arrow : `${STEPS_ICON} ${hint.distance} ${hint.arrow}`;
-          this.add.text(x, y + 76, text, { fontFamily: FONT, fontSize: "22px", color: "#ffce54" }).setOrigin(0.5);
+          this.add.text(x, y + 76 * k, text, { fontFamily: FONT, fontSize: label(22), color: "#ffce54" }).setOrigin(0.5);
         } else if (Object.values(bossesById).some((b) => b.rewardSpeciesId === species.id)) {
           // Not found in the wild: this one hatches from beating the family dragon.
-          this.add.text(x, y + 76, DRAGON_ICON, { fontFamily: FONT, fontSize: "26px" }).setOrigin(0.5);
+          this.add.text(x, y + 76 * k, DRAGON_ICON, { fontFamily: FONT, fontSize: label(26) }).setOrigin(0.5);
         }
       }
     });
 
-    createButton(this, width - 90, 50, "X", () => this.closeBook(), {
-      width: 72,
-      height: 64,
-      fontSize: "28px",
+    createButton(this, width - safe.right - layout.px(12) - closeSize / 2, safe.top + layout.px(10) + closeSize / 2, "X", () => this.closeBook(), {
+      width: closeSize,
+      height: closeSize,
+      fontSize: layout.font(28),
       backgroundColor: 0x555555,
     });
   }

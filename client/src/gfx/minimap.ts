@@ -1,44 +1,42 @@
 import Phaser from "phaser";
+import { getLayout } from "../ui/layout";
+import { createButton } from "../ui/Button";
 
 /** One dot on the overview map, in tile coordinates. */
 export interface MinimapDot {
   x: number;
   y: number;
   colour: number;
-  /** Drawn bigger with a white ring (me) or with a dark ring (the dragon). */
+  /** Drawn bigger with a white ring (me), or as a 🐉 (the dragon). */
   kind?: "me" | "dragon";
   dim?: boolean;
 }
 
 const COLOURS = { ground: 0x4caf50, tree: 0x1b5e20, water: 0x2979c8, path: 0xd7be8c, grass: 0xaed581 };
-const SMALL_PX = 3;
-const MARGIN = 16;
+const DEPTH = 30;
 
 /**
- * The overview map: a small picture of the whole area in the top-left corner,
- * fixed on screen, with dots for me, other players and the dragon, and a frame
- * showing what the camera sees. Tapping it opens a big version; tapping again
- * closes it. The terrain is baked once into a texture; only the dots are redrawn.
+ * The overview map, opened from the 🗺️ button: the whole area as a picture over the
+ * game, with dots for me, the other players and the dragon, and a frame showing
+ * what the camera sees. Tap anywhere (or ✗) to close. The terrain is baked once into
+ * a one-texel-per-tile texture; only the dots are redrawn while it is open.
  */
 export class Minimap {
-  private image: Phaser.GameObjects.Image;
-  private frame: Phaser.GameObjects.Rectangle;
-  private dots: Phaser.GameObjects.Graphics;
-  /** The dragon gets its own 🐉 marker, so it never looks like a player of the same colour. */
-  private dragonMarker: Phaser.GameObjects.Text;
-  private backdrop?: Phaser.GameObjects.Rectangle;
-  private big = false;
-  private scale = SMALL_PX;
-  private origin = { x: MARGIN, y: MARGIN };
+  private objects: Phaser.GameObjects.GameObject[] = [];
+  private image?: Phaser.GameObjects.Image;
+  private dots?: Phaser.GameObjects.Graphics;
+  private dragonMarker?: Phaser.GameObjects.Text;
+  private scale = 1;
+  private origin = { x: 0, y: 0 };
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly map: Phaser.Tilemaps.Tilemap,
     ground: Phaser.Tilemaps.TilemapLayer,
     grass: Phaser.Tilemaps.TilemapLayer,
-    /** Tile ids on the ground layer: [tree, water, path]; everything else is open ground. */
+    /** Tile ids on the ground layer drawn as trees, water or paths; everything else is open ground. */
     ids: { tree: number[]; water: number[]; path: number[] },
-    key: string
+    private readonly key: string
   ) {
     if (!scene.textures.exists(key)) {
       const g = scene.add.graphics();
@@ -58,49 +56,62 @@ export class Minimap {
       // One texel per tile: keep it crisp when scaled up, never smoothed.
       scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
-    this.frame = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0.55).setOrigin(0, 0).setStrokeStyle(3, 0xffffff, 0.9);
-    this.image = scene.add.image(0, 0, key).setOrigin(0, 0);
-    this.dots = scene.add.graphics();
-    this.dragonMarker = scene.add.text(0, 0, "🐉", { fontFamily: "sans-serif", fontSize: "18px" }).setOrigin(0.5).setVisible(false);
-    for (const o of [this.frame, this.image, this.dots, this.dragonMarker]) o.setScrollFactor(0).setDepth(12);
-    this.image.setInteractive({ useHandCursor: true });
-    this.image.on("pointerup", () => this.toggle());
-    this.layout();
   }
 
-  private toggle(): void {
-    this.big = !this.big;
-    this.backdrop?.destroy();
-    this.backdrop = undefined;
-    if (this.big) {
-      const { width, height } = this.scene.scale;
-      this.backdrop = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(11);
-      // Tapping anywhere around the big map closes it too.
-      this.backdrop.setInteractive();
-      this.backdrop.on("pointerup", () => this.toggle());
-    }
-    this.layout();
+  get isOpen(): boolean {
+    return this.objects.length > 0;
   }
 
-  private layout(): void {
-    const { width, height } = this.scene.scale;
-    if (this.big) {
-      this.scale = Math.floor(Math.min((width - 80) / this.map.width, (height - 80) / this.map.height));
-      this.origin = { x: (width - this.map.width * this.scale) / 2, y: (height - this.map.height * this.scale) / 2 };
-    } else {
-      this.scale = SMALL_PX;
-      this.origin = { x: MARGIN, y: MARGIN };
-    }
-    this.image.setPosition(this.origin.x, this.origin.y).setScale(this.scale);
-    this.frame.setPosition(this.origin.x - 4, this.origin.y - 4).setSize(this.map.width * this.scale + 8, this.map.height * this.scale + 8);
+  open(): void {
+    this.close();
+    const layout = getLayout(this.scene);
+    const { width, height, safe } = layout;
+    const margin = layout.px(24);
+    const room = { w: width - safe.left - safe.right - margin * 2, h: height - safe.top - safe.bottom - margin * 2 };
+    this.scale = Math.max(1, Math.floor(Math.min(room.w / this.map.width, room.h / this.map.height)));
+    const w = this.map.width * this.scale;
+    const h = this.map.height * this.scale;
+    this.origin = { x: safe.left + margin + (room.w - w) / 2, y: safe.top + margin + (room.h - h) / 2 };
+
+    const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.75).setOrigin(0, 0);
+    // Tapping anywhere closes the map; it also stops taps from walking the player underneath.
+    backdrop.setInteractive();
+    backdrop.on("pointerup", () => this.close());
+    const frame = this.scene.add.rectangle(this.origin.x - 4, this.origin.y - 4, w + 8, h + 8, 0x000000).setOrigin(0, 0).setStrokeStyle(4, 0xffffff);
+    this.image = this.scene.add.image(this.origin.x, this.origin.y, this.key).setOrigin(0, 0).setScale(this.scale);
+    this.image.setInteractive();
+    this.image.on("pointerup", () => this.close());
+    this.dots = this.scene.add.graphics();
+    this.dragonMarker = this.scene.add.text(0, 0, "🐉", { fontFamily: "sans-serif", fontSize: "18px" }).setOrigin(0.5).setVisible(false);
+    const size = layout.touch(64);
+    const close = createButton(this.scene, width - safe.right - size / 2 - 12, safe.top + size / 2 + 12, "✗", () => this.close(), {
+      width: size,
+      height: size,
+      fontSize: layout.font(32),
+      backgroundColor: 0x555555,
+    });
+    this.objects = [backdrop, frame, this.image, this.dots, this.dragonMarker, close];
+    for (const o of this.objects) (o as Phaser.GameObjects.Image).setScrollFactor(0).setDepth(DEPTH);
   }
 
-  /** Redraws the dots and the camera frame; call every frame. */
+  close(): void {
+    for (const o of this.objects) o.destroy();
+    this.objects = [];
+    this.image = this.dots = this.dragonMarker = undefined;
+  }
+
+  /** After a rotation: lay the open map out again for the new screen size. */
+  relayout(): void {
+    if (this.isOpen) this.open();
+  }
+
+  /** Redraws the dots and the camera frame; call every frame (does nothing while closed). */
   draw(dots: MinimapDot[], view: Phaser.Geom.Rectangle, tileSize: number): void {
+    if (!this.dots || !this.dragonMarker) return;
     const s = this.scale;
     const g = this.dots.clear();
     const px = (tile: number) => tile * s + s / 2;
-    g.lineStyle(2, 0xffffff, 0.8).strokeRect(
+    g.lineStyle(2, 0xffffff, 0.9).strokeRect(
       this.origin.x + (view.x / tileSize) * s,
       this.origin.y + (view.y / tileSize) * s,
       (view.width / tileSize) * s,
@@ -116,7 +127,7 @@ export class Minimap {
         continue;
       }
       const radius = d.kind === "me" ? r * 1.5 : r;
-      // A dark ring around other players, a white one around me, so every dot shows on grass and water.
+      // A white ring around me, a dark one around other players, so every dot shows on grass and water.
       g.fillStyle(d.kind === "me" ? 0xffffff : 0x000000, 1).fillCircle(x, y, radius + (d.kind === "me" ? 2 : 1.5));
       g.fillStyle(d.colour, d.dim ? 0.45 : 1).fillCircle(x, y, radius);
     }
