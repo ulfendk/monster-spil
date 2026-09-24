@@ -67,11 +67,11 @@ export class OverworldScene extends Phaser.Scene {
     this.groundLayer.setCollision(area.meta.collisionGids);
 
     // (0,0) sits inside the border wall, so it can never be a real position —
-    // use it as the "no saved position yet" sentinel for this map.
-    this.playerTile =
-      this.save.position.x === 0 && this.save.position.y === 0
-        ? { ...area.meta.playerStart }
-        : { x: this.save.position.x, y: this.save.position.y };
+    // use it as the "no saved position yet" sentinel for this map. A saved spot that
+    // is no longer walkable (the map was redrawn since) also falls back to the start.
+    const saved = { x: this.save.position.x, y: this.save.position.y };
+    const hasSaved = !(saved.x === 0 && saved.y === 0) && this.isWalkable(saved.x, saved.y);
+    this.playerTile = hasSaved ? saved : { ...area.meta.playerStart };
 
     const colour = Phaser.Display.Color.HexStringToColor(this.save.player.farve).color;
     this.player = this.add.circle(
@@ -80,6 +80,11 @@ export class OverworldScene extends Phaser.Scene {
       TILE_SIZE * 0.3,
       colour
     );
+
+    // The map is bigger than the screen: follow the player, never showing past the edge.
+    const camera = this.cameras.main;
+    camera.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    camera.startFollow(this.player, true, 0.15, 0.15);
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       // A UI button (e.g. the Monsterbog corner button) already handled this tap.
@@ -96,21 +101,19 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
-    createButton(this, this.scale.width - 60, 60, "📖", () => this.openMonsterbog(), {
+    // HUD buttons stay put on screen while the camera scrolls.
+    this.hudButton(this.scale.width - 60, "📖", () => this.openMonsterbog());
+    if (multiplayerEnabled) this.hudButton(this.scale.width - 140, "🤝", () => this.openLobby());
+  }
+
+  private hudButton(x: number, label: string, onTap: () => void): void {
+    const button = createButton(this, x, 60, label, onTap, {
       width: 64,
       height: 64,
       fontSize: "28px",
       backgroundColor: 0x4a4e7a,
     });
-
-    if (multiplayerEnabled) {
-      createButton(this, this.scale.width - 140, 60, "🤝", () => this.openLobby(), {
-        width: 64,
-        height: 64,
-        fontSize: "28px",
-        backgroundColor: 0x4a4e7a,
-      });
-    }
+    button.setScrollFactor(0).setDepth(10);
   }
 
   private openLobby(): void {
