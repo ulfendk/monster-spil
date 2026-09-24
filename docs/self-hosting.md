@@ -83,7 +83,9 @@ networks:
     name: npm_default # the Docker network your Nginx Proxy Manager container is on
 ```
 
-**The `/data` volume** holds `family.json`: the last week's scoreboard events,
+**The `/data` volume** holds `saves/` — a backup copy of every player's save, so
+a reinstalled or new iPad/iPhone can get its player back (first setup screen → 🔄
+"Hent min spiller" → family code → pick the player) — and `family.json`: the last week's scoreboard events,
 everyone who has joined (so offline family members stay on the board), this week's
 dragon and any baby-dragon rewards not yet delivered. Without the volume the
 server still runs, but all of that resets whenever the container is recreated
@@ -186,3 +188,11 @@ trusted dev certificate, or put the dev server behind NPM too.
 - **The scoreboard** (🏆) shows the last 7 days: catches (1 point, reported by the
   device — offline catches count once it reconnects), duels won (2), dragon
   victories (5, +3 for the final blow).
+- **Never remove the app from the Home Screen without a backup.** Removing a Home
+  Screen app deletes its saved game. Check ⚙ on that device first: it shows
+  "💾 Gemt på serveren" with the time of the last backup. With a backup, removing
+  and re-adding the app (e.g. to get a new icon) is safe: restore via 🔄 on the first
+  setup screen. Updates never need a reinstall — the app updates itself.
+- If a restored player is still being played on the old device too, both devices
+  back up to the same player and the most recent save wins. Restore onto a device
+  that replaces the old one, not alongside it.

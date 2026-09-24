@@ -7,6 +7,9 @@ import { FamilyGate } from "./family-gate.js";
 import { FamilyStore } from "./family-store.js";
 import { loadBosses } from "./bosses.js";
 import { loadFoodSpots } from "./areas.js";
+import { SaveBackups } from "./save-backups.js";
+import { handleBackupRequest } from "./backup-http.js";
+import path from "node:path";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -26,7 +29,9 @@ if (allowedOrigins.length > 0) {
 }
 
 // Colyseus adds its /matchmake routes in front of this handler; everything else lands here.
+let backupDeps: Parameters<typeof handleBackupRequest>[2] | undefined;
 const httpServer = http.createServer((req, res) => {
+  if (backupDeps && handleBackupRequest(req, res, backupDeps)) return;
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("ok");
@@ -52,7 +57,10 @@ const store = await FamilyStore.open(dataDir);
 const bosses = await loadBosses();
 // Food grows on open ground; never on a dragon's lair.
 const foodSpots = await loadFoodSpots(bosses.map((b) => b.lair));
-gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses, foodSpots });
+// A copy of every player's save, for restoring onto a new or reinstalled device.
+const backups = new SaveBackups(path.join(dataDir, "saves"));
+backupDeps = { gate, backups, allowedOrigins };
+gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses, foodSpots, backups });
 gameServer.onShutdown(() => store.flush());
 
 await gameServer.listen(port);

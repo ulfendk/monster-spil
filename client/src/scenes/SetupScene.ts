@@ -7,15 +7,18 @@ import { createButton } from "../ui/Button";
 import { C, CSS, FONT, KANAGAWA, PLAYER_COLOURS } from "../ui/theme";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 import { addScreenBackdrop } from "../gfx/motifs";
+import { AVATARS } from "../ui/avatars";
+import { addAvatar } from "../gfx/avatar-sprites";
+import { multiplayerEnabled } from "../net/lobby";
 
 export interface SetupSceneData {
   content: GameContent;
 }
 
-const AVATARS = ["figur1", "figur2", "figur3", "figur4"] as const;
 const COLOURS = PLAYER_COLOURS;
 
-type Step = "navn" | "figur" | "farve";
+/** "start" (only with a family server): new player, or fetch a backed-up one. */
+type Step = "start" | "navn" | "figur" | "farve";
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   fontFamily: FONT,
@@ -39,7 +42,7 @@ export class SetupScene extends Phaser.Scene {
 
   create(data: SetupSceneData): void {
     this.content = data.content;
-    this.step = "navn";
+    this.step = multiplayerEnabled ? "start" : "navn";
     this.navn = "";
     this.avatarId = "";
     this.farve = "";
@@ -67,6 +70,22 @@ export class SetupScene extends Phaser.Scene {
     const title = { ...TITLE_STYLE, fontSize: layout.font(36) };
     const usableW = width - safe.left - safe.right - 32;
 
+    if (this.step === "start") {
+      // Played before (on this or another device)? Fetch your player from the family server.
+      this.stepChildren.push(this.add.text(width / 2, height * 0.25, t("setup_title_start"), title).setOrigin(0.5));
+      const buttonW = Math.min(300, usableW);
+      const buttonH = layout.touch(96);
+      const fresh = createButton(this, width / 2, height * 0.46, t("setup_new"), () => {
+        this.step = "navn";
+        this.renderStep();
+      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "✨", backgroundColor: C.ok });
+      const restore = createButton(this, width / 2, height * 0.46 + buttonH + layout.px(24), t("setup_restore"), () => {
+        this.scene.start("Restore", { content: this.content });
+      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "🔄" });
+      this.stepChildren.push(fresh, restore);
+      return;
+    }
+
     if (this.step === "navn") {
       this.stepChildren.push(
         this.add.text(width / 2, height * 0.25, t("setup_title_navn"), title).setOrigin(0.5)
@@ -83,15 +102,20 @@ export class SetupScene extends Phaser.Scene {
       el.value = this.navn;
     } else if (this.step === "figur") {
       this.stepChildren.push(
-        this.add.text(width / 2, height * 0.2, t("setup_title_figur"), title).setOrigin(0.5)
+        this.add.text(width / 2, height * 0.17, t("setup_title_figur"), title).setOrigin(0.5),
+        // What the choice is for, in one short line.
+        this.add.text(width / 2, height * 0.17 + layout.px(48), t("setup_figur_hint"), { ...title, fontSize: layout.font(24), color: CSS.soft }).setOrigin(0.5)
       );
-      const spots = wrapGrid(AVATARS.length, 160, 150, usableW, width / 2, height * 0.48);
-      AVATARS.forEach((id, i) => {
+      const spots = wrapGrid(AVATARS.length, 150, 160, usableW, width / 2, height * 0.54);
+      AVATARS.forEach(({ id, navn }, i) => {
         const { x, y } = spots[i]!;
+        const chosen = this.avatarId === id;
         const circle = this.add
           .circle(x, y, 56, C.panel)
-          .setStrokeStyle(this.avatarId === id ? 6 : 3, this.avatarId === id ? C.accent : C.border, this.avatarId === id ? 1 : 0.4);
-        this.stepChildren.push(circle, this.drawAvatarIcon(i, x, y));
+          .setStrokeStyle(chosen ? 6 : 3, chosen ? C.accent : C.border, chosen ? 1 : 0.4);
+        const face = addAvatar(this, x, y, id, 100);
+        const label = this.add.text(x, y + 72, navn, { fontFamily: FONT, fontSize: layout.font(22), color: chosen ? CSS.accent : CSS.soft }).setOrigin(0.5);
+        this.stepChildren.push(circle, face, label);
 
         circle.setInteractive({ useHandCursor: true });
         circle.on("pointerdown", () => {
@@ -109,6 +133,8 @@ export class SetupScene extends Phaser.Scene {
         const colorNum = Phaser.Display.Color.HexStringToColor(hex).color;
         const circle = this.add.circle(x, y, 48, colorNum);
         if (this.farve === hex) circle.setStrokeStyle(6, C.accent);
+        // The chosen animal on every colour: this is how you will look on the map.
+        this.stepChildren.push(addAvatar(this, x, y, this.avatarId, 84).setDepth(1));
         circle.setInteractive({ useHandCursor: true });
         circle.on("pointerdown", () => {
           this.farve = hex;
@@ -129,20 +155,6 @@ export class SetupScene extends Phaser.Scene {
       () => this.onNext(),
       { width: buttonW, height: buttonH, fontSize: layout.font(28) }
     );
-  }
-
-  /** Each avatar gets a distinct accent shape so the 4 options are tellable apart. */
-  private drawAvatarIcon(index: number, x: number, y: number): Phaser.GameObjects.GameObject {
-    switch (index) {
-      case 0:
-        return this.add.star(x, y, 5, 10, 22, KANAGAWA.carpYellow);
-      case 1:
-        return this.add.triangle(x, y, 0, -22, -20, 16, 20, 16, KANAGAWA.springBlue);
-      case 2:
-        return this.add.rectangle(x, y, 28, 28, KANAGAWA.waveRed).setRotation(Math.PI / 4);
-      default:
-        return this.add.circle(x, y, 20, KANAGAWA.springGreen);
-    }
   }
 
   private readName(): string {

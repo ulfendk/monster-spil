@@ -16,7 +16,7 @@ import type {
   TradeSession,
   WorldPosition,
 } from "@shared";
-import { getState, persist } from "../save/game-state";
+import { getState, onPersist, persist } from "../save/game-state";
 import { getFamilyCode, joinLobby, listen, multiplayerEnabled, say } from "./lobby";
 import { t } from "../i18n/da";
 import { loadContent } from "../content/load-content";
@@ -29,6 +29,8 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
  * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind).
  */
 const HELLO_TIMEOUT_MS = 3000;
+/** Saves come in bursts (a battle's end, a trade); back up once things settle. */
+const BACKUP_DELAY_MS = 5000;
 const RETRY_MIN_MS = 3000;
 const RETRY_MAX_MS = 30000;
 
@@ -57,6 +59,9 @@ class Presence {
   restUntil = 0;
   /** Food lying on the maps (protocol v6+); empty offline. */
   food: FoodItem[] = [];
+  /** When the family server last confirmed a backup of my save (protocol v7+). */
+  lastBackupAt?: string;
+  private backupTimer?: ReturnType<typeof setTimeout>;
   /** My team at the dragon (gathering or fighting), if I'm in one (protocol v5+). */
   team?: TeamView;
   /** The team whose start we already announced, so per-turn updates don't re-announce it. */
@@ -86,6 +91,20 @@ class Presence {
   /** True when the server runs the dragon raid and the scoreboard (protocol v4+). */
   get raidSupported(): boolean {
     return typeof this.serverVersion === "number" && this.serverVersion >= 4;
+  }
+
+  /** True when the server keeps backups of saves (protocol v7+). */
+  get backupSupported(): boolean {
+    return typeof this.serverVersion === "number" && this.serverVersion >= 7;
+  }
+
+  /** Sends a copy of the save to the family server soon (debounced), if connected. */
+  scheduleBackup(delay = BACKUP_DELAY_MS): void {
+    clearTimeout(this.backupTimer);
+    this.backupTimer = setTimeout(() => {
+      const save = getState();
+      if (save && this.backupSupported) this.send("backup", { save });
+    }, delay);
   }
 
   /** True when the server lets players team up against the dragon (protocol v5+). */
@@ -203,6 +222,7 @@ class Presence {
       this.serverVersion = protocolVersion;
       this.events.emit("players");
       this.flushScore();
+      this.scheduleBackup(1000); // back up once right after connecting
     });
     listen(room, "raid", (view) => {
       this.raid = view;
@@ -227,6 +247,12 @@ class Presence {
       this.events.emit("food");
     });
     listen(room, "foodTaken", ({ kind }) => void this.putInBag(kind));
+    listen(room, "backupAck", (ack) => {
+      if ("savedAt" in ack) {
+        this.lastBackupAt = ack.savedAt;
+        this.events.emit("backup");
+      } else console.warn("Backup refused:", ack.error);
+    });
     listen(room, "teamEnded", ({ reason }) => {
       const wasGathering = this.team?.phase === "gathering";
       this.team = undefined;
@@ -372,3 +398,5 @@ export type RaidBattleUpdate = { battle: BattleState; over?: "defeated"; restUnt
 export type { RaidView, ScoreRow, TeamView };
 
 export const presence = new Presence();
+// Every save is backed up to the family server a few seconds later (when connected).
+onPersist(() => presence.scheduleBackup());

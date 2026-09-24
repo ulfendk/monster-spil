@@ -328,6 +328,26 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   first one gets it (`foodTaken` → `SaveData.bag`). Solo/offline play has no food.
   `scripts/e2e-food.mjs` covers it.
 
+## Save backups (protocol v7)
+
+- **The device's save stays the source of truth**, but a copy lives on the family
+  server so a reinstalled or new device can get its player back. `persist()` notifies
+  `onPersist` listeners; `presence` backs up 5 s after the last save (and once after
+  connecting) with the `backup` message. The server (`server/src/save-backups.ts`)
+  keeps one file per player in `DATA_DIR/saves/<playerId>.json` (atomic writes; ids
+  must match `[A-Za-z0-9-]`, max 256 KB; you can only back up your own save).
+- **Restore** happens before the device has a player, so it is plain HTTP on the same
+  server (`server/src/backup-http.ts`): `GET /backups` and `GET /backups/<id>`, with
+  the family code in `X-Family-Code`, counted by the same `FamilyGate`, CORS for the
+  Pages origin. In the client: the first setup screen offers ✨ new / 🔄 fetch;
+  `RestoreScene` asks for the family code, lists the players (figure, name, monster
+  count), and `adoptSave` makes the chosen save this device's. ⚙ shows when the
+  device was last backed up. `scripts/e2e-backup.mjs` covers the server side.
+- **Player figures** are six animal faces (fox, frog, panda, calico cat, moon rabbit,
+  bear) drawn in code in `client/src/gfx/avatar-sprites.ts`, shown on the player's
+  circle on the map, in setup, on the scoreboard and in the restore list. Saved as
+  `figur1`–`figur6` (`client/src/ui/avatars.ts`).
+
 ## Overview map
 
 `client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture

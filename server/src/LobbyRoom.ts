@@ -43,6 +43,7 @@ import { clientAddress, type FamilyGate } from "./family-gate.js";
 import type { FamilyStore } from "./family-store.js";
 import { bossForWeek } from "./bosses.js";
 import type { AreaSpots } from "./areas.js";
+import type { SaveBackups } from "./save-backups.js";
 import type {
   ClientMessages,
   BattleState,
@@ -143,6 +144,7 @@ export class LobbyRoom extends Room {
   /** Food lying on the maps, shared by everyone (in memory: it regrows anyway). */
   private food = new Map<string, FoodItem>();
   private foodSpots: AreaSpots[] = [];
+  private backups?: SaveBackups;
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. */
   onAuth(_client: Client, options: LobbyJoinOptions, context: AuthContext): boolean {
@@ -152,7 +154,8 @@ export class LobbyRoom extends Room {
     return true;
   }
 
-  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[]; foodSpots?: AreaSpots[] }): void {
+  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[]; foodSpots?: AreaSpots[]; backups?: SaveBackups }): void {
+    this.backups = options.backups;
     this.gate = options.gate;
     this.store = options.store;
     this.bosses = options.bosses;
@@ -367,6 +370,19 @@ export class LobbyRoom extends Room {
       }
     });
 
+    this.onMessage("backup", (client, msg: ClientMessages["backup"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.backups) return;
+      const now = new Date();
+      void this.backups.put(me.info.playerId, msg?.save, now).then(
+        (error) => this.tell(client, "backupAck", error ? { error } : { savedAt: now.toISOString() }),
+        (error: unknown) => {
+          console.error("Could not store a backup:", error);
+          this.tell(client, "backupAck", { error: "could not store" });
+        }
+      );
+    });
+
     this.onMessage("scoreReport", (client, msg: ClientMessages["scoreReport"]) => {
       const me = this.playerOf(client);
       if (!me || !Array.isArray(msg?.events)) return;
@@ -430,7 +446,7 @@ export class LobbyRoom extends Room {
     this.online.set(info.playerId, { client, info });
 
     // Remember every family member, so the scoreboard lists them even while they are offline.
-    this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, lastSeen: new Date().toISOString() };
+    this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, avatarId: info.avatarId, lastSeen: new Date().toISOString() };
     this.store.changed();
 
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });

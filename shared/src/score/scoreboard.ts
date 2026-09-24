@@ -22,12 +22,15 @@ export const SCOREBOARD_DAYS = 7;
 export interface ScorePlayer {
   navn: string;
   farve: string;
+  /** Their chosen figure (an animal on the map); absent for players stored before figures showed. */
+  avatarId?: string;
 }
 
 export interface ScoreRow {
   playerId: string;
   navn: string;
   farve: string;
+  avatarId?: string;
   catches: number;
   duels: number;
   dragons: number;
@@ -48,7 +51,7 @@ export function inWindow(at: string, now: Date, days = SCOREBOARD_DAYS): boolean
 export function scoreboard(events: ScoreEvent[], players: Record<string, ScorePlayer>, now: Date, days = SCOREBOARD_DAYS): ScoreRow[] {
   const rows = new Map<string, ScoreRow>();
   for (const [playerId, p] of Object.entries(players)) {
-    rows.set(playerId, { playerId, navn: p.navn, farve: p.farve, catches: 0, duels: 0, dragons: 0, points: 0, rank: 0 });
+    rows.set(playerId, { playerId, navn: p.navn, farve: p.farve, ...(p.avatarId ? { avatarId: p.avatarId } : {}), catches: 0, duels: 0, dragons: 0, points: 0, rank: 0 });
   }
   for (const e of events) {
     const row = rows.get(e.playerId);

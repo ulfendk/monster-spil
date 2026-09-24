@@ -3,6 +3,12 @@ import { loadSave, writeSave } from "./db";
 import { passOutUntil } from "@shared";
 
 let current: SaveData | undefined;
+const persistListeners: Array<(save: SaveData) => void> = [];
+
+/** Called after every successful save (e.g. to back the save up on the family server). */
+export function onPersist(listener: (save: SaveData) => void): void {
+  persistListeners.push(listener);
+}
 
 export function getState(): SaveData | undefined {
   return current;
@@ -28,10 +34,21 @@ export async function persist(): Promise<void> {
   if (!current) return;
   current.updatedAt = new Date().toISOString();
   await writeSave(current);
+  for (const listener of persistListeners) listener(current);
 }
 
 export async function loadInitialState(): Promise<SaveData | undefined> {
   current = normalise(await loadSave());
+  return current;
+}
+
+/**
+ * Takes over a save restored from a backup: fills in any fields it predates, makes it
+ * this device's save and writes it (the device is the source of truth from here on).
+ */
+export async function adoptSave(save: SaveData): Promise<SaveData> {
+  current = normalise(save)!;
+  await persist();
   return current;
 }
 

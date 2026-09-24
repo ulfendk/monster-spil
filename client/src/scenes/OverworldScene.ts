@@ -18,6 +18,7 @@ import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON } from "../u
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
+import { addAvatar } from "../gfx/avatar-sprites";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
 import { C, CSS, FONT } from "../ui/theme";
@@ -47,7 +48,14 @@ const DRAGON_MEET = "__dragon__";
 /** How another player is drawn on the map. */
 interface OtherView {
   circle: Phaser.GameObjects.Arc;
+  /** Their chosen animal, on the circle. */
+  face: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
+}
+
+/** The chosen animal drawn on a player's circle. */
+function addFace(scene: Phaser.Scene, x: number, y: number, avatarId: string, depth: number): Phaser.GameObjects.Image {
+  return addAvatar(scene, x, y, avatarId, TILE_SIZE * 0.62).setDepth(depth);
 }
 
 export class OverworldScene extends Phaser.Scene {
@@ -80,6 +88,8 @@ export class OverworldScene extends Phaser.Scene {
   private passOutUi: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container> = [];
   private passOutTimer?: Phaser.Time.TimerEvent;
   private dragon?: { sprite: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text };
+  /** My chosen animal, riding on my circle. */
+  private playerFace?: Phaser.GameObjects.Image;
   private minimap?: Minimap;
 
   constructor() {
@@ -128,6 +138,7 @@ export class OverworldScene extends Phaser.Scene {
       colour
     );
     this.player.setDepth(6);
+    this.playerFace = addFace(this, this.player.x, this.player.y, this.save.player.avatarId, 6.5);
     this.others.clear();
     this.popup = [];
     this.toast = undefined;
@@ -428,6 +439,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update(): void {
+    // The animal follows my circle (which walks by tween) and fades with it when passed out.
+    this.playerFace?.setPosition(this.player.x, this.player.y).setAlpha(this.player.alpha);
     if (!this.minimap?.isOpen) return;
     const dots: MinimapDot[] = this.visibleOthers().map((p) => ({
       x: p.x,
@@ -597,6 +610,7 @@ export class OverworldScene extends Phaser.Scene {
     for (const [id, view] of this.others) {
       if (!wanted.has(id)) {
         view.circle.destroy();
+        view.face.destroy();
         view.label.destroy();
         this.others.delete(id);
       }
@@ -608,6 +622,7 @@ export class OverworldScene extends Phaser.Scene {
         const colour = Phaser.Display.Color.HexStringToColor(player.farve).color;
         view = {
           circle: this.add.circle(centre.x, centre.y, TILE_SIZE * 0.3, colour).setDepth(4),
+          face: addFace(this, centre.x, centre.y, player.avatarId, 4.5),
           label: this.add
             .text(centre.x, centre.y - TILE_SIZE * 0.55, player.navn, {
               fontFamily: FONT,
@@ -621,12 +636,14 @@ export class OverworldScene extends Phaser.Scene {
         };
         this.others.set(player.playerId, view);
       } else if (snap) {
-        this.tweens.killTweensOf([view.circle, view.label]);
+        this.tweens.killTweensOf([view.circle, view.face, view.label]);
         view.circle.setPosition(centre.x, centre.y);
+        view.face.setPosition(centre.x, centre.y);
         view.label.setPosition(centre.x, centre.y - TILE_SIZE * 0.55);
       }
       const dim = player.busy || player.away ? 0.4 : 1;
       view.circle.setAlpha(dim);
+      view.face.setAlpha(dim);
       view.label.setAlpha(dim);
     }
   }
@@ -636,7 +653,7 @@ export class OverworldScene extends Phaser.Scene {
     const view = this.others.get(playerId);
     if (!player || !view) return this.syncOthers();
     const centre = this.tileCentre(player);
-    this.tweens.add({ targets: view.circle, x: centre.x, y: centre.y, duration: MOVE_DURATION_MS });
+    this.tweens.add({ targets: [view.circle, view.face], x: centre.x, y: centre.y, duration: MOVE_DURATION_MS });
     this.tweens.add({ targets: view.label, x: centre.x, y: centre.y - TILE_SIZE * 0.55, duration: MOVE_DURATION_MS });
   }
 

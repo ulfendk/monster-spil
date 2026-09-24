@@ -6,6 +6,7 @@ import { addCloseButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { CAUGHT_ICON, DRAGON_ICON, DUEL_WIN_ICON, MEDALS, POINTS_ICON, SCORES_ICON, SLEEP_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
+import { addAvatar } from "../gfx/avatar-sprites";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
 
@@ -96,7 +97,10 @@ export class ScoreboardScene extends Phaser.Scene {
       const mine = row.playerId === presence.myId;
       this.ui.add(this.add.rectangle((left + right) / 2, y, right - left, rowH - 8, mine ? C.panelMine : C.background).setStrokeStyle(2, C.border, mine ? 0.8 : 0.2));
       this.text(medalX, y, MEDALS[row.rank - 1] ?? String(row.rank), row.rank <= 3 ? 38 : 28, CSS.text, 0);
-      this.ui.add(this.add.circle(dotX, y, layout.px(16), Phaser.Display.Color.HexStringToColor(row.farve).color));
+      this.ui.add(this.add.circle(dotX, y, Math.max(12, layout.px(18)), Phaser.Display.Color.HexStringToColor(row.farve).color));
+      if (row.avatarId) {
+        this.ui.add(addAvatar(this, dotX, y, row.avatarId, Math.max(24, layout.px(36)) * 1.5));
+      }
       this.text(nameX, y, row.navn, 30, CSS.text, 0);
       this.text(cols.catches, y, String(row.catches), 30);
       this.text(cols.duels, y, String(row.duels), 30);

@@ -35,9 +35,11 @@ export class SettingsScene extends Phaser.Scene {
     const redraw = () => this.requestDraw();
     presence.events.on("status", redraw);
     presence.events.on("players", redraw);
+    presence.events.on("backup", redraw);
     this.off = () => {
       presence.events.off("status", redraw);
       presence.events.off("players", redraw);
+      presence.events.off("backup", redraw);
     };
     this.events.once("shutdown", () => this.off?.());
     onRelayout(this, () => {
@@ -82,8 +84,12 @@ export class SettingsScene extends Phaser.Scene {
     if (presence.status === "online") {
       const others = presence.players.size;
       this.addText(width / 2, height / 2, others === 0 ? t("lobby_alone") : `👥 ${others}`, 32, CSS.soft);
-      if (presence.serverVersion === "old" || (typeof presence.serverVersion === "number" && !presence.worldSupported)) {
+      if (presence.serverVersion === "old" || (typeof presence.serverVersion === "number" && !presence.backupSupported)) {
         this.addText(width / 2, height / 2 + 50, t("lobby_server_old"), 26, CSS.accent);
+      } else if (presence.lastBackupAt) {
+        // When this device's save was last copied to the family server (safe to reinstall).
+        const at = new Date(presence.lastBackupAt).toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+        this.addText(width / 2, height / 2 + 50, `💾 ${t("backup_saved")} ${at}`, 24, CSS.soft);
       }
     } else if (presence.status === "offline") {
       this.addText(width / 2, height / 2, t("lobby_offline"), 32, CSS.soft);

@@ -6,6 +6,7 @@ import { cryKey } from "../audio/creature-sound";
 import { bossesById } from "../content/load-raid";
 import { bossSpecies } from "@shared";
 import { generatePlaceholderSprites } from "../gfx/placeholder-sprites";
+import { generateAvatarTextures } from "../gfx/avatar-sprites";
 import { loadInitialState } from "../save/game-state";
 
 export class PreloadScene extends Phaser.Scene {
@@ -36,6 +37,7 @@ export class PreloadScene extends Phaser.Scene {
     const bosses = Object.values(bossesById);
     const dragonIds = new Set([...bosses.map((b) => b.id), ...bosses.map((b) => b.rewardSpeciesId)]);
     generatePlaceholderSprites(this, [...Object.values(content.speciesById), ...bosses.map(bossSpecies)], dragonIds);
+    generateAvatarTextures(this);
 
     loadInitialState().then((save) => {
       if (save) {
