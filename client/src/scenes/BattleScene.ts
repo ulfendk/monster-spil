@@ -19,6 +19,7 @@ import { createButton } from "../ui/Button";
 import { createHpBar } from "../ui/HpBar";
 import type { HpBarHandle } from "../ui/HpBar";
 import { TYPE_COLOURS } from "../gfx/placeholder-sprites";
+import { TYPE_ICONS, FLEE_ICON, CATCH_ICON } from "../ui/icons";
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 
@@ -194,7 +195,7 @@ export class BattleScene extends Phaser.Scene {
         y,
         move.navn,
         () => this.performTurn({ kind: "move", moveId }),
-        { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: TYPE_COLOURS[move.type] }
+        { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: TYPE_COLOURS[move.type], icon: TYPE_ICONS[move.type] }
       );
       this.actionButtons.push(button);
     });
@@ -205,7 +206,7 @@ export class BattleScene extends Phaser.Scene {
       y,
       t("battle_flee"),
       () => this.performTurn({ kind: "flee" }),
-      { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: 0x555555 }
+      { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: 0x555555, icon: FLEE_ICON }
     );
     this.actionButtons.push(fleeButton);
     if (!canCatch) return;
@@ -216,7 +217,7 @@ export class BattleScene extends Phaser.Scene {
       y,
       t("battle_catch"),
       () => this.performCatch(),
-      { width: spacing - 16, height: 64, fontSize: "20px", backgroundColor: 0xe63946 }
+      { width: spacing - 16, height: 84, fontSize: "20px", backgroundColor: 0xe63946, icon: CATCH_ICON }
     );
     this.actionButtons.push(catchButton);
   }

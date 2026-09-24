@@ -6,6 +6,8 @@ export interface ButtonOptions {
   fontSize?: string;
   backgroundColor?: number;
   textColor?: string;
+  /** An emoji drawn large above the label, so a child who reads little can tell buttons apart. */
+  icon?: string;
 }
 
 /** A big (>=64px) in-canvas touch button, since DOM buttons fight Safari's zoom/overlay behaviour. */
@@ -30,7 +32,14 @@ export function createButton(
     })
     .setOrigin(0.5);
 
-  const container = scene.add.container(x, y, [bg, text]);
+  // Keep [bg, text] as the first two children (callers update the label via list[1]); the icon goes last.
+  const parts: Phaser.GameObjects.GameObject[] = [bg, text];
+  if (options.icon) {
+    text.setY(height * 0.24);
+    parts.push(scene.add.text(0, -height * 0.2, options.icon, { fontFamily: "sans-serif", fontSize: `${Math.round(height * 0.45)}px` }).setOrigin(0.5));
+  }
+
+  const container = scene.add.container(x, y, parts);
   container.setSize(width, height);
   container.setInteractive({ useHandCursor: true });
   container.on("pointerdown", () => bg.setFillStyle(color, 0.7));
