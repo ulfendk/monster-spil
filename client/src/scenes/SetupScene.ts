@@ -4,21 +4,23 @@ import type { GameContent } from "../content/load-content";
 import { setState, persist } from "../save/game-state";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
+import { C, CSS, FONT, KANAGAWA, PLAYER_COLOURS } from "../ui/theme";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
+import { addScreenBackdrop } from "../gfx/motifs";
 
 export interface SetupSceneData {
   content: GameContent;
 }
 
 const AVATARS = ["figur1", "figur2", "figur3", "figur4"] as const;
-const COLOURS = ["#e63946", "#f4a261", "#e9c46a", "#2a9d8f", "#457b9d", "#9b5de5"];
+const COLOURS = PLAYER_COLOURS;
 
 type Step = "navn" | "figur" | "farve";
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-  fontFamily: "sans-serif",
+  fontFamily: FONT,
   fontSize: "36px",
-  color: "#ffffff",
+  color: CSS.text,
 };
 
 export class SetupScene extends Phaser.Scene {
@@ -59,6 +61,7 @@ export class SetupScene extends Phaser.Scene {
 
   private renderStep(): void {
     this.clearStep();
+    for (const o of addScreenBackdrop(this, this.scale.width, this.scale.height, { sun: { x: this.scale.width / 2, y: this.scale.height * 0.22, r: Math.min(this.scale.width, this.scale.height) * 0.16 } })) this.stepChildren.push(o);
     const layout = getLayout(this);
     const { width, height, safe } = layout;
     const title = { ...TITLE_STYLE, fontSize: layout.font(36) };
@@ -86,8 +89,8 @@ export class SetupScene extends Phaser.Scene {
       AVATARS.forEach((id, i) => {
         const { x, y } = spots[i]!;
         const circle = this.add
-          .circle(x, y, 56, 0x2b2f52)
-          .setStrokeStyle(this.avatarId === id ? 6 : 3, 0xffffff, this.avatarId === id ? 1 : 0.4);
+          .circle(x, y, 56, C.panel)
+          .setStrokeStyle(this.avatarId === id ? 6 : 3, this.avatarId === id ? C.accent : C.border, this.avatarId === id ? 1 : 0.4);
         this.stepChildren.push(circle, this.drawAvatarIcon(i, x, y));
 
         circle.setInteractive({ useHandCursor: true });
@@ -105,7 +108,7 @@ export class SetupScene extends Phaser.Scene {
         const { x, y } = spots[i]!;
         const colorNum = Phaser.Display.Color.HexStringToColor(hex).color;
         const circle = this.add.circle(x, y, 48, colorNum);
-        if (this.farve === hex) circle.setStrokeStyle(6, 0xffffff);
+        if (this.farve === hex) circle.setStrokeStyle(6, C.accent);
         circle.setInteractive({ useHandCursor: true });
         circle.on("pointerdown", () => {
           this.farve = hex;
@@ -132,13 +135,13 @@ export class SetupScene extends Phaser.Scene {
   private drawAvatarIcon(index: number, x: number, y: number): Phaser.GameObjects.GameObject {
     switch (index) {
       case 0:
-        return this.add.star(x, y, 5, 10, 22, 0xffce54);
+        return this.add.star(x, y, 5, 10, 22, KANAGAWA.carpYellow);
       case 1:
-        return this.add.triangle(x, y, 0, -22, -20, 16, 20, 16, 0x4cc9f0);
+        return this.add.triangle(x, y, 0, -22, -20, 16, 20, 16, KANAGAWA.springBlue);
       case 2:
-        return this.add.rectangle(x, y, 28, 28, 0xff6b6b).setRotation(Math.PI / 4);
+        return this.add.rectangle(x, y, 28, 28, KANAGAWA.waveRed).setRotation(Math.PI / 4);
       default:
-        return this.add.circle(x, y, 20, 0x9bf6a0);
+        return this.add.circle(x, y, 20, KANAGAWA.springGreen);
     }
   }
 

@@ -1,12 +1,14 @@
 import Phaser from "phaser";
 import type { CreatureSpecies, TypeId } from "@shared";
+import { C, KANAGAWA } from "../ui/theme";
 
+/** One Kanagawa colour per type — for the creatures, their moves' buttons and badges. */
 export const TYPE_COLOURS: Record<TypeId, number> = {
-  ild: 0xff6b35,
-  vand: 0x4cc9f0,
-  graes: 0x6bbf59,
-  lyn: 0xffce54,
-  sten: 0x9c8064,
+  ild: KANAGAWA.peachRed,
+  vand: KANAGAWA.crystalBlue,
+  graes: KANAGAWA.springGreen,
+  lyn: KANAGAWA.carpYellow,
+  sten: KANAGAWA.boatYellow1,
 };
 
 const SPRITE_SIZE = 128;
@@ -44,17 +46,17 @@ function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string
     g.fillTriangle(cx + 20, cy - 10, cx + 62, cy - 42, cx + 50, cy + 18);
     g.fillStyle(bodyColor, 1);
     g.fillEllipse(cx, cy, SPRITE_SIZE * 0.62, SPRITE_SIZE * 0.56);
-    g.fillStyle(0xfff3c4, 1);
+    g.fillStyle(KANAGAWA.oldWhite, 1);
     g.fillTriangle(cx - 26, cy - 22, cx - 18, cy - 50, cx - 10, cy - 28);
     g.fillTriangle(cx + 26, cy - 22, cx + 18, cy - 50, cx + 10, cy - 28);
     if (!isBack) {
-      g.fillStyle(0xffe066, 1);
+      g.fillStyle(KANAGAWA.carpYellow, 1);
       g.fillCircle(cx - 16, cy - 6, 8);
       g.fillCircle(cx + 16, cy - 6, 8);
-      g.fillStyle(0x1b1f3b, 1);
+      g.fillStyle(KANAGAWA.sumiInk0, 1);
       g.fillEllipse(cx - 16, cy - 6, 4, 12);
       g.fillEllipse(cx + 16, cy - 6, 4, 12);
-      g.fillStyle(0xffffff, 1);
+      g.fillStyle(C.border, 1);
       g.fillTriangle(cx - 12, cy + 14, cx - 6, cy + 24, cx, cy + 14);
       g.fillTriangle(cx, cy + 14, cx + 6, cy + 24, cx + 12, cy + 14);
     }
@@ -67,7 +69,7 @@ function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string
   g.fillEllipse(cx, cy, SPRITE_SIZE * 0.7, SPRITE_SIZE * 0.6);
 
   if (!isBack) {
-    g.fillStyle(0x1b1f3b, 1);
+    g.fillStyle(KANAGAWA.sumiInk0, 1);
     g.fillCircle(cx - 18, cy - 8, 8);
     g.fillCircle(cx + 18, cy - 8, 8);
   }
@@ -79,7 +81,7 @@ function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string
 }
 
 function drawTypeAccent(g: Phaser.GameObjects.Graphics, type: TypeId, x: number, y: number): void {
-  g.fillStyle(0xffffff, 0.9);
+  g.fillStyle(C.border, 0.9);
   switch (type) {
     case "ild":
       g.fillTriangle(x, y - 14, x - 14, y + 10, x + 14, y + 10);

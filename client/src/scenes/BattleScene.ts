@@ -40,6 +40,8 @@ import {
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 import { getLayout, onRelayout } from "../ui/layout";
+import { addScreenBackdrop } from "../gfx/motifs";
+import { C, CSS, FONT } from "../ui/theme";
 
 /** A player-vs-player battle: the server resolves every turn, this scene only shows it and sends move choices. */
 export interface DuelSceneData {
@@ -72,9 +74,9 @@ export interface BattleSceneData {
 }
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-  fontFamily: "sans-serif",
+  fontFamily: FONT,
   fontSize: "24px",
-  color: "#ffffff",
+  color: CSS.text,
   align: "center",
   wordWrap: { width: 900 },
 };
@@ -90,6 +92,8 @@ export class BattleScene extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   /** A big emoji above the message, so the battle can be followed without reading. */
   private logIcon!: Phaser.GameObjects.Text;
+  /** Ink, waves and a sun behind the fight (rebuilt on relayout). */
+  private backdrop: Phaser.GameObjects.GameObject[] = [];
   /** The message showing now, so a relayout can put it back. */
   private logTextValue = "";
   private logIconValue = "";
@@ -123,7 +127,7 @@ export class BattleScene extends Phaser.Scene {
       this.myId = data.team.myId;
       this.battleState = data.team.view.battle!;
       // This scene runs on top of the paused interaction screen, so it needs its own background.
-      this.cameras.main.setBackgroundColor("#1b1f3b");
+      this.cameras.main.setBackgroundColor(CSS.ink);
       this.wireTeam();
     } else if (data.raid) {
       this.myId = data.raid.myId;
@@ -133,7 +137,7 @@ export class BattleScene extends Phaser.Scene {
       this.myId = data.duel.myId;
       this.battleState = data.duel.view.battle!;
       // This scene runs on top of the paused lobby, so it needs its own opaque background.
-      this.cameras.main.setBackgroundColor("#1b1f3b");
+      this.cameras.main.setBackgroundColor(CSS.ink);
       this.wireDuel(data.duel);
     } else {
       this.myId = "player";
@@ -290,9 +294,9 @@ export class BattleScene extends Phaser.Scene {
       .join("   ");
     this.allies = this.add
       .text(layout.safe.left + 12, layout.safe.top + 8, `${TEAM_ICON} ${line}`, {
-        fontFamily: "sans-serif",
+        fontFamily: FONT,
         fontSize: layout.font(20),
-        color: "#ffffff",
+        color: CSS.text,
         wordWrap: { width: layout.width * (layout.portrait ? 0.95 : 0.5) },
       })
       .setDepth(5);
@@ -390,6 +394,12 @@ export class BattleScene extends Phaser.Scene {
 
     const foe = portrait ? { x: width * 0.66, y: arena.top + arena.h * 0.3 } : { x: width * 0.72, y: arena.top + arena.h * 0.36 };
     const me = portrait ? { x: width * 0.33, y: arena.top + arena.h * 0.8 } : { x: width * 0.28, y: arena.top + arena.h * 0.76 };
+    // A rising sun behind the opponent — large and bold for the dragon.
+    const boss = Boolean(this.raid || this.team);
+    this.backdrop = addScreenBackdrop(this, width, layout.height, {
+      sun: { x: foe.x, y: foe.y, r: Math.min(width, layout.height) * (boss ? 0.3 : 0.2) },
+    });
+    if (boss) (this.backdrop[1] as Phaser.GameObjects.Arc).setAlpha(0.55);
     // The dragon is drawn bigger than any monster.
     const foeScale = spriteScale * (this.raid ? 1.5 : 1);
     this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale);
@@ -399,7 +409,7 @@ export class BattleScene extends Phaser.Scene {
 
     const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;
     const iconSize = Math.max(40, layout.px(64));
-    this.logIcon = this.add.text(width / 2, logY - iconSize * 0.9, this.logIconValue, { fontFamily: "sans-serif", fontSize: `${iconSize}px` }).setOrigin(0.5);
+    this.logIcon = this.add.text(width / 2, logY - iconSize * 0.9, this.logIconValue, { fontFamily: FONT, fontSize: `${iconSize}px` }).setOrigin(0.5);
     this.logText = this.add
       .text(width / 2, logY, this.logTextValue, { ...TITLE_STYLE, fontSize: layout.font(24), wordWrap: { width: width - safe.left - safe.right - 40 } })
       .setOrigin(0.5);
@@ -434,7 +444,7 @@ export class BattleScene extends Phaser.Scene {
   /** Rebuilds the screen for a new size, keeping the battle, the message and whether the buttons are showing. */
   private relayout(): void {
     const showingActions = this.actionButtons.length > 0;
-    for (const o of [this.wildSprite, this.playerSprite, this.logIcon, this.logText, this.wildHpBar.container, this.playerHpBar.container]) o.destroy();
+    for (const o of [...this.backdrop, this.wildSprite, this.playerSprite, this.logIcon, this.logText, this.wildHpBar.container, this.playerHpBar.container]) o.destroy();
     this.buildUi();
     if (showingActions) this.renderActions();
   }
@@ -456,8 +466,8 @@ export class BattleScene extends Phaser.Scene {
       const move = player.moves[moveId]!;
       return { label: move.navn, icon: TYPE_ICONS[move.type], colour: TYPE_COLOURS[move.type], onTap: () => this.performTurn({ kind: "move", moveId }) };
     });
-    actions.push({ label: t("battle_flee"), icon: FLEE_ICON, colour: 0x555555, onTap: () => this.performTurn({ kind: "flee" }) });
-    if (canCatch) actions.push({ label: t("battle_catch"), icon: CATCH_ICON, colour: 0xe63946, onTap: () => this.performCatch() });
+    actions.push({ label: t("battle_flee"), icon: FLEE_ICON, colour: C.buttonQuiet, onTap: () => this.performTurn({ kind: "flee" }) });
+    if (canCatch) actions.push({ label: t("battle_catch"), icon: CATCH_ICON, colour: C.catch, onTap: () => this.performCatch() });
 
     actions.forEach((action, i) => {
       const row = Math.floor(i / grid.cols);
@@ -493,7 +503,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private playBallThrowAnimation(onComplete: () => void): void {
-    const ball = this.add.circle(this.playerSprite.x, this.playerSprite.y, 14, 0xe63946).setStrokeStyle(3, 0xffffff);
+    const ball = this.add.circle(this.playerSprite.x, this.playerSprite.y, 14, C.catch).setStrokeStyle(3, C.border);
     this.tweens.add({
       targets: ball,
       x: this.wildSprite.x,
@@ -603,7 +613,7 @@ export class BattleScene extends Phaser.Scene {
   private flashFeedback(label: string): void {
     const layout = getLayout(this);
     const text = this.add
-      .text(layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: "sans-serif", fontSize: layout.font(26), color: "#ffce54" })
+      .text(layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: FONT, fontSize: layout.font(26), color: CSS.accent })
       .setOrigin(0.5)
       .setAlpha(0);
     this.tweens.add({ targets: text, alpha: 1, duration: 150, yoyo: true, hold: 500, onComplete: () => text.destroy() });

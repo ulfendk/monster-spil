@@ -6,8 +6,9 @@ import { addCloseButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { CAUGHT_ICON, DRAGON_ICON, DUEL_WIN_ICON, MEDALS, POINTS_ICON, SCORES_ICON, SLEEP_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
+import { C, CSS, FONT } from "../ui/theme";
+import { addSeigaiha } from "../gfx/motifs";
 
-const FONT = "sans-serif";
 
 /** The family's last 7 days: who caught, duelled and fought the dragon the most. Opened from 🏆 on the map. */
 export class ScoreboardScene extends Phaser.Scene {
@@ -51,7 +52,7 @@ export class ScoreboardScene extends Phaser.Scene {
     this.scene.resume("Overworld");
   }
 
-  private text(x: number, y: number, value: string, size: number, color = "#ffffff", originX = 0.5): void {
+  private text(x: number, y: number, value: string, size: number, color = CSS.text, originX = 0.5): void {
     this.ui.add(this.add.text(x, y, value, { fontFamily: FONT, fontSize: getLayout(this).font(size), color }).setOrigin(originX, 0.5));
   }
 
@@ -59,16 +60,17 @@ export class ScoreboardScene extends Phaser.Scene {
     this.ui.removeAll(true);
     const layout = getLayout(this);
     const { width, height, safe } = layout;
-    const backdrop = this.add.rectangle(0, 0, width, height, 0x10132a, 1).setOrigin(0, 0).setInteractive();
+    const backdrop = this.add.rectangle(0, 0, width, height, C.overlay, 1).setOrigin(0, 0).setInteractive();
     this.ui.add(backdrop);
+    this.ui.add(addSeigaiha(this, 0, height * 0.66, width, height * 0.34));
     const { button, headerH, size } = addCloseButton(this, () => this.close());
     this.ui.add(button);
     // The title is centred in the space left of the close button.
     const titleCx = (safe.left + width - safe.right - size - 24) / 2;
     this.text(titleCx, headerH / 2 + safe.top / 2, `${SCORES_ICON} ${t("scores_title")}`, 38);
 
-    if (presence.status !== "online") return this.text(width / 2, height / 2, `📵 ${t("lobby_offline")}`, 32, "#cccccc");
-    if (!presence.raidSupported) return this.text(width / 2, height / 2, t("lobby_server_old"), 30, "#ffce54");
+    if (presence.status !== "online") return this.text(width / 2, height / 2, `📵 ${t("lobby_offline")}`, 32, CSS.soft);
+    if (!presence.raidSupported) return this.text(width / 2, height / 2, t("lobby_server_old"), 30, CSS.accent);
 
     this.drawDragon(width / 2, headerH + layout.px(8));
     if (!this.rows) return this.text(width / 2, height / 2, "⏳", 64);
@@ -92,14 +94,14 @@ export class ScoreboardScene extends Phaser.Scene {
     this.rows.forEach((row, i) => {
       const y = top + layout.px(50) + i * rowH + rowH / 2 - layout.px(10);
       const mine = row.playerId === presence.myId;
-      this.ui.add(this.add.rectangle((left + right) / 2, y, right - left, rowH - 8, mine ? 0x2e3a6e : 0x1b1f3b).setStrokeStyle(2, 0xffffff, mine ? 0.8 : 0.2));
-      this.text(medalX, y, MEDALS[row.rank - 1] ?? String(row.rank), row.rank <= 3 ? 38 : 28, "#ffffff", 0);
+      this.ui.add(this.add.rectangle((left + right) / 2, y, right - left, rowH - 8, mine ? C.panelMine : C.background).setStrokeStyle(2, C.border, mine ? 0.8 : 0.2));
+      this.text(medalX, y, MEDALS[row.rank - 1] ?? String(row.rank), row.rank <= 3 ? 38 : 28, CSS.text, 0);
       this.ui.add(this.add.circle(dotX, y, layout.px(16), Phaser.Display.Color.HexStringToColor(row.farve).color));
-      this.text(nameX, y, row.navn, 30, "#ffffff", 0);
+      this.text(nameX, y, row.navn, 30, CSS.text, 0);
       this.text(cols.catches, y, String(row.catches), 30);
       this.text(cols.duels, y, String(row.duels), 30);
       this.text(cols.dragons, y, String(row.dragons), 30);
-      this.text(cols.points, y, String(row.points), 34, "#ffce54");
+      this.text(cols.points, y, String(row.points), 34, CSS.accent);
     });
   }
 
@@ -109,11 +111,11 @@ export class ScoreboardScene extends Phaser.Scene {
     const boss = raid ? bossesById[raid.bossId] : undefined;
     if (!raid || !boss) return;
     const layout = getLayout(this);
-    if (raid.defeated) return this.text(cx, y + layout.px(20), `${DRAGON_ICON} ${boss.navn} ${SLEEP_ICON}`, 28, "#cccccc");
+    if (raid.defeated) return this.text(cx, y + layout.px(20), `${DRAGON_ICON} ${boss.navn} ${SLEEP_ICON}`, 28, CSS.soft);
     this.text(cx, y, `${DRAGON_ICON} ${boss.navn}   ❤️ ${raid.hp}`, 26);
     const barW = Math.min(420, layout.width - layout.safe.left - layout.safe.right - 48);
     const barY = y + Math.max(30, layout.px(40));
-    this.ui.add(this.add.rectangle(cx - barW / 2, barY, barW, Math.max(16, layout.px(24)), 0x2b2f52).setOrigin(0, 0.5).setStrokeStyle(2, 0xffffff, 0.6));
-    this.ui.add(this.add.rectangle(cx - barW / 2, barY, barW * (raid.hp / raid.maxHp), Math.max(16, layout.px(24)), 0xe63946).setOrigin(0, 0.5));
+    this.ui.add(this.add.rectangle(cx - barW / 2, barY, barW, Math.max(16, layout.px(24)), C.panel).setOrigin(0, 0.5).setStrokeStyle(2, C.border, 0.6));
+    this.ui.add(this.add.rectangle(cx - barW / 2, barY, barW * (raid.hp / raid.maxHp), Math.max(16, layout.px(24)), C.catch).setOrigin(0, 0.5));
   }
 }

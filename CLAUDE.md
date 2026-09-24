@@ -356,6 +356,27 @@ covers √2 tiles at the same speed, so it takes longer). A short tap without a 
 is still a tap: on another player or the dragon it offers 🤝/⚔️ (walking over with
 BFS pathfinding if needed); on the ground it does nothing.
 
+## Look and feel (Kanagawa)
+
+- **All colours and the font live in `client/src/ui/theme.ts`** — the Kanagawa
+  palette as in the Omarchy "kanagawa" theme (sumi-ink backgrounds, fuji-white text,
+  muted red/sand/sage/wave-blue), named by purpose (`C.button`, `C.danger`,
+  `CSS.accent`, …). Never write a hex colour in a scene; add a role to the theme.
+  Type colours (`TYPE_COLOURS`) and player colours (`PLAYER_COLOURS`) come from it too.
+- **Font:** Hiragino Maru Gothic (rounded, Japanese; ships with iPadOS/iOS, so
+  nothing is downloaded), falling back to other rounded fonts, then sans-serif.
+- **Motifs, drawn in code** (`client/src/gfx/motifs.ts`, no image files): seigaiha
+  wave scales fading in along the bottom of full screens, a rising sun behind titles
+  and opponents (bold red for the dragon), and a hanko seal (狩, "hunt") on the boot
+  screen — decoration only; all text stays Danish. Buttons are rounded cards with a
+  thin warm-white edge and an ink shadow they sink into when pressed.
+- **Map tiles** come from `scripts/generate-startskoven.mjs` in the same palette:
+  Japanese pines, indigo water with Great-Wave foam curls, sand paths.
+- **App icon** (`client/public/icons/icon-{192,512}.png`) is drawn by
+  `scripts/generate-icons.mjs`: a red rising sun, a friendly monster peeking over a
+  seigaiha sea, on sumi ink — full-bleed squares (iOS rounds the corners). Both
+  generator scripts share the dependency-free PNG writer in `scripts/lib/png.mjs`.
+
 ## Screen layout (iPad and iPhone, both orientations)
 
 - **`client/src/ui/layout.ts`** is the one place for screen geometry: `getLayout(scene)`

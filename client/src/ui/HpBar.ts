@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { C, CSS, FONT } from "./theme";
 
 export interface HpBarHandle {
   container: Phaser.GameObjects.Container;
@@ -13,14 +14,14 @@ const FILL_INSET = 3;
 export function createHpBar(scene: Phaser.Scene, x: number, y: number, label: string, size = 1): HpBarHandle {
   const BAR_WIDTH_S = Math.round(BAR_WIDTH * size);
   const nameText = scene.add.text(x - BAR_WIDTH_S / 2, y - Math.round(36 * size), label, {
-    fontFamily: "sans-serif",
+    fontFamily: FONT,
     fontSize: `${Math.max(16, Math.round(22 * size))}px`,
-    color: "#ffffff",
+    color: CSS.text,
   });
   const BAR_HEIGHT_S = Math.max(14, Math.round(BAR_HEIGHT * size));
-  const track = scene.add.rectangle(x, y, BAR_WIDTH_S, BAR_HEIGHT_S, 0x2b2f52).setStrokeStyle(3, 0xffffff);
+  const track = scene.add.rectangle(x, y, BAR_WIDTH_S, BAR_HEIGHT_S, C.panel).setStrokeStyle(2, C.border, 0.8);
   const fill = scene.add
-    .rectangle(x - BAR_WIDTH_S / 2 + FILL_INSET, y, BAR_WIDTH_S - FILL_INSET * 2, BAR_HEIGHT_S - FILL_INSET * 2, 0x4caf50)
+    .rectangle(x - BAR_WIDTH_S / 2 + FILL_INSET, y, BAR_WIDTH_S - FILL_INSET * 2, BAR_HEIGHT_S - FILL_INSET * 2, C.hpGood)
     .setOrigin(0, 0.5);
 
   const container = scene.add.container(0, 0, [track, fill, nameText]);
@@ -30,7 +31,7 @@ export function createHpBar(scene: Phaser.Scene, x: number, y: number, label: st
     setHp(current: number, max: number) {
       const fraction = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
       fill.width = (BAR_WIDTH_S - FILL_INSET * 2) * fraction;
-      fill.setFillStyle(fraction > 0.5 ? 0x4caf50 : fraction > 0.2 ? 0xf4a261 : 0xe63946);
+      fill.setFillStyle(fraction > 0.5 ? C.hpGood : fraction > 0.2 ? C.hpMid : C.hpLow);
     },
   };
 }

@@ -10,6 +10,8 @@ import { t } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
 import { CAUGHT_ICON, DRAGON_ICON, OWNED_ICON, STEPS_ICON } from "../ui/icons";
 import { bossesById } from "../content/load-raid";
+import { C, CSS, FONT } from "../ui/theme";
+import { addSeigaiha } from "../gfx/motifs";
 
 export interface MonsterbogSceneData {
   content: GameContent;
@@ -20,7 +22,6 @@ export interface MonsterbogSceneData {
 
 /** The iPad design size of one book entry; smaller screens scale it down to fit every monster. */
 const CELL_SIZE = 170;
-const FONT = "sans-serif";
 
 export class MonsterbogScene extends Phaser.Scene {
   private bookData!: MonsterbogSceneData;
@@ -35,12 +36,13 @@ export class MonsterbogScene extends Phaser.Scene {
     const layout = getLayout(this);
     const { width, height, safe } = layout;
 
-    const overlay = this.add.rectangle(0, 0, width, height, 0x10132a, 0.94).setOrigin(0, 0);
+    const overlay = this.add.rectangle(0, 0, width, height, C.overlay, 0.94).setOrigin(0, 0);
+    addSeigaiha(this, 0, height * 0.66, width, height * 0.34);
     overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
 
     const closeSize = layout.touch(64);
     const headerH = safe.top + closeSize + layout.px(20);
-    this.add.text(width / 2, safe.top + layout.px(10) + closeSize / 2, t("monsterbog_title"), { fontFamily: FONT, fontSize: layout.font(36), color: "#ffffff" }).setOrigin(0.5);
+    this.add.text(width / 2, safe.top + layout.px(10) + closeSize / 2, t("monsterbog_title"), { fontFamily: FONT, fontSize: layout.font(36), color: CSS.text }).setOrigin(0.5);
 
     const speciesList = Object.values(data.content.speciesById);
     const owned = new Map<string, number>();
@@ -71,14 +73,14 @@ export class MonsterbogScene extends Phaser.Scene {
       const caughtCount = data.save.caughtCounts[species.id] ?? 0;
       const caught = ownedCount > 0 || caughtCount > 0;
       const seen = data.save.seenSpeciesIds.includes(species.id);
-      const ring = this.add.circle(x, y, 58 * k, 0x2b2f52).setStrokeStyle(3, 0xffffff, caught ? 1 : 0.4);
+      const ring = this.add.circle(x, y, 58 * k, C.panel).setStrokeStyle(3, C.border, caught ? 1 : 0.4);
 
       if (caught || seen) {
         const image = this.add.image(x, y, species.spriteFront).setScale(k);
-        if (!caught) image.setTint(0x000000);
-        this.add.text(x, y + 72 * k, species.navn, { fontFamily: FONT, fontSize: label(18), color: caught ? "#ffffff" : "#777777" }).setOrigin(0.5);
+        if (!caught) image.setTint(C.overlay);
+        this.add.text(x, y + 72 * k, species.navn, { fontFamily: FONT, fontSize: label(18), color: caught ? CSS.text : CSS.muted }).setOrigin(0.5);
         if (caught) {
-          this.add.text(x, y + 97 * k, `${CAUGHT_ICON} ${caughtCount}   ${OWNED_ICON} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: "#ffffff" }).setOrigin(0.5);
+          this.add.text(x, y + 97 * k, `${CAUGHT_ICON} ${caughtCount}   ${OWNED_ICON} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: CSS.text }).setOrigin(0.5);
         }
         // Tapping a known monster opens its page (and plays its cry).
         ring.setInteractive({ useHandCursor: true });
@@ -86,11 +88,11 @@ export class MonsterbogScene extends Phaser.Scene {
         image.setInteractive({ useHandCursor: true });
         image.on("pointerup", () => this.openInfo(species, caught, ownedCount, caughtCount));
       } else {
-        this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: "#555555" }).setOrigin(0.5);
+        this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: CSS.faint }).setOrigin(0.5);
         const hint = this.hintFor(species);
         if (hint) {
           const text = hint.distance === 0 ? hint.arrow : `${STEPS_ICON} ${hint.distance} ${hint.arrow}`;
-          this.add.text(x, y + 76 * k, text, { fontFamily: FONT, fontSize: label(22), color: "#ffce54" }).setOrigin(0.5);
+          this.add.text(x, y + 76 * k, text, { fontFamily: FONT, fontSize: label(22), color: CSS.accent }).setOrigin(0.5);
         } else if (Object.values(bossesById).some((b) => b.rewardSpeciesId === species.id)) {
           // Not found in the wild: this one hatches from beating the family dragon.
           this.add.text(x, y + 76 * k, DRAGON_ICON, { fontFamily: FONT, fontSize: label(26) }).setOrigin(0.5);
@@ -98,11 +100,11 @@ export class MonsterbogScene extends Phaser.Scene {
       }
     });
 
-    createButton(this, width - safe.right - layout.px(12) - closeSize / 2, safe.top + layout.px(10) + closeSize / 2, "X", () => this.closeBook(), {
+    createButton(this, width - safe.right - layout.px(12) - closeSize / 2, safe.top + layout.px(10) + closeSize / 2, "✕", () => this.closeBook(), {
       width: closeSize,
       height: closeSize,
       fontSize: layout.font(28),
-      backgroundColor: 0x555555,
+      backgroundColor: C.buttonQuiet,
     });
   }
 

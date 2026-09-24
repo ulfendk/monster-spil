@@ -4,9 +4,10 @@ import { setFamilyCode } from "../net/lobby";
 import { t } from "../i18n/da";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
+import { C, CSS, FONT } from "../ui/theme";
+import { addSeigaiha } from "../gfx/motifs";
 
-const FONT = "sans-serif";
-const GREY = 0x555555;
+const GREY = C.buttonQuiet;
 
 /** Connection state and the family-code entry (🔑), opened from the ⚙ button on the map. */
 export class SettingsScene extends Phaser.Scene {
@@ -70,7 +71,8 @@ export class SettingsScene extends Phaser.Scene {
     const layout = getLayout(this);
     const { width, height } = layout;
     // Redrawn with the rest, so it always covers the whole screen; also swallows taps meant for the map underneath.
-    this.ui.add(this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0).setInteractive());
+    this.ui.add(this.add.rectangle(0, 0, width, height, C.overlay, 0.9).setOrigin(0, 0).setInteractive());
+    this.ui.add(addSeigaiha(this, 0, height * 0.66, width, height * 0.34));
     this.ui.add(addCloseButton(this, () => this.close()).button);
 
     if (this.enteringCode) return this.drawCodeEntry();
@@ -79,12 +81,12 @@ export class SettingsScene extends Phaser.Scene {
     this.addText(width / 2, height / 2 - 90, symbol, 96);
     if (presence.status === "online") {
       const others = presence.players.size;
-      this.addText(width / 2, height / 2, others === 0 ? t("lobby_alone") : `👥 ${others}`, 32, "#cccccc");
+      this.addText(width / 2, height / 2, others === 0 ? t("lobby_alone") : `👥 ${others}`, 32, CSS.soft);
       if (presence.serverVersion === "old" || (typeof presence.serverVersion === "number" && !presence.worldSupported)) {
-        this.addText(width / 2, height / 2 + 50, t("lobby_server_old"), 26, "#ffce54");
+        this.addText(width / 2, height / 2 + 50, t("lobby_server_old"), 26, CSS.accent);
       }
     } else if (presence.status === "offline") {
-      this.addText(width / 2, height / 2, t("lobby_offline"), 32, "#cccccc");
+      this.addText(width / 2, height / 2, t("lobby_offline"), 32, CSS.soft);
     }
     this.addButton(layout.safe.left + 16 + 45, height - layout.safe.bottom - 16 - 36, "🔑", () => {
       this.enteringCode = true;
@@ -95,7 +97,7 @@ export class SettingsScene extends Phaser.Scene {
   private drawCodeEntry(): void {
     const { width, height } = this.scale;
     this.addText(width / 2, height * 0.25, "🔑", 80);
-    this.addText(width / 2, height * 0.25 + 70, presence.notice ?? t("lobby_code_title"), 30, presence.notice ? "#ffce54" : "#cccccc");
+    this.addText(width / 2, height * 0.25 + 70, presence.notice ?? t("lobby_code_title"), 30, presence.notice ? CSS.accent : CSS.soft);
     this.codeInput = this.add.dom(
       width / 2,
       height * 0.5,
@@ -118,7 +120,7 @@ export class SettingsScene extends Phaser.Scene {
     }, 120);
   }
 
-  private addText(x: number, y: number, text: string, size: number, color = "#ffffff"): void {
+  private addText(x: number, y: number, text: string, size: number, color = CSS.text): void {
     this.ui.add(this.add.text(x, y, text, { fontFamily: FONT, fontSize: `${size}px`, color }).setOrigin(0.5));
   }
 

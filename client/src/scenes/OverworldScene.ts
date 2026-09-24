@@ -20,6 +20,7 @@ import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
+import { C, CSS, FONT } from "../ui/theme";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -252,10 +253,10 @@ export class OverworldScene extends Phaser.Scene {
     const panelH = layout.px(150) + (bag.length ? buttonSize + layout.px(20) : 0);
     const cx = layout.width / 2;
     const cy = layout.height - layout.safe.bottom - layout.px(20) - panelH / 2;
-    const bg = this.add.rectangle(cx, cy, panelW, panelH, 0x1b1f3b, 0.94).setStrokeStyle(4, 0xffffff);
-    const face = this.add.text(cx - layout.px(60), cy - panelH / 2 + layout.px(70), "😵", { fontFamily: "sans-serif", fontSize: layout.font(64) }).setOrigin(0.5);
+    const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.94).setStrokeStyle(4, C.border);
+    const face = this.add.text(cx - layout.px(60), cy - panelH / 2 + layout.px(70), "😵", { fontFamily: FONT, fontSize: layout.font(64) }).setOrigin(0.5);
     const count = this.add
-      .text(cx + layout.px(50), cy - panelH / 2 + layout.px(70), "", { fontFamily: "sans-serif", fontSize: layout.font(48), color: "#ffce54" })
+      .text(cx + layout.px(50), cy - panelH / 2 + layout.px(70), "", { fontFamily: FONT, fontSize: layout.font(48), color: CSS.accent })
       .setOrigin(0.5);
     const rowW = bag.length * buttonSize + (bag.length - 1) * gap;
     const foods = bag.map((kind, i) =>
@@ -263,7 +264,7 @@ export class OverworldScene extends Phaser.Scene {
         width: buttonSize,
         height: buttonSize,
         fontSize: `${Math.round(buttonSize * 0.5)}px`,
-        backgroundColor: 0x2e7d32,
+        backgroundColor: C.ok,
       })
     );
     this.passOutUi = [bg, face, count, ...foods];
@@ -317,9 +318,9 @@ export class OverworldScene extends Phaser.Scene {
     const layout = getLayout(this);
     this.bagChip = this.add
       .text(layout.safe.left + 14, layout.safe.top + 14, `🎒 ${this.save.bag.join("")}`, {
-        fontFamily: "sans-serif",
+        fontFamily: FONT,
         fontSize: layout.font(26),
-        backgroundColor: "#1b1f3bcc",
+        backgroundColor: CSS.chip,
         padding: { x: 10, y: 6 },
       })
       .setScrollFactor(0)
@@ -339,7 +340,7 @@ export class OverworldScene extends Phaser.Scene {
     for (const f of here) {
       if (this.foodSprites.has(f.id)) continue;
       const c = this.tileCentre(f);
-      this.foodSprites.set(f.id, this.add.text(c.x, c.y, f.kind, { fontFamily: "sans-serif", fontSize: "34px" }).setOrigin(0.5).setDepth(3));
+      this.foodSprites.set(f.id, this.add.text(c.x, c.y, f.kind, { fontFamily: FONT, fontSize: "34px" }).setOrigin(0.5).setDepth(3));
     }
   }
 
@@ -383,11 +384,11 @@ export class OverworldScene extends Phaser.Scene {
     const k = length > STICK_RADIUS ? STICK_RADIUS / length : 1;
     this.stick
       .clear()
-      .fillStyle(0xffffff, 0.18)
+      .fillStyle(C.border, 0.18)
       .fillCircle(drag.ox, drag.oy, STICK_RADIUS)
-      .lineStyle(3, 0xffffff, 0.5)
+      .lineStyle(3, C.border, 0.5)
       .strokeCircle(drag.ox, drag.oy, STICK_RADIUS)
-      .fillStyle(0xffffff, 0.55)
+      .fillStyle(C.border, 0.55)
       .fillCircle(drag.ox + vx * k, drag.oy + vy * k, STICK_RADIUS * 0.45);
   }
 
@@ -531,7 +532,7 @@ export class OverworldScene extends Phaser.Scene {
       this.dragon = {
         sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5),
         label: this.add
-          .text(centre.x, centre.y - TILE_SIZE * 0.95, "", { fontFamily: "sans-serif", fontSize: "20px", color: "#ffffff", stroke: "#000000", strokeThickness: 4 })
+          .text(centre.x, centre.y - TILE_SIZE * 0.95, "", { fontFamily: FONT, fontSize: "20px", color: CSS.text, stroke: CSS.ink, strokeThickness: 4 })
           .setOrigin(0.5)
           .setDepth(7),
       };
@@ -560,15 +561,15 @@ export class OverworldScene extends Phaser.Scene {
     if (gathering && gathering.leaderId !== this.save.player.id) {
       const leader = presence.players.get(gathering.leaderId)?.navn ?? "?";
       this.showPopup(`${TEAM_ICON} ${leader} +${gathering.size - 1}`, [
-        { label: "✓", colour: 0x2e7d32, onTap: () => presence.send("teamJoin", { teamId: gathering.teamId, seat: seat() }) },
-        { label: "✗", colour: 0x555555, onTap: () => {} },
+        { label: "✓", colour: C.ok, onTap: () => presence.send("teamJoin", { teamId: gathering.teamId, seat: seat() }) },
+        { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
       ]);
       return;
     }
-    const buttons = [{ label: "⚔️", colour: 0xc62828, onTap: () => presence.send("raidStart", { seat: seat() }) }];
+    const buttons = [{ label: "⚔️", colour: C.danger, onTap: () => presence.send("raidStart", { seat: seat() }) }];
     // "Fight together" — not just 👥, which is also the connection button in the top row.
-    if (presence.teamSupported && !gathering) buttons.push({ label: `${TEAM_ICON}⚔️`, colour: 0x1565c0, onTap: () => presence.send("teamCreate", { seat: seat() }) });
-    buttons.push({ label: "✗", colour: 0x555555, onTap: () => {} });
+    if (presence.teamSupported && !gathering) buttons.push({ label: `${TEAM_ICON}⚔️`, colour: C.button, onTap: () => presence.send("teamCreate", { seat: seat() }) });
+    buttons.push({ label: "✗", colour: C.buttonQuiet, onTap: () => {} });
     this.showPopup(`${DRAGON_ICON} ${boss.navn}  ❤️ ${raid?.hp ?? "?"}`, buttons);
   }
 
@@ -609,10 +610,10 @@ export class OverworldScene extends Phaser.Scene {
           circle: this.add.circle(centre.x, centre.y, TILE_SIZE * 0.3, colour).setDepth(4),
           label: this.add
             .text(centre.x, centre.y - TILE_SIZE * 0.55, player.navn, {
-              fontFamily: "sans-serif",
+              fontFamily: FONT,
               fontSize: "18px",
-              color: "#ffffff",
-              stroke: "#000000",
+              color: CSS.text,
+              stroke: CSS.ink,
               strokeThickness: 4,
             })
             .setOrigin(0.5)
@@ -678,9 +679,9 @@ export class OverworldScene extends Phaser.Scene {
   /** Small 🤝 / ⚔️ / ✗ choice, fixed on screen, for the player I'm standing next to. */
   private showMeeting(player: LobbyPlayer): void {
     this.showPopup(player.navn, [
-      { label: "🤝", colour: 0x2e7d32, onTap: () => presence.send("invite", { toPlayerId: player.playerId }) },
-      { label: "⚔️", colour: 0xc62828, onTap: () => presence.send("duelInvite", { toPlayerId: player.playerId, seat: seatFor(this.save, this.content) }) },
-      { label: "✗", colour: 0x555555, onTap: () => {} },
+      { label: "🤝", colour: C.ok, onTap: () => presence.send("invite", { toPlayerId: player.playerId }) },
+      { label: "⚔️", colour: C.danger, onTap: () => presence.send("duelInvite", { toPlayerId: player.playerId, seat: seatFor(this.save, this.content) }) },
+      { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
     ]);
   }
 
@@ -698,9 +699,9 @@ export class OverworldScene extends Phaser.Scene {
     const panelH = buttonH + layout.px(110);
     const cx = layout.width / 2;
     const cy = layout.height - layout.safe.bottom - layout.px(16) - panelH / 2;
-    const bg = this.add.rectangle(cx, cy, panelW, panelH, 0x1b1f3b, 0.95).setStrokeStyle(4, 0xffffff);
+    const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.95).setStrokeStyle(4, C.border);
     const name = this.add
-      .text(cx, cy - panelH / 2 + layout.px(40), title, { fontFamily: "sans-serif", fontSize: layout.font(30), color: "#ffffff" })
+      .text(cx, cy - panelH / 2 + layout.px(40), title, { fontFamily: FONT, fontSize: layout.font(30), color: CSS.text })
       .setOrigin(0.5);
     const rowW = buttons.length * buttonW + (buttons.length - 1) * gap;
     const made = buttons.map((b, i) =>
@@ -718,10 +719,10 @@ export class OverworldScene extends Phaser.Scene {
     this.toast?.destroy();
     const toast = this.add
       .text(this.scale.width / 2, getLayout(this).safe.top + getLayout(this).touch(64) + 60, message, {
-        fontFamily: "sans-serif",
+        fontFamily: FONT,
         fontSize: getLayout(this).font(28),
-        color: "#ffce54",
-        backgroundColor: "#1b1f3bcc",
+        color: CSS.accent,
+        backgroundColor: CSS.chip,
         padding: { x: 16, y: 10 },
         align: "center",
         wordWrap: { width: this.scale.width - 40 },
@@ -751,7 +752,7 @@ export class OverworldScene extends Phaser.Scene {
       width: size,
       height: size,
       fontSize: `${Math.round(size * 0.44)}px`,
-      backgroundColor: 0x4a4e7a,
+      backgroundColor: C.button,
     });
     button.setScrollFactor(0).setDepth(10);
     return button;

@@ -4,19 +4,21 @@ import type { GameContent } from "../content/load-content";
 import { getState, persist } from "../save/game-state";
 import { t } from "../i18n/da";
 import { getLayout, restartOnResize, wrapGrid } from "../ui/layout";
+import { CSS, FONT } from "../ui/theme";
+import { addScreenBackdrop } from "../gfx/motifs";
 
 const STARTER_IDS = ["flammepels", "dryppel", "lovgro"];
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-  fontFamily: "sans-serif",
+  fontFamily: FONT,
   fontSize: "36px",
-  color: "#ffffff",
+  color: CSS.text,
 };
 
 const NAME_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-  fontFamily: "sans-serif",
+  fontFamily: FONT,
   fontSize: "24px",
-  color: "#ffffff",
+  color: CSS.text,
 };
 
 export interface StarterSceneData {
@@ -37,6 +39,7 @@ export class StarterScene extends Phaser.Scene {
     const { width, height, safe } = layout;
 
     const titleY = safe.top + height * 0.1;
+    addScreenBackdrop(this, width, height, { sun: { x: width / 2, y: titleY, r: Math.min(width, height) * 0.16 } });
     this.add.text(width / 2, titleY, t("starter_title"), { ...TITLE_STYLE, fontSize: layout.font(36) }).setOrigin(0.5);
 
     // Three in a row on a wide screen, stacked on a portrait phone.

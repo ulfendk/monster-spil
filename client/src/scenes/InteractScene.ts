@@ -9,14 +9,15 @@ import { t } from "../i18n/da";
 import { TEAM_ICON } from "../ui/icons";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
+import { C, CSS, FONT } from "../ui/theme";
+import { addSeigaiha } from "../gfx/motifs";
 
 export interface InteractSceneData {
   content: GameContent;
   save: SaveData;
 }
 
-const FONT = "sans-serif";
-const RED = 0xc62828;
+const RED = C.danger;
 
 /**
  * The trade and duel-invite screens, shown over the map whenever someone
@@ -141,7 +142,8 @@ export class InteractScene extends Phaser.Scene {
     this.ui.removeAll(true);
     const { width, height } = this.scale;
     // Redrawn with the rest, so it covers the whole screen after a rotation; also swallows taps meant for the map.
-    this.ui.add(this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0, 0).setInteractive());
+    this.ui.add(this.add.rectangle(0, 0, width, height, C.overlay, 0.9).setOrigin(0, 0).setInteractive());
+    this.ui.add(addSeigaiha(this, 0, height * 0.66, width, height * 0.34));
     const close = () => this.ui.add(addCloseButton(this, () => this.leave()).button);
 
     if (presence.status !== "online" && !presence.received) {
@@ -171,7 +173,7 @@ export class InteractScene extends Phaser.Scene {
 
   private drawNotice(text: string): void {
     const { width, height } = this.scale;
-    this.addText(width / 2, height / 2 - 40, text, 34, "#ffce54");
+    this.addText(width / 2, height / 2 - 40, text, 34, CSS.accent);
     this.addButton(width / 2, height / 2 + 60, "OK", () => {
       presence.interactNotice = undefined;
       this.close();
@@ -192,10 +194,10 @@ export class InteractScene extends Phaser.Scene {
     });
     const buttonsY = height - layout.safe.bottom - 24 - layout.touch(72) / 2;
     if (iLead) {
-      this.addButton(width / 2 - 90, buttonsY, "⚔️", () => presence.send("teamStart", { teamId: team.id }), 120, 0xc62828);
+      this.addButton(width / 2 - 90, buttonsY, "⚔️", () => presence.send("teamStart", { teamId: team.id }), 120, C.danger);
       this.addButton(width / 2 + 90, buttonsY, "✗", () => this.leave(), 120, RED);
     } else {
-      this.addText(width / 2, buttonsY - layout.touch(72), `${t("team_waiting_leader")} ${nameOf(team.leaderId)} ⏳`, 28, "#cccccc");
+      this.addText(width / 2, buttonsY - layout.touch(72), `${t("team_waiting_leader")} ${nameOf(team.leaderId)} ⏳`, 28, CSS.soft);
       this.addButton(width / 2, buttonsY, "✗", () => this.leave(), 120, RED);
     }
   }
@@ -212,7 +214,7 @@ export class InteractScene extends Phaser.Scene {
       this.addButton(width / 2, height / 2 + 110, "✗", cancel, 120, RED);
     } else {
       this.addText(width / 2, height / 2 - 60, `${otherName} ${t("duel_invite_suffix")}`, 34);
-      this.addButton(width / 2 - 90, height / 2 + 60, "⚔️", () => presence.send("duelAccept", { duelId: duel.id, seat: seatFor(this.sceneData.save, this.sceneData.content) }), 120, 0x2e7d32);
+      this.addButton(width / 2 - 90, height / 2 + 60, "⚔️", () => presence.send("duelAccept", { duelId: duel.id, seat: seatFor(this.sceneData.save, this.sceneData.content) }), 120, C.ok);
       this.addButton(width / 2 + 90, height / 2 + 60, "✗", cancel, 120, RED);
     }
   }
@@ -254,9 +256,9 @@ export class InteractScene extends Phaser.Scene {
     const mineArea = portrait
       ? { x: safe.left + 12, y: top, w: width - safe.left - safe.right - 24, h: (bottom - top) * 0.58 }
       : { x: safe.left + 12, y: safe.top + 16, w: width * 0.55 - safe.left - 24, h: bottom - safe.top - 32 };
-    this.addText(mineArea.x + mineArea.w / 2, mineArea.y + layout.px(20), t("trade_pick"), 28, "#cccccc");
+    this.addText(mineArea.x + mineArea.w / 2, mineArea.y + layout.px(20), t("trade_pick"), 28, CSS.soft);
     if (save.creatures.length <= 1) {
-      this.addText(mineArea.x + mineArea.w / 2, mineArea.y + mineArea.h / 2, t("trade_last_creature"), 24, "#ffce54", mineArea.w);
+      this.addText(mineArea.x + mineArea.w / 2, mineArea.y + mineArea.h / 2, t("trade_last_creature"), 24, CSS.accent, mineArea.w);
     } else {
       const gridTop = mineArea.y + layout.px(56);
       const cell = Math.min(130, this.fitCell(save.creatures.length, mineArea.w, mineArea.y + mineArea.h - gridTop));
@@ -277,15 +279,15 @@ export class InteractScene extends Phaser.Scene {
       ? { x: width / 2, y: mineArea.y + mineArea.h + (bottom - mineArea.y - mineArea.h) / 2 }
       : { x: width * 0.78, y: top + layout.px(30) + (bottom - top - layout.px(30)) / 2 };
     const radius = Math.min(80, (portrait ? bottom - mineArea.y - mineArea.h : bottom - top) * 0.3);
-    this.addText(theirs_.x, theirs_.y - radius - layout.px(28), otherName, 28, "#cccccc");
+    this.addText(theirs_.x, theirs_.y - radius - layout.px(28), otherName, 28, CSS.soft);
     const theirSpecies = theirs.offer ? content.speciesById[theirs.offer.speciesId] : undefined;
     this.addOfferCircle(theirs_.x, theirs_.y, theirs.offer ? theirSpecies : undefined, theirs.confirmed, radius);
-    if (theirs.offer && !theirSpecies) this.addText(theirs_.x, theirs_.y + radius + layout.px(24), t("trade_unknown_species"), 20, "#ffce54", width * 0.4);
+    if (theirs.offer && !theirSpecies) this.addText(theirs_.x, theirs_.y + radius + layout.px(24), t("trade_unknown_species"), 20, CSS.accent, width * 0.4);
 
     // Bottom: confirm / cancel.
     const canConfirm = Boolean(mine.offer && theirs.offer && theirSpecies);
     const by = bottom + buttonsH / 2;
-    const confirm = this.addButton(width / 2 - 90, by, "✓", () => presence.send("confirm", { tradeId: trade.id }), 120, mine.confirmed ? 0x1b5e20 : 0x2e7d32);
+    const confirm = this.addButton(width / 2 - 90, by, "✓", () => presence.send("confirm", { tradeId: trade.id }), 120, mine.confirmed ? C.okDone : C.ok);
     if (!canConfirm || mine.confirmed) confirm.setAlpha(0.35).disableInteractive();
     this.addButton(width / 2 + 90, by, "✗", () => this.cancel(trade), 120, RED);
   }
@@ -301,7 +303,7 @@ export class InteractScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const species = this.sceneData.content.speciesById[creature.speciesId];
     const layout = getLayout(this);
-    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, "#ffce54");
+    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, CSS.accent);
     this.addOfferCircle(width / 2, height / 2, species, false, 90);
     if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
     this.addButton(width / 2, height - layout.safe.bottom - 24 - layout.touch(72) / 2, "OK", () => {
@@ -316,7 +318,7 @@ export class InteractScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- helpers
 
-  private addText(x: number, y: number, text: string, size: number, color = "#ffffff", wrap?: number): Phaser.GameObjects.Text {
+  private addText(x: number, y: number, text: string, size: number, color = CSS.text, wrap?: number): Phaser.GameObjects.Text {
     const layout = getLayout(this);
     const label = this.add
       .text(x, y, text, { fontFamily: FONT, fontSize: layout.font(size), color, align: "center", wordWrap: { width: wrap ?? layout.width - 40 } })
@@ -339,7 +341,7 @@ export class InteractScene extends Phaser.Scene {
       image.setScale(Math.min(1, maxSize / Math.max(image.width, image.height)));
       this.ui.add(image);
     } else {
-      this.addText(x, y, "?", 48, "#777777");
+      this.addText(x, y, "?", 48, CSS.muted);
     }
   }
 
@@ -351,7 +353,7 @@ export class InteractScene extends Phaser.Scene {
     onTap: () => void,
     size = 118
   ): void {
-    const bg = this.add.rectangle(x, y, size, size, 0x2b2f52).setStrokeStyle(selected ? 6 : 3, selected ? 0xffce54 : 0xffffff, selected ? 1 : 0.5);
+    const bg = this.add.rectangle(x, y, size, size, C.panel).setStrokeStyle(selected ? 6 : 3, selected ? C.accent : C.border, selected ? 1 : 0.5);
     bg.setInteractive({ useHandCursor: true });
     bg.on("pointerup", onTap);
     this.ui.add(bg);
@@ -359,9 +361,9 @@ export class InteractScene extends Phaser.Scene {
   }
 
   private addOfferCircle(x: number, y: number, species: CreatureSpecies | undefined, confirmed: boolean, radius = 80): void {
-    const ring = this.add.circle(x, y, radius, 0x2b2f52).setStrokeStyle(4, confirmed ? 0x66bb6a : 0xffffff, confirmed ? 1 : 0.5);
+    const ring = this.add.circle(x, y, radius, C.panel).setStrokeStyle(4, confirmed ? C.ok : C.border, confirmed ? 1 : 0.5);
     this.ui.add(ring);
     this.addSprite(x, y, species, radius * 1.4);
-    if (confirmed) this.addText(x + radius * 0.75, y - radius * 0.75, "✓", 40, "#66bb6a");
+    if (confirmed) this.addText(x + radius * 0.75, y - radius * 0.75, "✓", 40, CSS.ok);
   }
 }

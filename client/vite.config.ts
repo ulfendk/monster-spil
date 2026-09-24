@@ -23,8 +23,8 @@ export default defineConfig({
         orientation: "any",
         start_url: "/monster-spil/",
         scope: "/monster-spil/",
-        background_color: "#1b1f3b",
-        theme_color: "#1b1f3b",
+        background_color: "#1f1f28",
+        theme_color: "#1f1f28",
         icons: [
           { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },

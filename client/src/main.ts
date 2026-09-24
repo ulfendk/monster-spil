@@ -11,13 +11,14 @@ import { InteractScene } from "./scenes/InteractScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { ScoreboardScene } from "./scenes/ScoreboardScene";
 import { keepAppUpToDate } from "./pwa-update";
+import { CSS } from "./ui/theme";
 
 keepAppUpToDate();
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
-  backgroundColor: "#1b1f3b",
+  backgroundColor: CSS.ink,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,

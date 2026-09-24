@@ -7,9 +7,9 @@
 // (seeded), so re-running gives the same world. Once someone edits the map in
 // Tiled, stop running this — the Tiled file is then the source of truth.
 import { writeFileSync, readFileSync } from "node:fs";
-import { deflateSync, crc32 } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { encodePng } from "./lib/png.mjs";
 
 const AREAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../shared/content/areas");
 const W = 64;
@@ -54,57 +54,70 @@ function drawTileset() {
     for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) set(ox + x, y, colour);
   };
 
-  // 1 ground
-  ground(0, [76, 175, 80]);
-  speckle(0, [102, 187, 106], 4);
-  // 2 tree on ground
-  ground(T, [76, 175, 80]);
-  for (let y = 44; y < 58; y++) for (let x = 28; x < 36; x++) set(T + x, y, [139, 58, 42]);
-  disc(T, 32, 28, 24, [46, 125, 50]);
-  disc(T, 26, 22, 8, [56, 142, 60]);
-  // 3 tall grass (drawn over ground in its own layer)
-  ground(2 * T, [46, 125, 50]);
-  for (let b = 0; b < 6; b++) {
-    const x = 8 + b * 10;
-    const h = 22 + ((b * 7) % 12);
-    for (let y = 60 - h; y < 60; y++) for (let dx = 0; dx < 3; dx++) set(2 * T + x + dx + Math.floor((60 - y) / 8) * (b % 2 ? 1 : -1), y, [129, 199, 132]);
+  // Kanagawa palette (see client/src/ui/theme.ts): sumi ink, wave blues, sage greens, sand.
+  const K = {
+    ground: [0x5f, 0x7a, 0x55], groundDot: [0x76, 0x94, 0x6a],
+    pine: [0x2b, 0x33, 0x28], pineLight: [0x3f, 0x52, 0x38], bark: [0x60, 0x38, 0x2c],
+    grass: [0x4b, 0x62, 0x44], blade: [0x98, 0xbb, 0x6c],
+    water: [0x22, 0x32, 0x49], water2: [0x2d, 0x4f, 0x67], foam: [0xdc, 0xd7, 0xba], spray: [0x7f, 0xb4, 0xca],
+    path: [0xc0, 0xa3, 0x6e], pathDot: [0x93, 0x80, 0x56],
+  };
+  const ellipse = (ox, cx, cy, rx, ry, colour) => {
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) set(ox + x, y, colour);
+  };
+
+  // 1 ground: sage green with a few lighter flecks
+  ground(0, K.ground);
+  speckle(0, K.groundDot, 5);
+  // 2 tree: a Japanese pine — a crooked trunk under flat, layered cloud-like canopies
+  ground(T, K.ground);
+  for (let y = 36; y < 60; y++) {
+    const lean = Math.round(Math.sin((y - 36) / 7) * 3);
+    for (let x = 29; x < 35; x++) set(T + x + lean, y, K.bark);
   }
-  // 4 water
-  ground(3 * T, [41, 121, 200]);
-  for (let row = 0; row < 3; row++) {
-    const y = 12 + row * 20;
-    for (let x = 6; x < T - 6; x++) {
-      const wave = Math.round(2 * Math.sin((x + row * 9) / 5));
-      set(3 * T + x, y + wave, [144, 202, 249]);
-      set(3 * T + x, y + wave + 1, [144, 202, 249]);
+  for (const [cx, cy, rx, ry] of [[32, 38, 25, 8], [24, 26, 17, 7], [40, 24, 16, 7], [32, 13, 13, 6]]) {
+    ellipse(T, cx, cy, rx, ry, K.pine);
+    ellipse(T, cx - 3, cy - 2, rx - 5, ry - 3, K.pineLight);
+  }
+  // 3 tall grass (drawn over ground in its own layer): darker sage with light blades
+  ground(2 * T, K.grass);
+  for (let b = 0; b < 7; b++) {
+    const x = 5 + b * 9;
+    const h = 22 + ((b * 7) % 14);
+    for (let y = 60 - h; y < 60; y++) for (let dx = 0; dx < 2; dx++) set(2 * T + x + dx + Math.floor((60 - y) / 8) * (b % 2 ? 1 : -1), y, K.blade);
+  }
+  // 4 water: deep indigo with Great-Wave curls of foam and a little spray
+  ground(3 * T, K.water2);
+  // gentle darker swells that line up across tiles (whole sine periods per tile)
+  for (const baseY of [10, 42]) {
+    for (let x = 0; x < T; x++) {
+      const y = baseY + Math.round(3 * Math.sin((x / T) * Math.PI * 2));
+      set(3 * T + x, y, K.water);
+      set(3 * T + x, y + 1, K.water);
     }
   }
-  // 5 path
-  ground(4 * T, [215, 190, 140]);
-  speckle(4 * T, [190, 165, 115], 6);
+  for (const [cx, cy] of [[18, 22], [48, 50]]) {
+    // a curl: an open ring, thicker on the crest side
+    for (let a = 0; a < 300; a++) {
+      const t = (a / 300) * Math.PI * 1.6 + Math.PI * 0.9;
+      const r = 9 - (a / 300) * 4;
+      const x = Math.round(cx + Math.cos(t) * r);
+      const y = Math.round(cy + Math.sin(t) * r * 0.8);
+      for (let d = 0; d < 2; d++) if (x + d >= 0 && x + d < T && y >= 0 && y < T) set(3 * T + x + d, y, K.foam);
+    }
+  }
+  for (let k = 0; k < 10; k++) {
+    const x = 4 + Math.floor(tileRand() * (T - 8));
+    const y = 4 + Math.floor(tileRand() * (T - 8));
+    set(3 * T + x, y, K.spray);
+    set(3 * T + x + 1, y, K.spray);
+  }
+  // 5 path: raked sand
+  ground(4 * T, K.path);
+  speckle(4 * T, K.pathDot, 6);
   return { width, height: T, px };
 }
 
-function encodePng({ width, height, px }) {
-  const raw = Buffer.alloc((width * 4 + 1) * height);
-  for (let y = 0; y < height; y++) {
-    raw[y * (width * 4 + 1)] = 0;
-    px.copy(raw, y * (width * 4 + 1) + 1, y * width * 4, (y + 1) * width * 4);
-  }
-  const chunk = (type, data) => {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type), data]);
-    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body) >>> 0);
-    return Buffer.concat([len, body, crc]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 6; // 8-bit RGBA
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
 
 // ---------------------------------------------------------------- map
 const ground = new Array(W * H).fill(GROUND);
