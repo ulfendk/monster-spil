@@ -53,6 +53,82 @@ const sounds = {
   "creatures/drageunge": () => roar(0.9, 2.4, 7),
   // The raid dragon: a long, deep roar.
   "raid/kaempedragen": () => roar(1.8, 1, 8),
+  // Monsters that natural disasters leave behind.
+  // Meteor: a falling whistle that ends in a zap and a sparkle.
+  "creatures/stjernesten"() {
+    const r = rng(11);
+    let phase = 0;
+    return make(0.9, (t) => {
+      const f = 2400 * Math.exp(-t * 3.2) + 160;
+      phase += f / SR;
+      const whistle = Math.sin(TAU * phase) * Math.min(1, t / 0.03) * (t < 0.6 ? 1 : Math.exp(-(t - 0.6) * 12));
+      const zap = t > 0.55 && t < 0.7 ? (r() * 2 - 1) * (1 - (t - 0.55) / 0.15) : 0;
+      const sparkle = t > 0.65 && r() < 0.01 ? Math.sin(TAU * 3200 * t) : 0;
+      return whistle * 0.8 + zap + sparkle * 0.6;
+    });
+  },
+  // Earthquake crab: a low rumble with clicking claws.
+  "creatures/revnekrabbe"() {
+    const r = rng(12);
+    const lp = lowpass(160);
+    return make(0.9, (t) => {
+      const rumble = lp(r() * 2 - 1) * 5 * Math.sin(Math.PI * Math.min(1, t / 0.9));
+      let clicks = 0;
+      for (const start of [0.15, 0.3, 0.62, 0.74]) {
+        const x = t - start;
+        if (x > 0 && x < 0.03) clicks += Math.sin(TAU * 1800 * x) * (1 - x / 0.03);
+      }
+      return rumble + clicks * 0.9;
+    });
+  },
+  // Flood troll: bubbling glugs.
+  "creatures/flodtrold"() {
+    const r = rng(13);
+    const bubbles = Array.from({ length: 9 }, () => ({ start: r() * 0.8, f: 180 + r() * 420 }));
+    return make(1, (t) => {
+      let v = 0;
+      for (const b of bubbles) {
+        const x = t - b.start;
+        if (x > 0 && x < 0.12) v += Math.sin(TAU * b.f * (1 + x * 6) * x) * Math.sin((Math.PI * x) / 0.12);
+      }
+      return v;
+    });
+  },
+  // Leaf whirl: a gust of wind that rises and falls, with rustling.
+  "creatures/loevhvirvel"() {
+    const r = rng(14);
+    let y = 0;
+    return make(1.1, (t) => {
+      const x = t / 1.1;
+      const fc = 400 + 2600 * Math.sin(Math.PI * x) ** 3;
+      y += (1 - Math.exp((-TAU * fc) / SR)) * (r() * 2 - 1 - y);
+      const rustle = r() < 0.02 ? (r() * 2 - 1) * 0.6 : 0;
+      return (y * 2.2 + rustle) * Math.sin(Math.PI * x);
+    });
+  },
+  // Ash bird: two chirps with a crackle of embers.
+  "creatures/askefugl"() {
+    const r = rng(15);
+    return make(0.8, (t) => {
+      let v = 0;
+      for (const start of [0.05, 0.32]) {
+        const x = (t - start) / 0.18;
+        if (x > 0 && x < 1) v += Math.sin(TAU * (1400 + 1600 * x) * (t - start)) * Math.sin(Math.PI * x);
+      }
+      const crackle = r() < 0.006 ? (r() * 2 - 1) * 1.1 : 0;
+      return v + crackle;
+    });
+  },
+  // Rumling, the UFO's alien: a wobbly space warble.
+  "creatures/rumling"() {
+    let phase = 0;
+    return make(1.3, (t) => {
+      const f = 520 + 260 * Math.sin(TAU * 5.5 * t) + 180 * Math.sin(TAU * 0.8 * t);
+      phase += f / SR;
+      const env = Math.min(1, t / 0.08) * Math.min(1, (1.3 - t) / 0.2);
+      return env * (Math.sin(TAU * phase) + 0.3 * Math.sin(TAU * phase * 2.01));
+    });
+  },
   // Fire: a crackling growl.
   "creatures/flammepels"() {
     const r = rng(1);

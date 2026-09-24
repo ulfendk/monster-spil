@@ -2,6 +2,9 @@ import Phaser from "phaser";
 import type { Room } from "colyseus.js";
 import { BAG_MAX, GAME_KEY_REJECTED, applyDelivery } from "@shared";
 import type {
+  AreaTerrain,
+  DisasterMessage,
+  DisasterNews,
   ClientMessages,
   CreatureInstance,
   DuelView,
@@ -16,7 +19,8 @@ import type {
   TradeSession,
   WorldPosition,
 } from "@shared";
-import { getState, onPersist, persist } from "../save/game-state";
+import { getState, onPersist, passOut, persist } from "../save/game-state";
+import { readRecord, writeRecords } from "../save/db";
 import { joinLobby, listen, multiplayerEnabled, say } from "./lobby";
 import { currentGame, updateGame } from "../save/games";
 import { t } from "../i18n/da";
@@ -28,7 +32,8 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
  * Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction",
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
  * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind),
- * "renamed" (navn).
+ * "renamed" (navn), "terrain" (areaId), "disaster" (DisasterMessage), "spawnBattle" ({spawnId, speciesId}),
+ * "struck" (a disaster caught me: I'm passed out now).
  */
 const HELLO_TIMEOUT_MS = 3000;
 /** Saves come in bursts (a battle's end, a trade); back up once things settle. */
@@ -72,6 +77,13 @@ class Presence {
   notice?: string;
   /** One-shot message for the interaction screen, e.g. "the trade was cancelled" by the other player. */
   interactNotice?: string;
+  /** How each area looks after natural disasters (protocol v9+); kept on the device for offline play. */
+  terrain = new Map<string, AreaTerrain>();
+  /** Disasters of the last day, per area, for the "this happened while you were away" note. */
+  recent = new Map<string, DisasterNews[]>();
+  /** A disaster that is being warned about right now. */
+  disaster?: DisasterMessage;
+  private terrainGameId?: string;
   /** Undefined until the server says hello; "old" if it never does. */
   serverVersion?: number | "old";
 
@@ -233,6 +245,18 @@ class Presence {
       if (gameId === currentGame()?.id && navn) void updateGame(gameId, { navn });
     });
     listen(room, "renamed", ({ navn }) => void this.rename(navn));
+    listen(room, "terrain", ({ areaId, terrain, recent }) => {
+      this.terrain.set(areaId, terrain);
+      this.recent.set(areaId, recent);
+      void this.cacheTerrain();
+      this.events.emit("terrain", areaId);
+    });
+    listen(room, "disaster", (message) => {
+      this.disaster = message.phase === "warning" ? message : undefined;
+      if (message.phase === "strike" && message.struck?.includes(myId)) void this.struck();
+      this.events.emit("disaster", message);
+    });
+    listen(room, "spawnBattle", (payload) => this.events.emit("spawnBattle", payload));
     listen(room, "raid", (view) => {
       this.raid = view;
       this.events.emit("raid", view);
@@ -339,6 +363,10 @@ class Presence {
       this.events.emit("food");
       this.events.emit("players");
       this.events.emit("raid", undefined);
+      if (this.disaster) {
+        this.disaster = undefined;
+        this.events.emit("disaster", undefined);
+      }
       // A parent changed the key or deleted the game: ask for the (new) key instead of retrying.
       if (code === GAME_KEY_REJECTED) {
         this.notice = t("game_key_changed");
@@ -369,6 +397,37 @@ class Presence {
     this.received = delivery.receive;
     this.receivedReason = "trade";
     this.events.emit("interaction");
+  }
+
+  /** A disaster caught me: I pass out, like after fainting (the wait is saved). */
+  private async struck(): Promise<void> {
+    await passOut(0, "disaster");
+    this.events.emit("struck");
+  }
+
+  /**
+   * The last known look of the current game's maps, from the device (so a changed map
+   * stays changed while offline). Call when entering a game, before the map is drawn.
+   */
+  async loadTerrain(gameId: string): Promise<void> {
+    this.terrainGameId = gameId;
+    this.terrain.clear();
+    this.recent.clear();
+    try {
+      const cached = await readRecord<{ areas: Record<string, AreaTerrain> }>(`terrain:${gameId}`);
+      for (const [areaId, terrain] of Object.entries(cached?.areas ?? {})) this.terrain.set(areaId, terrain);
+    } catch (error) {
+      console.warn("Kunne ikke læse kortet", error);
+    }
+  }
+
+  private async cacheTerrain(): Promise<void> {
+    if (!this.terrainGameId) return;
+    try {
+      await writeRecords({ [`terrain:${this.terrainGameId}`]: { areas: Object.fromEntries(this.terrain) } });
+    } catch (error) {
+      console.warn("Kunne ikke gemme kortet", error);
+    }
   }
 
   /** A parent gave me a new name in the admin portal. */

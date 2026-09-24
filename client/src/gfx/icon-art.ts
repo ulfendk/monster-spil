@@ -441,6 +441,46 @@ const ART: Record<string, (g: G) => void> = {
     outline(g).strokeRoundedRect(34, 70, 60, 50, { tl: 28, tr: 28, bl: 4, br: 4 });
     circle(g, 64, 42, 24, K.springBlue);
   },
+  meteor: (g) => {
+    // a burning rock streaking down from the top right
+    for (const [w, c] of [[30, K.autumnRed], [20, K.surimiOrange], [10, K.carpYellow]] as const) stroke(g, 112, 16, 60, 68, c, w);
+    circle(g, 50, 78, 30, K.katanaGray);
+    for (const [x, y, r] of [[40, 70, 7], [60, 88, 5], [56, 66, 4]] as const) circle(g, x, y, r, K.sumiInk4, 4);
+  },
+  quake: (g) => {
+    // cracked ground with shake lines
+    shape(g, [{ x: 8, y: 70 }, { x: 120, y: 70 }, { x: 120, y: 118 }, { x: 8, y: 118 }], K.boatYellow1);
+    shape(g, [{ x: 50, y: 70 }, { x: 66, y: 86 }, { x: 56, y: 96 }, { x: 72, y: 118 }, { x: 60, y: 118 }, { x: 44, y: 98 }, { x: 54, y: 88 }, { x: 40, y: 70 }], INK, 3);
+    for (const [x, y] of [[26, 20], [64, 12], [102, 20]] as const) {
+      line(g, x - 12, y + 18, x, y + 30, K.fujiWhite, 7);
+      line(g, x, y + 30, x + 12, y + 18, K.fujiWhite, 7);
+    }
+  },
+  flood: (g) => {
+    // a house up to its windows in water
+    shape(g, [{ x: 30, y: 60 }, { x: 64, y: 26 }, { x: 98, y: 60 }], K.autumnRed);
+    rrect(g, 38, 58, 52, 40, 3, K.oldWhite);
+    rrect(g, 56, 66, 16, 16, 2, K.crystalBlue, 4);
+    g.fillStyle(K.waveBlue2, 1).fillRect(4, 84, 120, 40);
+    for (const x of [14, 46, 78, 110]) arcLine(g, x, 90, 14, Math.PI * 1.05, Math.PI * 1.95, K.springBlue, 7);
+    outline(g, 5).lineBetween(4, 84, 124, 84);
+  },
+  storm: (g) => {
+    // a hurricane spiral with wind streaks
+    for (const [r, c] of [[46, K.springBlue], [32, K.crystalBlue], [18, K.fujiWhite]] as const) {
+      arcLine(g, 64, 64, r, Math.PI * 0.1, Math.PI * 1.4, INK, 16);
+      arcLine(g, 64, 64, r, Math.PI * 0.1, Math.PI * 1.4, c, 9);
+    }
+    circle(g, 64, 64, 8, K.fujiWhite, 4);
+  },
+  ufo: (g) => {
+    // a flying saucer with a green light beam
+    shape(g, [{ x: 52, y: 70 }, { x: 76, y: 70 }, { x: 100, y: 122 }, { x: 28, y: 122 }], K.springGreen, 0);
+    g.fillStyle(K.winterGreen, 0.35).fillTriangle(52, 70, 76, 70, 64, 122);
+    ellipse(g, 64, 42, 44, 36, K.springBlue);
+    ellipse(g, 64, 62, 116, 32, K.oldWhite);
+    for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
+  },
   games: (g) => {
     // a stack of worlds: three cards fanned out, each with its own little landscape
     const cards = [[-16, K.oniViolet, -0.18], [0, K.crystalBlue, 0], [16, K.springGreen, 0.18]] as const;

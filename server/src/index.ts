@@ -6,7 +6,7 @@ import { LobbyRoom } from "./LobbyRoom.js";
 import { KeyGate } from "./key-gate.js";
 import { GameRegistry } from "./games.js";
 import { loadBosses } from "./bosses.js";
-import { loadFoodSpots } from "./areas.js";
+import { loadAreas, loadDisasterConfigs } from "./areas.js";
 import { handleBackupRequest } from "./backup-http.js";
 import { AdminPortal } from "./admin.js";
 
@@ -62,19 +62,34 @@ if (registry.list().length === 0) {
 // One lockout counter for every key guess (joining, adding a game, restoring); the admin portal has its own.
 const gate = new KeyGate();
 const bosses = await loadBosses();
-// Food grows on open ground; never on a dragon's lair.
-const foodSpots = await loadFoodSpots(bosses.map((b) => b.lair));
+// The maps: where food grows (never on a dragon's lair) and what disasters can change.
+const areas = await loadAreas(bosses.map((b) => b.lair));
+const disasterConfigs = await loadDisasterConfigs();
 backupDeps = { gate, registry, allowedOrigins };
 // The parent's admin portal at /admin — only with ADMIN_PASSWORD set.
-admin = new AdminPortal({ password: adminPassword, registry, bosses, room: (gameId) => LobbyRoom.byGame.get(gameId) });
+admin = new AdminPortal({ password: adminPassword, registry, bosses, disasterConfigs, room: (gameId) => LobbyRoom.byGame.get(gameId), openRoom: (gameId) => openRoom(gameId) });
 if (adminPassword && registry.byKey(adminPassword)) {
   console.warn("WARNING: ADMIN_PASSWORD is also a game's spilnøgle — anyone who can play that game can use the admin portal.");
 }
 // One room per game: a client joins with its gameId and must bring that game's key.
-gameServer.define(LOBBY_ROOM, LobbyRoom, { registry, gate, bosses, foodSpots }).filterBy(["gameId"]);
+gameServer.define(LOBBY_ROOM, LobbyRoom, { registry, gate, bosses, areas, disasterConfigs }).filterBy(["gameId"]);
+
+/**
+ * Every game's room runs from the start (not only once someone joins), so its
+ * disasters happen and its map changes even while nobody is playing.
+ */
+async function openRoom(gameId: string): Promise<void> {
+  if (LobbyRoom.byGame.has(gameId)) return;
+  try {
+    await matchMaker.createRoom(LOBBY_ROOM, { gameId });
+  } catch (error) {
+    console.error(`Could not open the room for game ${gameId}:`, error);
+  }
+}
 gameServer.onShutdown(() => registry.flush());
 
 await gameServer.listen(port);
+for (const game of registry.list()) await openRoom(game.id);
 console.log(`Monsterjagt server listening on :${port} (${registry.list().length} games, data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"})`);
 
 // Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.

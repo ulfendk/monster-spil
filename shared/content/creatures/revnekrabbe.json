@@ -1,0 +1,11 @@
+{
+  "id": "revnekrabbe",
+  "navn": "Revnekrabbe",
+  "type": "sten",
+  "baseStats": { "hp": 48, "angreb": 12, "forsvar": 15, "fart": 6 },
+  "moveIds": ["stenkast", "kloer", "jordrystelse"],
+  "spriteFront": "creatures/revnekrabbe_front.png",
+  "spriteBack": "creatures/revnekrabbe_back.png",
+  "sound": "creatures/revnekrabbe.wav",
+  "catchRate": 0.3
+}

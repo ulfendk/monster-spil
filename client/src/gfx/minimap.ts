@@ -14,20 +14,28 @@ export interface MinimapDot {
   dim?: boolean;
 }
 
-const COLOURS: Record<"ground" | "tree" | "water" | "path" | "grass", number> = {
+type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood";
+const COLOURS: Record<Kind | "ground" | "grass", number> = {
   ground: KANAGAWA.autumnGreen,
   tree: KANAGAWA.winterGreen,
   water: KANAGAWA.waveBlue2,
   path: KANAGAWA.boatYellow2,
   grass: KANAGAWA.springGreen,
+  mountain: KANAGAWA.katanaGray,
+  burnt: KANAGAWA.sumiInk4,
+  crater: KANAGAWA.boatYellow1,
+  flood: KANAGAWA.springBlue,
 };
+/** Which tile ids (on the ground layer) are drawn as what; anything else is open ground. */
+export type MinimapIds = Partial<Record<Kind, number[]>>;
 const DEPTH = 30;
 
 /**
  * The overview map, opened from the 🗺️ button: the whole area as a picture over the
  * game, with dots for me, the other players and the dragon, and a frame showing
- * what the camera sees. Tap anywhere (or ✗) to close. The terrain is baked once into
- * a one-texel-per-tile texture; only the dots are redrawn while it is open.
+ * what the camera sees. Tap anywhere (or ✗) to close. The terrain is baked into a
+ * one-texel-per-tile texture (again after a natural disaster changes the map); only the
+ * dots are redrawn while it is open.
  */
 export class Minimap {
   private objects: Phaser.GameObjects.GameObject[] = [];
@@ -40,30 +48,37 @@ export class Minimap {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly map: Phaser.Tilemaps.Tilemap,
-    ground: Phaser.Tilemaps.TilemapLayer,
-    grass: Phaser.Tilemaps.TilemapLayer,
-    /** Tile ids on the ground layer drawn as trees, water or paths; everything else is open ground. */
-    ids: { tree: number[]; water: number[]; path: number[] },
+    private readonly ground: Phaser.Tilemaps.TilemapLayer,
+    private readonly grass: Phaser.Tilemaps.TilemapLayer,
+    private readonly ids: MinimapIds,
     private readonly key: string
   ) {
-    if (!scene.textures.exists(key)) {
-      const g = scene.add.graphics();
-      for (let y = 0; y < map.height; y++) {
-        for (let x = 0; x < map.width; x++) {
-          const index = ground.getTileAt(x, y)?.index ?? -1;
-          let colour = COLOURS.ground;
-          if (ids.tree.includes(index)) colour = COLOURS.tree;
-          else if (ids.water.includes(index)) colour = COLOURS.water;
-          else if (grass.getTileAt(x, y)) colour = COLOURS.grass;
-          else if (ids.path.includes(index)) colour = COLOURS.path;
-          g.fillStyle(colour, 1).fillRect(x, y, 1, 1);
-        }
+    if (!scene.textures.exists(key)) this.bake();
+  }
+
+  /** The map changed (a disaster): draw the picture again, and show it if the map is open. */
+  refresh(): void {
+    if (this.scene.textures.exists(this.key)) this.scene.textures.remove(this.key);
+    this.bake();
+    if (this.isOpen) this.open();
+  }
+
+  private bake(): void {
+    const kinds = Object.entries(this.ids) as Array<[Kind, number[]]>;
+    const g = this.scene.add.graphics();
+    for (let y = 0; y < this.map.height; y++) {
+      for (let x = 0; x < this.map.width; x++) {
+        const index = this.ground.getTileAt(x, y)?.index ?? -1;
+        const kind = kinds.find(([, list]) => list.includes(index))?.[0];
+        let colour = kind ? COLOURS[kind] : COLOURS.ground;
+        if (!kind && this.grass.getTileAt(x, y)) colour = COLOURS.grass;
+        g.fillStyle(colour, 1).fillRect(x, y, 1, 1);
       }
-      g.generateTexture(key, map.width, map.height);
-      g.destroy();
-      // One texel per tile: keep it crisp when scaled up, never smoothed.
-      scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
+    g.generateTexture(this.key, this.map.width, this.map.height);
+    g.destroy();
+    // One texel per tile: keep it crisp when scaled up, never smoothed.
+    this.scene.textures.get(this.key).setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
 
   get isOpen(): boolean {

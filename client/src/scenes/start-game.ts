@@ -1,12 +1,14 @@
 import type Phaser from "phaser";
 import type { GameContent } from "../content/load-content";
 import { loadGameState } from "../save/game-state";
+import { presence } from "../net/presence";
 
 const PICK_FLAG = "monsterjagt-vaelg-spil";
 
 /** Enters a game and opens it: the map, or the setup when this device hasn't played it yet. */
 export async function startGame(scene: Phaser.Scene, gameId: string, content: GameContent): Promise<void> {
   const save = await loadGameState(gameId);
+  await presence.loadTerrain(gameId); // how disasters left the map, even before the server answers
   if (!save) scene.scene.start("Setup", { content });
   else if (save.creatures.length === 0) scene.scene.start("Starter", { content }); // set up, but no first monster yet
   else scene.scene.start("Overworld", { save, content });

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAdjacent, secondsLeft } from "@shared";
-import type { CreatureInstance, AreaMeta, LobbyPlayer, BossDefinition } from "@shared";
+import type { CreatureInstance, CreatureSpecies, AreaMeta, LobbyPlayer, BossDefinition, DisasterMessage } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
@@ -14,7 +14,10 @@ import type { PresenceStatus } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, foodIcon } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, foodIcon } from "../ui/icons";
+import { WorldLayer } from "../gfx/world-layer";
+import { disasterConfigs } from "../content/load-disasters";
+import { currentGame } from "../save/games";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
@@ -36,6 +39,8 @@ interface TileCoord {
 }
 
 const TILE_SIZE = 64;
+/** `pendingMeet` for walking over to a waiting monster (the UFO's alien): this prefix + its spawn id. */
+const SPAWN_MEET = "spawn:";
 const MOVE_DURATION_MS = 200;
 /** The connection button shows the state: others online, connecting, offline, code needed. */
 const STATUS_ICON: Record<PresenceStatus, string> = { online: "team", connecting: "hourglass", offline: "offline", needCode: "key", off: "gear" };
@@ -94,6 +99,8 @@ export class OverworldScene extends Phaser.Scene {
   /** My chosen animal, riding on my circle. */
   private playerFace?: Phaser.GameObjects.Image;
   private minimap?: Minimap;
+  /** What natural disasters did to this map, and warnings of the next one. */
+  private world!: WorldLayer;
 
   constructor() {
     super("Overworld");
@@ -125,13 +132,19 @@ export class OverworldScene extends Phaser.Scene {
     this.groundLayer = groundLayer;
     this.grassLayer = grassLayer;
     this.groundLayer.setCollision(area.meta.collisionGids);
+    // The map as natural disasters have left it (the last known state, until the server says more).
+    this.world = new WorldLayer(this, this.map, groundLayer, grassLayer, TILE_SIZE, (id) => this.content.speciesById[id]?.spriteFront);
+    this.world.apply(presence.terrain.get(area.meta.id));
+    this.events.once("shutdown", () => this.world.destroy());
 
     // (0,0) sits inside the border wall, so it can never be a real position —
     // use it as the "no saved position yet" sentinel for this map. A saved spot that
     // is no longer walkable (the map was redrawn since) also falls back to the start.
     const saved = { x: this.save.position.x, y: this.save.position.y };
-    const hasSaved = !(saved.x === 0 && saved.y === 0) && this.isWalkable(saved.x, saved.y);
+    const hasSaved = !(saved.x === 0 && saved.y === 0) && saved.x < this.map.width && saved.y < this.map.height;
     this.playerTile = hasSaved ? saved : { ...area.meta.playerStart };
+    // A disaster (or a redrawn map) blocked where I stood: step to the nearest free tile.
+    if (!this.isWalkable(this.playerTile.x, this.playerTile.y)) this.playerTile = this.nearestFree(this.playerTile);
 
     const colour = Phaser.Display.Color.HexStringToColor(this.save.player.farve).color;
     this.player = this.add.circle(
@@ -200,14 +213,8 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.events.off("pause", stopSteering));
 
     const minimapIds = area.meta.minimap ?? {};
-    this.minimap = new Minimap(
-      this,
-      this.map,
-      groundLayer,
-      grassLayer,
-      { tree: minimapIds.tree ?? area.meta.collisionGids, water: minimapIds.water ?? [], path: minimapIds.path ?? [] },
-      `minimap-${area.meta.id}`
-    );
+    this.minimap = new Minimap(this, this.map, groundLayer, grassLayer, { ...minimapIds, tree: minimapIds.tree ?? area.meta.collisionGids }, `minimap-${area.meta.id}`);
+    this.minimap.refresh(); // the map may have changed since the picture was last drawn
 
     this.buildHud();
     this.foodSprites.clear();
@@ -366,7 +373,9 @@ export class OverworldScene extends Phaser.Scene {
     const tapped = this.playerAt(tile);
     if (tapped) return this.onTapPlayer(tapped);
     const boss = this.visibleBoss();
-    if (boss && tile.x === boss.lair.x && tile.y === boss.lair.y) this.onTapDragon(boss);
+    if (boss && tile.x === boss.lair.x && tile.y === boss.lair.y) return this.onTapDragon(boss);
+    const spawn = this.world.spawnAt(tile.x, tile.y);
+    if (spawn) this.onTapSpawn(spawn.id, tile);
   }
 
   /** Starts the next step in the direction the finger points, unless one is already under way. */
@@ -482,6 +491,22 @@ export class OverworldScene extends Phaser.Scene {
     };
     const onRaid = () => this.syncDragon();
     const onFood = () => this.syncFood();
+    const onTerrain = (areaId: string) => {
+      if (areaId === this.save.position.areaId) this.applyTerrain();
+    };
+    const onDisaster = (message: DisasterMessage | undefined) => this.onDisaster(message);
+    const onStruck = () => {
+      this.pendingPath = [];
+      this.pendingMeet = undefined;
+      this.drag = undefined;
+      this.stick?.clear();
+      this.checkPassOut();
+    };
+    const onSpawnBattle = ({ spawnId, speciesId }: { spawnId: string; speciesId: string }) => this.startSpawnBattle(spawnId, speciesId);
+    presence.events.on("terrain", onTerrain);
+    presence.events.on("disaster", onDisaster);
+    presence.events.on("struck", onStruck);
+    presence.events.on("spawnBattle", onSpawnBattle);
     const onFoodTaken = (kind: string) => {
       this.drawBag();
       this.showToast(`+ ${ic(foodIcon(kind))}`);
@@ -512,12 +537,103 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("food", onFood);
       presence.events.off("foodTaken", onFoodTaken);
       presence.events.off("raidBattle", onRaidBattle);
+      presence.events.off("terrain", onTerrain);
+      presence.events.off("disaster", onDisaster);
+      presence.events.off("struck", onStruck);
+      presence.events.off("spawnBattle", onSpawnBattle);
     });
+    if (presence.disaster) this.onDisaster(presence.disaster);
+    this.showNews();
     this.dragon = undefined;
     this.syncDragon();
     this.syncFood();
     // Coming back from a menu or a battle (onResume): show anyone who moved meanwhile, and anything waiting for me.
     this.syncOthers(true);
+  }
+
+  // ------------------------------------------------------------ natural disasters
+
+  /** The server says the map changed: redraw it, and step off a tile that is now blocked. */
+  private applyTerrain(): void {
+    if (this.world.apply(presence.terrain.get(this.save.position.areaId))) this.minimap?.refresh();
+    if (!this.isMoving && !this.isWalkable(this.playerTile.x, this.playerTile.y)) {
+      this.playerTile = this.nearestFree(this.playerTile);
+      const c = this.tileCentre(this.playerTile);
+      this.player.setPosition(c.x, c.y);
+      this.positionDirty = true;
+      this.savePosition();
+      if (multiplayerEnabled) presence.moveTo(this.myPosition());
+    }
+    this.showNews();
+  }
+
+  /** A warning (the danger glows, run!), or the strike itself. */
+  private onDisaster(message: DisasterMessage | undefined): void {
+    if (!message || message.areaId !== this.save.position.areaId) return this.world.clearWarning();
+    this.markSeen(message.id); // seen live, so no "while you were away" note for it later
+    if (message.phase === "warning") {
+      this.world.showWarning(message);
+      const here = `${this.playerTile.x},${this.playerTile.y}`;
+      const name = disasterConfigs[message.kind].navn;
+      this.showToast(message.danger.includes(here) ? `${ic(DISASTER_ICONS[message.kind])} ${t("disaster_run")}` : `${ic(DISASTER_ICONS[message.kind])} ${name}!`, 4000);
+    } else {
+      this.world.strike(message);
+    }
+  }
+
+  /** "While you were away": the newest disaster of the last day this device hasn't shown yet. */
+  private showNews(): void {
+    const recent = presence.recent.get(this.save.position.areaId) ?? [];
+    const unseen = recent.filter((n) => this.markSeen(n.id));
+    const newest = unseen[0];
+    if (newest) this.showToast(`${ic(DISASTER_ICONS[newest.kind])} ${disasterConfigs[newest.kind].navn}!`, 4000);
+  }
+
+  /** Remembers (per game, on this device) that a disaster has been shown. True if it wasn't before. */
+  private markSeen(id: string): boolean {
+    const key = `monsterjagt-set-${currentGame()?.id ?? ""}`;
+    try {
+      const seen: string[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+      if (seen.includes(id)) return false;
+      localStorage.setItem(key, JSON.stringify([id, ...seen].slice(0, 40)));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** The nearest tile I can stand on (breadth-first from `from`). */
+  private nearestFree(from: TileCoord): TileCoord {
+    const seen = new Set([`${from.x},${from.y}`]);
+    const queue = [from];
+    while (queue.length) {
+      const c = queue.shift()!;
+      if (this.isWalkable(c.x, c.y)) return c;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const n = { x: c.x + dx, y: c.y + dy };
+        const k = `${n.x},${n.y}`;
+        if (n.x < 0 || n.y < 0 || n.x >= this.map.width || n.y >= this.map.height || seen.has(k)) continue;
+        seen.add(k);
+        queue.push(n);
+      }
+    }
+    return { ...this.areaMeta.playerStart };
+  }
+
+  /** Tapped the UFO's alien: battle it if I'm next to it (the server says who's first), else walk over. */
+  private onTapSpawn(spawnId: string, tile: TileCoord): void {
+    if (!presence.connectedRoom) return;
+    if (isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, ...tile })) return presence.send("spawnClaim", { spawnId });
+    this.walkNextTo(tile, SPAWN_MEET + spawnId);
+  }
+
+  private startSpawnBattle(spawnId: string, speciesId: string): void {
+    const species = this.content.speciesById[speciesId];
+    if (!this.scene.isActive() || !species) {
+      presence.send("spawnDone", { spawnId, caught: false });
+      return;
+    }
+    this.startWildBattle(species, spawnId);
   }
 
   // ------------------------------------------------------------ the family dragon
@@ -725,14 +841,14 @@ export class OverworldScene extends Phaser.Scene {
     for (const object of this.popup) object.setScrollFactor(0).setDepth(20);
   }
 
-  private showToast(message: string): void {
+  private showToast(message: string, ms = 1600): void {
     this.toast?.destroy();
     const layout = getLayout(this);
     const toast = richChip(this, this.scale.width / 2, layout.safe.top + layout.touch(64) + 60, message, { fontFamily: FONT, fontSize: layout.font(28), color: CSS.accent })
       .setScrollFactor(0)
       .setDepth(20);
     this.toast = toast;
-    this.time.delayedCall(1600, () => toast.destroy());
+    this.time.delayedCall(ms, () => toast.destroy());
   }
 
 
@@ -780,6 +896,7 @@ export class OverworldScene extends Phaser.Scene {
     if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
     const boss = this.dragon ? this.visibleBoss() : undefined;
     if (boss && boss.lair.x === x && boss.lair.y === y) return false; // nobody walks through the dragon
+    if (this.world?.spawnAt(x, y)) return false; // nor through the UFO's alien
     const tile = this.groundLayer.getTileAt(x, y);
     return !!tile && !tile.collides;
   }
@@ -863,6 +980,10 @@ export class OverworldScene extends Phaser.Scene {
           const boss = this.visibleBoss();
           if (meet === DRAGON_MEET) {
             if (boss && isAdjacent(this.myPosition(), boss.lair)) this.onTapDragon(boss);
+          } else if (meet.startsWith(SPAWN_MEET)) {
+            const spawnId = meet.slice(SPAWN_MEET.length);
+            const spawn = presence.terrain.get(this.save.position.areaId)?.spawns.find((s) => s.id === spawnId);
+            if (spawn && isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, x: spawn.x, y: spawn.y })) presence.send("spawnClaim", { spawnId });
           } else {
             const target = presence.players.get(meet);
             if (target && isAdjacent(this.myPosition(), target)) this.showMeeting(target);
@@ -874,18 +995,27 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
+  /** Tall grass, or a place where a disaster left rare monsters for a while. */
   private isEncounterTile(x: number, y: number): boolean {
-    return !!this.grassLayer.getTileAt(x, y);
+    return !!this.grassLayer.getTileAt(x, y) || Boolean(this.world.zoneAt(x, y));
   }
 
   /** Returns true (and starts a battle) if the roll triggers a wild encounter. */
   private rollEncounter(): boolean {
-    if (Math.random() > this.areaMeta.encounterRate) return false;
-
-    const speciesId = pickWeightedSpecies(this.areaMeta.encounterTable);
+    const zone = this.world.zoneAt(this.playerTile.x, this.playerTile.y);
+    // In a disaster's zone its rare monster turns up (at the zone's own rate); tall grass there still has its usual ones.
+    const inGrass = !!this.grassLayer.getTileAt(this.playerTile.x, this.playerTile.y);
+    let speciesId: string | undefined;
+    if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
+    else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(this.areaMeta.encounterTable);
     const species = speciesId ? this.content.speciesById[speciesId] : undefined;
     if (!species) return false;
+    this.startWildBattle(species);
+    return true;
+  }
 
+  /** A wild battle — `spawnId` when it's a single waiting monster (the UFO's alien), so the server hears how it went. */
+  private startWildBattle(species: CreatureSpecies, spawnId?: string): void {
     const wildInstance: CreatureInstance = {
       instanceId: crypto.randomUUID(),
       speciesId: species.id,
@@ -907,9 +1037,11 @@ export class OverworldScene extends Phaser.Scene {
       content: this.content,
       wildInstance,
       wildSpecies: species,
+      ...(spawnId ? { spawnId } : {}),
     };
+    this.closePopup();
+    this.pendingPath = [];
     this.scene.start("Battle", data);
-    return true;
   }
 }
 

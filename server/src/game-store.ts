@@ -1,6 +1,29 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { RaidState, RewardDelivery, ScoreEvent, ScorePlayer } from "@monster-spil/shared";
+import { DEFAULT_DISASTER_SETTINGS } from "@monster-spil/shared";
+import type { AreaTerrain, DisasterKind, DisasterSettings, RaidState, RewardDelivery, ScoreEvent, ScorePlayer } from "@monster-spil/shared";
+
+/** A disaster that struck, for the admin portal and the "while you were away" note. */
+export interface DisasterRecord {
+  id: string;
+  kind: DisasterKind;
+  areaId: string;
+  x: number;
+  y: number;
+  at: string;
+  /** How many players it caught. */
+  struck: number;
+}
+
+/** Natural disasters in this game: the parent's settings, when the next one comes, and how each map looks now. */
+export interface WorldData {
+  settings: DisasterSettings;
+  nextAt?: string;
+  areas: Record<string, AreaTerrain>;
+  /** The latest disasters, newest first (at most HISTORY_MAX). */
+  history: DisasterRecord[];
+}
+export const HISTORY_MAX = 20;
 
 /** Everything the server must remember about one game across restarts. Kept small: one JSON file. */
 export interface GameData {
@@ -14,6 +37,7 @@ export interface GameData {
   rewards: Record<string, RewardDelivery[]>;
   /** Names a parent set in the admin portal, per playerId, until that device has taken the new name. */
   renames: Record<string, string>;
+  world: WorldData;
 }
 
 export const GAME_FILE = "game.json";
@@ -21,7 +45,8 @@ const FILE = GAME_FILE;
 const KEEP_MS = 8 * 24 * 60 * 60 * 1000;
 const WRITE_DELAY_MS = 500;
 
-const empty = (): GameData => ({ version: 1, players: {}, events: [], rewards: {}, renames: {} });
+const emptyWorld = (): WorldData => ({ settings: { ...DEFAULT_DISASTER_SETTINGS, kinds: { ...DEFAULT_DISASTER_SETTINGS.kinds } }, areas: {}, history: [] });
+const empty = (): GameData => ({ version: 1, players: {}, events: [], rewards: {}, renames: {}, world: emptyWorld() });
 
 /**
  * One game's persistent state, in `<dir>/game.json` (under a Docker volume in
@@ -39,7 +64,7 @@ export class GameStore {
   static async open(dir: string): Promise<GameStore> {
     try {
       const raw = JSON.parse(await readFile(path.join(dir, FILE), "utf-8")) as Partial<GameData>;
-      return new GameStore({ ...empty(), ...raw, version: 1 }, dir);
+      return new GameStore({ ...empty(), ...raw, version: 1, world: { ...emptyWorld(), ...raw.world } }, dir);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") console.error(`Could not read ${path.join(dir, FILE)}, starting empty:`, error);
       return new GameStore(empty(), dir);

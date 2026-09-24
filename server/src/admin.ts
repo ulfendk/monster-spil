@@ -1,6 +1,17 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { currentRaid, freshRaid, raidView, scoreboard, weekIdFor, type BossDefinition } from "@monster-spil/shared";
+import {
+  DISASTER_KINDS,
+  cleanDisasterSettings,
+  currentRaid,
+  freshRaid,
+  raidView,
+  scoreboard,
+  weekIdFor,
+  type BossDefinition,
+  type DisasterConfigs,
+  type DisasterKind,
+} from "@monster-spil/shared";
 import { clientAddress, KeyGate } from "./key-gate.js";
 import type { GameRegistry } from "./games.js";
 import type { LobbyRoom } from "./LobbyRoom.js";
@@ -24,14 +35,21 @@ import { ADMIN_PAGE } from "./admin-page.js";
  *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
  *   POST /dragon  {action:"reset"} | {action:"hp", hp}
  *   POST /scores/clear                           remove this week's points
+ *   POST /disasters/settings  {enabled, meanMinutes, randomness, kinds}
+ *   POST /disasters/trigger  {kind?, target?}    one now (random kind and place when not given)
+ *   POST /disasters/heal                         heal every soft change now
+ *   POST /disasters/reset                        every map back to how it was drawn
  *   GET  /backups[/<id>]                         download one backup, or all
  */
 export interface AdminDeps {
   password: string | undefined;
   registry: GameRegistry;
   bosses: BossDefinition[];
-  /** The game's room, if anyone has joined it since the server started. */
+  disasterConfigs: DisasterConfigs;
+  /** The game's room (every game has one while the server runs). */
   room: (gameId: string) => LobbyRoom | undefined;
+  /** Opens a game's room (a new game's, or one that failed to open). */
+  openRoom: (gameId: string) => Promise<void>;
 }
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
@@ -94,6 +112,7 @@ export class AdminPortal {
     if (pathname === "/admin/api/games" && method === "POST") {
       const body = await readJson(req);
       const made = await registry.create(body?.navn, body?.key);
+      if (made.ok) await this.deps.openRoom(made.game.id);
       return json(res, made.ok ? 200 : 400, made.ok ? { ok: true, gameId: made.game.id } : made);
     }
 
@@ -140,6 +159,30 @@ export class AdminPortal {
       store.changed();
       return json(res, 200, { ok: true, removed: before });
     }
+    const disaster = /^\/disasters\/(settings|trigger|heal|reset)$/.exec(sub);
+    if (disaster && method === "POST") {
+      if (!room) await this.deps.openRoom(gameId);
+      const world = this.deps.room(gameId)?.world;
+      if (!world) return json(res, 503, { error: "spillet kører ikke" });
+      const body = await readJson(req);
+      if (disaster[1] === "settings") {
+        const store = await registry.store(gameId);
+        store.data.world.settings = cleanDisasterSettings(body, store.data.world.settings);
+        world.settingsChanged();
+        return json(res, 200, { ok: true, settings: store.data.world.settings });
+      }
+      if (disaster[1] === "trigger") {
+        const kind = typeof body?.kind === "string" && (DISASTER_KINDS as string[]).includes(body.kind) ? (body.kind as DisasterKind) : undefined;
+        const at = body?.target as { x?: unknown; y?: unknown } | undefined;
+        const target = Number.isInteger(at?.x) && Number.isInteger(at?.y) ? { x: at!.x as number, y: at!.y as number } : undefined;
+        const refusal = world.start(kind, new Date(), target);
+        return json(res, refusal ? 409 : 200, refusal ? { ok: false, error: refusal } : { ok: true });
+      }
+      if (disaster[1] === "heal") world.healAll();
+      else world.resetAll();
+      return json(res, 200, { ok: true });
+    }
+
     const backups = registry.backups(gameId);
     if (sub === "/backups" && method === "GET") {
       const list = await backups.list();
@@ -206,7 +249,23 @@ export class AdminPortal {
     players.sort((a, b) => (b.lastSeen ?? b.backup?.savedAt ?? "").localeCompare(a.lastSeen ?? a.backup?.savedAt ?? ""));
     const boss = bossForWeek(this.deps.bosses, weekIdFor(now));
     const raid = currentRaid(store.data.raid, boss, now);
-    return { players, dragon: { ...raidView(raid), navn: boss.navn }, scoreEvents: store.data.events.length };
+    const world = store.data.world;
+    const room = this.deps.room(gameId);
+    const areas = Object.values(world.areas);
+    const disasters = {
+      settings: world.settings,
+      nextAt: room?.world?.nextAt,
+      active: room?.world?.activeView,
+      history: world.history,
+      kinds: DISASTER_KINDS.map((kind) => ({ kind, navn: this.deps.disasterConfigs[kind].navn })),
+      changes: {
+        soft: areas.reduce((n, a) => n + Object.values(a.overrides).filter((o) => o.until).length, 0),
+        hard: areas.reduce((n, a) => n + Object.values(a.overrides).filter((o) => !o.until).length, 0),
+        zones: areas.reduce((n, a) => n + a.zones.length, 0),
+        spawns: areas.reduce((n, a) => n + a.spawns.length, 0),
+      },
+    };
+    return { players, dragon: { ...raidView(raid), navn: boss.navn }, scoreEvents: store.data.events.length, disasters };
   }
 
   /** Forgets a player: scoreboard entry and points, unclaimed rewards, and their backup. */

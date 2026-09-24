@@ -1,0 +1,11 @@
+{
+  "id": "rumling",
+  "navn": "Rumling",
+  "type": "lyn",
+  "baseStats": { "hp": 46, "angreb": 15, "forsvar": 13, "fart": 14 },
+  "moveIds": ["gnistestoed", "lynnedslag", "stormflod"],
+  "spriteFront": "creatures/rumling_front.png",
+  "spriteBack": "creatures/rumling_back.png",
+  "sound": "creatures/rumling.wav",
+  "catchRate": 0.25
+}

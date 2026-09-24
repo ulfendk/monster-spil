@@ -11,8 +11,9 @@ export const PASS_OUT_MAX_S = 60;
 export const WILD_PASS_OUT_MIN_S = 10;
 export const WILD_PASS_OUT_MAX_S = 30;
 
-/** "fight": duels (30–60 s). "wild": a lost wild battle (10–30 s). "dragon": always the full 60 s. */
-export type PassOutKind = "fight" | "wild" | "dragon";
+/** "fight": duels (30–60 s). "wild": a lost wild battle (10–30 s). "dragon": always the full 60 s. "disaster": caught by a natural disaster (40 s). */
+export type PassOutKind = "fight" | "wild" | "dragon" | "disaster";
+export const DISASTER_PASS_OUT_S = 40;
 /** Seconds one piece of food takes off the wait. */
 export const FOOD_SECONDS = 15;
 export const BAG_MAX = 5;
@@ -27,6 +28,7 @@ export type FoodKind = (typeof FOOD_KINDS)[number];
  */
 export function passOutSeconds(closeness: number, kind: PassOutKind = "fight"): number {
   if (kind === "dragon") return PASS_OUT_MAX_S;
+  if (kind === "disaster") return DISASTER_PASS_OUT_S;
   const c = Math.min(1, Math.max(0, Number.isFinite(closeness) ? closeness : 0));
   const [min, max] = kind === "wild" ? [WILD_PASS_OUT_MIN_S, WILD_PASS_OUT_MAX_S] : [PASS_OUT_MIN_S, PASS_OUT_MAX_S];
   return Math.round(max - (max - min) * c);

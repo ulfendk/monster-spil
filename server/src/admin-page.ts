@@ -52,6 +52,11 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   code { font: 15px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ink0); border: 1px solid var(--panel2); border-radius: 6px; padding: 2px 6px; color: var(--yellow); }
   h2.game-title { font-size: 22px; color: var(--text); margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--panel2); }
   .pending { color: var(--yellow); font-size: 13px; margin-left: 6px; }
+  select { font: inherit; background: var(--ink0); color: var(--text); border: 1px solid var(--panel2); border-radius: 10px; padding: 8px 10px; }
+  label.check { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+  ul.history { list-style: none; padding: 0; margin: 12px 0 0; }
+  ul.history li { padding: 6px 0; border-bottom: 1px solid var(--panel2); }
+  ul.history li:last-child { border-bottom: 0; }
   @media (max-width: 700px) { .hide-sm { display: none; } }
 </style>
 </head>
@@ -78,7 +83,7 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
         <button type="button" id="newKeyMake" class="quiet">Lav en nøgle</button>
         <button type="submit">Opret</button>
       </form>
-      <p class="note">Hvert spil er sin egen verden med egne spillere, monstre, pointtavle og drage. Giv spilnøglen til dem, der skal være med — de trykker ＋ <em>Nyt spil</em> → <em>Med spilnøgle</em> i spillet og skriver den.</p>
+      <p class="note">Hvert spil er sin egen verden med egne spillere, monstre, pointtavle og drage. Giv spilnøglen til dem, der skal være med — de trykker ＋ <em>Nyt spil</em> i spillet og skriver den.</p>
     </section>
 
     <div id="gameView" hidden>
@@ -115,6 +120,35 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
         <button id="dragonSleep" class="quiet">Læg den til at sove</button>
       </div>
       <p class="note">At sætte HP giver ingen belønninger. En ny drage vågner af sig selv hver mandag.</p>
+    </section>
+
+    <h2>Naturkatastrofer</h2>
+    <section class="card">
+      <div class="row"><strong id="disasterStatus"></strong><span id="disasterNext" class="muted"></span></div>
+      <div class="row" style="margin-top:12px">
+        <button id="disasterToggle"></button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label>Hvor ofte, i gennemsnit <select id="disasterMean">
+          <option value="15">hvert kvarter</option><option value="30">hver halve time</option><option value="60">hver time</option>
+          <option value="120">hver 2. time</option><option value="240">hver 4. time</option><option value="480">hver 8. time</option>
+          <option value="720">hver 12. time</option><option value="1440">en gang i døgnet</option><option value="2880">hvert 2. døgn</option>
+          <option value="10080">en gang om ugen</option>
+        </select></label>
+        <label>Tilfældighed <select id="disasterRandom">
+          <option value="0">ingen (præcis)</option><option value="0.25">lidt</option><option value="0.5">noget</option><option value="0.75">meget</option><option value="1">helt vildt</option>
+        </select></label>
+      </div>
+      <div class="row" id="disasterKinds" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px"><button id="disasterSave">Gem indstillinger</button></div>
+      <div class="row" style="margin-top:18px">
+        <select id="disasterKind"></select><button id="disasterTrigger">Udløs nu</button>
+        <button id="disasterHeal" class="quiet">Hel kortet</button>
+        <button id="disasterReset" class="danger">Nulstil kortet</button>
+      </div>
+      <p class="note" id="disasterChanges"></p>
+      <ul class="history" id="disasterHistory"></ul>
+      <p class="note">Katastrofer advarer først (et par sekunder til at løbe væk); den der står i farezonen, besvimer. Brændt græs, vand og væltede træer heler af sig selv; kratere, nye bjerge og ufo-vraget bliver. <em>Hel kortet</em> heler alt det bløde med det samme, <em>Nulstil kortet</em> fjerner alle ændringer. Ufoen er meget sjælden.</p>
     </section>
 
     <h2>Pointtavle</h2>
@@ -208,7 +242,7 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
       if (p.renamePending) name.append(el("span", { className: "pending", title: "Deres iPad/iPhone får det nye navn, næste gang de er online", textContent: "nyt navn på vej" }));
       const backup = el("td");
       if (p.backup) {
-        backup.append(el("a", { href: g("/backups/" + encodeURIComponent(p.playerId)), textContent: p.backup.creatures + " monstre", title: "Hent backup" }));
+        backup.append(el("a", { href: g("/backups/" + encodeURIComponent(p.playerId)), textContent: p.backup.creatures + (p.backup.creatures === 1 ? " monster" : " monstre"), title: "Hent backup" }));
         backup.append(el("div", { className: "muted", textContent: when(p.backup.savedAt) }));
       } else backup.append(el("span", { className: "muted", textContent: "ingen" }));
       const ren = el("button", { className: "quiet", textContent: "Omdøb" });
@@ -237,7 +271,53 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     $("dragonHpInput").max = d.maxHp;
     $("dragonHpInput").value = d.hp;
     $("scoreInfo").textContent = s.scoreEvents + " pointhændelser gemt";
+    showDisasters(s.disasters);
   }
+
+  let disasterSettings = null;
+  const kindName = {};
+  function showDisasters(d) {
+    disasterSettings = d.settings;
+    for (const k of d.kinds) kindName[k.kind] = k.navn;
+    $("disasterStatus").textContent = d.active ? kindName[d.active.kind] + " er på vej!" : d.settings.enabled ? "Slået til" : "Stoppet";
+    $("disasterNext").textContent = d.active ? "rammer kl. " + new Date(d.active.strikeAt).toLocaleTimeString("da-DK") : d.nextAt ? "· næste omkring " + when(d.nextAt) : "";
+    $("disasterToggle").textContent = d.settings.enabled ? "Stop katastrofer" : "Start katastrofer";
+    $("disasterToggle").className = d.settings.enabled ? "danger" : "";
+    const mean = $("disasterMean");
+    if (![...mean.options].some((o) => Number(o.value) === d.settings.meanMinutes)) mean.append(el("option", { value: String(d.settings.meanMinutes), textContent: "hvert " + d.settings.meanMinutes + ". minut" }));
+    mean.value = String(d.settings.meanMinutes);
+    const rnd = $("disasterRandom");
+    const nearest = [...rnd.options].reduce((best, o) => Math.abs(Number(o.value) - d.settings.randomness) < Math.abs(Number(best.value) - d.settings.randomness) ? o : best);
+    rnd.value = nearest.value;
+    const kinds = $("disasterKinds");
+    kinds.replaceChildren();
+    for (const k of d.kinds) {
+      const box = el("input", { type: "checkbox", checked: d.settings.kinds[k.kind] });
+      box.dataset.kind = k.kind;
+      kinds.append(el("label", { className: "check" }, [box, document.createTextNode(k.navn)]));
+    }
+    const pick = $("disasterKind");
+    const chosen = pick.value;
+    pick.replaceChildren(el("option", { value: "", textContent: "Tilfældig" }), ...d.kinds.map((k) => el("option", { value: k.kind, textContent: k.navn })));
+    pick.value = chosen;
+    const c = d.changes;
+    $("disasterChanges").textContent = "På kortet nu: " + c.soft + " felter der heler, " + c.hard + " varige ændringer, " + c.zones + " steder med sjældne monstre" + (c.spawns ? ", " + c.spawns + " ufo-væsen" : "") + ".";
+    const list = $("disasterHistory");
+    list.replaceChildren();
+    for (const h of d.history.slice(0, 8)) {
+      list.append(el("li", { textContent: when(h.at) + " — " + (kindName[h.kind] || h.kind) + " ved (" + h.x + ", " + h.y + ")" + (h.struck ? " · " + h.struck + " besvimede" : "") }));
+    }
+  }
+  const disasterPost = (path, body) => post(g("/disasters/" + path), body).then(loadGame).catch(fail);
+  $("disasterToggle").onclick = () => disasterSettings && disasterPost("settings", { enabled: !disasterSettings.enabled });
+  $("disasterSave").onclick = () => {
+    const kinds = {};
+    for (const box of $("disasterKinds").querySelectorAll("input")) kinds[box.dataset.kind] = box.checked;
+    disasterPost("settings", { meanMinutes: Number($("disasterMean").value), randomness: Number($("disasterRandom").value), kinds });
+  };
+  $("disasterTrigger").onclick = () => disasterPost("trigger", $("disasterKind").value ? { kind: $("disasterKind").value } : {});
+  $("disasterHeal").onclick = () => confirm("Hel alt brændt græs, vand, væltede træer og revner med det samme?") && disasterPost("heal");
+  $("disasterReset").onclick = () => confirm("Nulstil kortet? Alle ændringer fra katastrofer forsvinder — også kratere og nye bjerge.") && disasterPost("reset");
 
   $("loginForm").onsubmit = async (ev) => {
     ev.preventDefault();

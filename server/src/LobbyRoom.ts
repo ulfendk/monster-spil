@@ -43,13 +43,15 @@ import { clientAddress, type KeyGate } from "./key-gate.js";
 import type { GameStore } from "./game-store.js";
 import type { GameRegistry } from "./games.js";
 import { bossForWeek } from "./bosses.js";
-import type { AreaSpots } from "./areas.js";
+import type { ServerArea } from "./areas.js";
+import { WorldEvents, type WorldPlayer } from "./world-events.js";
 import type { SaveBackups } from "./save-backups.js";
 import type {
   ClientMessages,
   BattleState,
   BossDefinition,
   CreatureInstance,
+  DisasterConfigs,
   DuelResult,
   RaidState,
   RaidView,
@@ -70,7 +72,9 @@ export interface LobbyDeps {
   registry: GameRegistry;
   gate: KeyGate;
   bosses: BossDefinition[];
-  foodSpots?: AreaSpots[];
+  /** Every area: its food spots and, for disasters, its base map. */
+  areas?: ServerArea[];
+  disasterConfigs?: DisasterConfigs;
 }
 
 interface Online {
@@ -159,7 +163,11 @@ export class LobbyRoom extends Room {
   private teamTimer?: { clear(): void };
   /** Food lying on the maps, shared by everyone (in memory: it regrows anyway). */
   private food = new Map<string, FoodItem>();
-  private foodSpots: AreaSpots[] = [];
+  private areas: ServerArea[] = [];
+  /** Food a disaster scattered: it doesn't grow back when picked. */
+  private extraFood = new Set<string>();
+  /** Natural disasters in this game (undefined without disaster config, e.g. in some tests). */
+  world?: WorldEvents;
   private backups?: SaveBackups;
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. Only this game's key lets you in. */
@@ -186,8 +194,9 @@ export class LobbyRoom extends Room {
     this.backups = this.registry.backups(game.id);
     this.gate = options.gate;
     this.bosses = options.bosses;
-    this.foodSpots = options.foodSpots ?? [];
-    for (const area of this.foodSpots) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
+    this.areas = options.areas ?? [];
+    if (options.disasterConfigs) this.startWorld(options.disasterConfigs);
+    for (const area of this.areas) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
     this.clock.setInterval(() => {
@@ -388,13 +397,27 @@ export class LobbyRoom extends Room {
       this.food.delete(item.id);
       this.tell(client, "foodTaken", { foodId: item.id, kind: item.kind });
       this.broadcastFood();
-      const area = this.foodSpots.find((a) => a.areaId === item.areaId);
+      const area = this.areas.find((a) => a.areaId === item.areaId);
+      if (this.extraFood.delete(item.id)) return; // scattered by a disaster: gone for good
       if (area) {
         this.clock.setTimeout(() => {
           this.growFood(area);
           this.broadcastFood();
         }, FOOD_REGROW_MS);
       }
+    });
+
+    this.onMessage("spawnClaim", (client, msg: ClientMessages["spawnClaim"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.world) return;
+      if (me.info.busy || me.info.away) return this.problem(client, "player is busy");
+      const refusal = this.world.claim(this.worldPlayer(me), String(msg?.spawnId));
+      if (refusal) this.problem(client, refusal);
+    });
+
+    this.onMessage("spawnDone", (client, msg: ClientMessages["spawnDone"]) => {
+      const me = this.playerOf(client);
+      if (me && this.world) this.world.done(me.info.playerId, String(msg?.spawnId), msg?.caught === true);
     });
 
     this.onMessage("backup", (client, msg: ClientMessages["backup"]) => {
@@ -488,6 +511,7 @@ export class LobbyRoom extends Room {
     if (renamed && renamed !== options.navn) this.tell(client, "renamed", { navn: renamed });
     this.tell(client, "raid", this.raidViewNow());
     this.tell(client, "food", [...this.food.values()]);
+    this.world?.welcome(info.playerId);
     // Rejoining mid-team: show the team again (e.g. after a short drop-out).
     if (this.team && teamInvolves(this.team, info.playerId)) this.tell(client, "team", teamViewFor(this.team, info.playerId, this.raid(), this.boss()));
     for (const delivery of this.pending.get(info.playerId) ?? []) this.tell(client, "tradeComplete", delivery);
@@ -510,7 +534,56 @@ export class LobbyRoom extends Room {
     // Leaving mid-attempt just ends it; damage already dealt stays on the dragon.
     if (this.raidBattles.has(me.info.playerId)) this.endAttempt(me.info.playerId);
     if (this.team && teamInvolves(this.team, me.info.playerId)) this.leaveTeamAs(me.info.playerId);
+    this.world?.playerLeft(me.info.playerId);
     this.broadcastPlayers();
+  }
+
+  // ------------------------------------------------------------ natural disasters
+
+  private startWorld(configs: DisasterConfigs): void {
+    this.world = new WorldEvents({
+      store: this.store,
+      areas: this.areas,
+      configs,
+      lair: () => this.boss().lair,
+      players: () => [...this.online.values()].map((o) => this.worldPlayer(o)),
+      send: (playerId, type, payload) => {
+        if (playerId === undefined) for (const o of this.online.values()) this.tell(o.client, type, payload);
+        else {
+          const target = this.online.get(playerId);
+          if (target) this.tell(target.client, type, payload);
+        }
+      },
+      later: (fn, ms) => this.clock.setTimeout(fn, ms),
+      terrainChanged: (areaId) => {
+        // Food on a tile that is now blocked or overgrown is gone.
+        let gone = false;
+        for (const f of [...this.food.values()]) {
+          if (f.areaId === areaId && !this.world!.foodSpot(areaId, f.x, f.y)) {
+            this.food.delete(f.id);
+            this.extraFood.delete(f.id);
+            gone = true;
+          }
+        }
+        if (gone) this.broadcastFood();
+      },
+      scatterFood: (areaId, spots) => {
+        for (const spot of spots) {
+          const item: FoodItem = { id: randomUUID(), areaId, x: spot.x, y: spot.y, kind: pickFoodKind(Math.random) };
+          this.food.set(item.id, item);
+          this.extraFood.add(item.id);
+        }
+        this.broadcastFood();
+      },
+      rand: Math.random,
+    });
+    this.clock.setInterval(() => this.world?.tick(), 5_000);
+  }
+
+  private worldPlayer(o: Online): WorldPlayer {
+    const id = o.info.playerId;
+    const unavailable = o.info.busy || o.info.away || this.raidBattles.has(id) || Boolean(this.team && teamInvolves(this.team, id));
+    return { playerId: id, areaId: o.info.areaId, x: o.info.x, y: o.info.y, unavailable };
   }
 
   // ------------------------------------------------------------ dragon and scoreboard
@@ -531,9 +604,11 @@ export class LobbyRoom extends Room {
   }
 
   /** One new piece of food on a random free spot of the area. */
-  private growFood(area: AreaSpots): void {
+  private growFood(area: ServerArea): void {
     const taken = [...this.food.values()].filter((f) => f.areaId === area.areaId);
-    const spot = pickFoodSpot(area.spots, taken, Math.random);
+    // Not where a disaster has blocked the ground or made tall grass grow.
+    const open = this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots;
+    const spot = pickFoodSpot(open, taken, Math.random);
     if (!spot) return;
     const item: FoodItem = { id: randomUUID(), areaId: area.areaId, x: spot.x, y: spot.y, kind: pickFoodKind(Math.random) };
     this.food.set(item.id, item);

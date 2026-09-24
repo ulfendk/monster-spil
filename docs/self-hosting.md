@@ -43,8 +43,8 @@ right key, so outsiders can't get in even if they find the URL.
   a name and a key. *Lav en nøgle* suggests one that's easy to type on an iPad, like
   `modig-ugle-472`. Hand the key to the people who should play that game (a friend's
   parents, say).
-- **On the device:** the game list → ＋ → *Med spilnøgle* → type the key. The key is
-  remembered on that device. *Spil alene* adds a game that never connects.
+- **On the device:** the game list → ＋ → type the key. The key is remembered on
+  that device.
 - Keys ignore upper/lower case and spaces around them, are 6–40 characters, and
   must be different for each game.
 - **Changing a key** (admin portal) sends everyone playing that game right now back
@@ -227,5 +227,11 @@ trusted dev certificate, or put the dev server behind NPM too.
   and unclaimed rewards on the server — the game on their device is untouched), wake
   the dragon with full HP / set its HP / put it to sleep (no rewards), and clear
   the week's points. Logging in gives a 12-hour session; wrong passwords are
-  counted separately from the game keys (5 per 10 minutes per address). It goes through the
+  counted separately from the game keys (5 per 10 minutes per address).
+- **Natural disasters** (admin portal → *Naturkatastrofer*, per game): meteors,
+  earthquakes, floods, hurricanes, dragon fire and a very rare UFO change the map over
+  time. Choose how often on average (from every 15 minutes to once a week) and how
+  random, which kinds may happen, start one now, stop them, heal the soft damage at once,
+  or reset the map. They happen even while nobody plays; the next time a child opens
+  the game the map has changed (and a note says what happened). It goes through the
   same Nginx Proxy Manager host as the game — nothing else to set up.

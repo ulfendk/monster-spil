@@ -1,0 +1,63 @@
+{
+  "meteor": {
+    "navn": "Meteor",
+    "weight": 3,
+    "warnSeconds": 10,
+    "radius": 3,
+    "healHours": 48,
+    "speciesId": "stjernesten",
+    "zoneHours": 24,
+    "zoneRate": 0.3
+  },
+  "earthquake": {
+    "navn": "Jordskælv",
+    "weight": 3,
+    "warnSeconds": 8,
+    "radius": 2,
+    "healHours": 72,
+    "speciesId": "revnekrabbe",
+    "zoneHours": 24,
+    "zoneRate": 0.25
+  },
+  "flood": {
+    "navn": "Oversvømmelse",
+    "weight": 3,
+    "warnSeconds": 12,
+    "radius": 3,
+    "healHours": 8,
+    "speciesId": "flodtrold",
+    "zoneHours": 8,
+    "zoneRate": 0.25
+  },
+  "hurricane": {
+    "navn": "Orkan",
+    "weight": 2,
+    "warnSeconds": 12,
+    "radius": 1,
+    "healHours": 24,
+    "speciesId": "loevhvirvel",
+    "zoneHours": 12,
+    "zoneRate": 0.15,
+    "extraFood": 6
+  },
+  "dragonfire": {
+    "navn": "Dragebrand",
+    "weight": 2,
+    "warnSeconds": 8,
+    "radius": 4,
+    "healHours": 24,
+    "speciesId": "askefugl",
+    "zoneHours": 12,
+    "zoneRate": 0.2
+  },
+  "ufo": {
+    "navn": "Ufo",
+    "weight": 0.25,
+    "warnSeconds": 10,
+    "radius": 2,
+    "healHours": 0,
+    "speciesId": "rumling",
+    "zoneHours": 6,
+    "zoneRate": 0
+  }
+}

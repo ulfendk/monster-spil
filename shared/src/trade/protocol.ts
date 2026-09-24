@@ -7,6 +7,8 @@ import type { TeamView } from "../raid/team.js";
 import type { FoodItem, FoodKind } from "../recovery/recovery.js";
 import type { ScoreRow } from "../score/scoreboard.js";
 import type { TradeDelivery, TradeSession } from "./trade-session.js";
+import type { AreaTerrain } from "../world/terrain.js";
+import type { DisasterKind } from "../world/disasters.js";
 
 /** Someone in a game's lobby. No accounts — playerId is the id from their own save. */
 export interface LobbyPlayer extends WorldPosition {
@@ -45,12 +47,13 @@ export const GAME_KEY_REJECTED = 4401;
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
  * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,
  * v5 = teaming up against the dragon, v6 = food growing on the map, v7 = save backups,
- * v8 = several games per server (gameId + gameKey), game names and renames by a parent. The server announces its version with the
+ * v8 = several games per server (gameId + gameKey), game names and renames by a parent,
+ * v9 = natural disasters: the map changes (terrain), warnings and strikes, the UFO's alien. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -92,6 +95,31 @@ export interface ClientMessages {
   foodTake: { foodId: string };
   /** A copy of my whole save, kept on the server so a reinstalled device can restore it. */
   backup: { save: unknown };
+  /** I stand next to a waiting monster (the UFO's alien) and want to battle it (v9+). */
+  spawnClaim: { spawnId: string };
+  /** My battle with it is over: caught (it's mine, gone for everyone) or not (it waits again). */
+  spawnDone: { spawnId: string; caught: boolean };
+}
+
+/** A natural disaster: first a warning (run!), then the strike. */
+export interface DisasterMessage {
+  id: string;
+  kind: DisasterKind;
+  areaId: string;
+  phase: "warning" | "strike";
+  center: { x: number; y: number };
+  /** Tiles ("x,y") where you pass out if you're still there when it strikes. */
+  danger: string[];
+  strikeAt: string;
+  /** At the strike: who was caught (they pass out). */
+  struck?: string[];
+}
+
+/** A disaster that happened, for the "while you were away" note. */
+export interface DisasterNews {
+  id: string;
+  kind: DisasterKind;
+  at: string;
 }
 
 /** A creature the server hands out (e.g. for beating the dragon). Apply, persist, then send rewardAck. */
@@ -142,4 +170,9 @@ export interface ServerMessages {
   game: { gameId: string; navn: string };
   /** A parent renamed me in the admin portal: use this name from now on (v8+). */
   renamed: { navn: string };
+  /** How an area looks now (all disaster changes, rare-monster zones, waiting monsters); on join and after every change (v9+). */
+  terrain: { areaId: string; terrain: AreaTerrain; recent: DisasterNews[] };
+  disaster: DisasterMessage;
+  /** My claim on a waiting monster was granted: battle it now. */
+  spawnBattle: { spawnId: string; speciesId: string };
 }

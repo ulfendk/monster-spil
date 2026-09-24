@@ -98,7 +98,7 @@ export async function updateGame(id: string, patch: Partial<Pick<GameEntry, "nav
 export async function removeGame(id: string): Promise<void> {
   games = games.filter((g) => g.id !== id);
   if (current?.id === id) current = undefined;
-  await writeRecords({ [GAMES]: { games } }, [saveKey(id)]);
+  await writeRecords({ [GAMES]: { games } }, [saveKey(id), `terrain:${id}`]);
 }
 
 /** Every game's save, for showing who you are in each game. */

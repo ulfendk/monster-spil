@@ -1,4 +1,4 @@
-import type { TypeId } from "@shared";
+import type { DisasterKind, TypeId } from "@shared";
 
 /**
  * Names of the drawn icons (see gfx/icon-art.ts) for each meaning in the game. Use
@@ -64,3 +64,13 @@ export const foodIcon = (kind: string): string => FOOD_ICONS[kind] ?? "apple";
 /** The monster-book hint arrows (emoji from shared/world/hint.ts) as an angle for the drawn arrow; undefined = "you are here". */
 const ARROW_ANGLES: Record<string, number> = { "➡️": 0, "↘️": 45, "⬇️": 90, "↙️": 135, "⬅️": 180, "↖️": 225, "⬆️": 270, "↗️": 315 };
 export const arrowAngle = (arrow: string): number | undefined => ARROW_ANGLES[arrow];
+
+/** Natural disasters. */
+export const DISASTER_ICONS: Record<DisasterKind, string> = {
+  meteor: "meteor",
+  earthquake: "quake",
+  flood: "flood",
+  hurricane: "storm",
+  dragonfire: "fire",
+  ufo: "ufo",
+};

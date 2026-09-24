@@ -19,7 +19,6 @@ export interface GamesSceneData {
 
 type Step =
   | { kind: "list" }
-  | { kind: "add" }
   | { kind: "key"; notice?: string }
   | { kind: "busy" }
   | { kind: "remove"; game: GameEntry };
@@ -27,7 +26,7 @@ type Step =
 /**
  * The game list, shown at start when the device plays more than one game (and from ⚙ to
  * switch or add one). Each game is a card with who you are in it; ＋ adds a game with a
- * spilnøgle from a parent, or one to play alone. A game can be taken off the device.
+ * spilnøgle from a parent. A game can be taken off the device.
  */
 export class GamesScene extends Phaser.Scene {
   private content!: GameContent;
@@ -42,7 +41,7 @@ export class GamesScene extends Phaser.Scene {
 
   create(data: GamesSceneData): void {
     this.content = data.content;
-    this.step = listGames().length === 0 ? { kind: "add" } : { kind: "list" };
+    this.step = listGames().length === 0 ? { kind: "key" } : { kind: "list" };
     onRelayout(this, () => this.draw());
     this.draw();
     void savesByGame().then((saves) => {
@@ -82,7 +81,6 @@ export class GamesScene extends Phaser.Scene {
     }
     if (step.kind === "busy") return this.text(width / 2, height / 2, ic("hourglass"), 72);
     if (step.kind === "list") return this.drawList();
-    if (step.kind === "add") return this.drawAdd();
     if (step.kind === "key") return this.drawKey(step.notice, typed);
     this.drawRemove(step.game);
   }
@@ -109,7 +107,7 @@ export class GamesScene extends Phaser.Scene {
     const { x } = spots[games.length]!;
     const y = spots[games.length]!.y - below / 2;
     const add = this.add.rectangle(x, y, cardW, cardH, C.panel, 0.55).setStrokeStyle(3, C.border, 0.35).setInteractive({ useHandCursor: true });
-    add.on("pointerup", () => this.go({ kind: "add" }));
+    add.on("pointerup", () => this.go({ kind: "key" }));
     this.ui.push(add, addIcon(this, x, y - cardH * 0.08, "plus", Math.min(cardW, cardH) * 0.42));
     this.text(x, y + cardH * 0.32, t("games_add"), 24, CSS.soft);
   }
@@ -123,7 +121,7 @@ export class GamesScene extends Phaser.Scene {
       void startGame(this, game.id, this.content);
     });
     this.ui.push(card);
-    // Online with others, or alone on this device.
+    // Online with others, or (a game made before solo games were dropped) alone on this device.
     this.ui.push(addIcon(this, x - w / 2 + layout.px(26), y - h / 2 + layout.px(26), game.online ? "team" : "person", layout.px(36)));
     // A long name wraps onto two lines (clear of the icon), and only shrinks if it still doesn't fit.
     const nameW = w - 2 * (layout.px(26) + layout.px(18) + 8); // the icon's right edge, mirrored
@@ -150,30 +148,6 @@ export class GamesScene extends Phaser.Scene {
       backgroundColor: C.buttonQuiet,
     });
     this.ui.push(trash);
-  }
-
-  private drawAdd(): void {
-    const layout = getLayout(this);
-    const { width, height, safe } = layout;
-    this.text(width / 2, height * 0.24, t("games_add_title"), 36);
-    const buttonW = Math.min(320, width - safe.left - safe.right - 48);
-    const buttonH = layout.touch(110);
-    const gap = layout.px(28);
-    this.ui.push(
-      createButton(this, width / 2, height * 0.5, t("games_with_key"), () => this.go({ kind: "key" }), {
-        width: buttonW,
-        height: buttonH,
-        fontSize: layout.font(26),
-        icon: "key",
-        backgroundColor: C.ok,
-      }),
-      createButton(this, width / 2, height * 0.5 + buttonH + gap, t("games_alone"), () => void this.addAlone(), {
-        width: buttonW,
-        height: buttonH,
-        fontSize: layout.font(26),
-        icon: "person",
-      })
-    );
   }
 
   private drawKey(notice: string | undefined, typed: string | undefined): void {
@@ -213,14 +187,6 @@ export class GamesScene extends Phaser.Scene {
     await startGame(this, game.id, this.content);
   }
 
-  private async addAlone(): Promise<void> {
-    const taken = new Set(listGames().map((g) => g.navn));
-    let navn = t("games_alone_name");
-    for (let n = 2; taken.has(navn); n++) navn = `${t("games_alone_name")} ${n}`;
-    const game = await addGame({ id: `alene-${crypto.randomUUID().slice(0, 8)}`, navn, online: false });
-    await startGame(this, game.id, this.content);
-  }
-
   private drawRemove(game: GameEntry): void {
     const layout = getLayout(this);
     const { width, height } = layout;
@@ -245,6 +211,6 @@ export class GamesScene extends Phaser.Scene {
   private async remove(game: GameEntry): Promise<void> {
     await removeGame(game.id);
     this.saves.delete(game.id);
-    this.go(listGames().length ? { kind: "list" } : { kind: "add" });
+    this.go(listGames().length ? { kind: "list" } : { kind: "key" });
   }
 }

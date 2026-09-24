@@ -21,7 +21,7 @@ export {
 export type { TradePhase, TradeSide, TradeSession, TradeResult, TradeDelivery } from "./trade/trade-session.js";
 export { applyDelivery } from "./trade/apply-trade.js";
 export { LOBBY_ROOM, GAME_KEY_REJECTED, PROTOCOL_VERSION } from "./trade/protocol.js";
-export type { LobbyPlayer, LobbyJoinOptions, ClientMessages, ServerMessages, RewardDelivery } from "./trade/protocol.js";
+export type { LobbyPlayer, LobbyJoinOptions, ClientMessages, ServerMessages, RewardDelivery, DisasterMessage, DisasterNews } from "./trade/protocol.js";
 export {
   createDuel,
   acceptDuel,
@@ -73,6 +73,7 @@ export {
 export type { TeamMember, TeamMemberView, TeamPhase, TeamResult, TeamSession, TeamTurnResult, TeamView } from "./raid/team.js";
 export {
   BAG_MAX,
+  DISASTER_PASS_OUT_S,
   FOOD_KINDS,
   FOOD_SECONDS,
   PASS_OUT_MAX_S,
@@ -88,3 +89,31 @@ export {
   secondsLeft,
 } from "./recovery/recovery.js";
 export type { FoodItem, FoodKind, PassOutKind } from "./recovery/recovery.js";
+export {
+  blocks,
+  emptyTerrain,
+  fromKey,
+  healAllNow,
+  healTerrain,
+  inside,
+  setTile,
+  staysConnected,
+  tileKey,
+  tileNow,
+  walkableNow,
+  zoneAt,
+} from "./world/terrain.js";
+export type { AreaTerrain, BaseArea, EventZone, TerrainTileIds, TileOverride, TileState, WorldSpawn } from "./world/terrain.js";
+export {
+  DEFAULT_DISASTER_SETTINGS,
+  DISASTER_KINDS,
+  MAX_DISASTER_GAP_MINUTES,
+  MIN_DISASTER_GAP_MINUTES,
+  applyDisaster,
+  cleanDisasterSettings,
+  nextDisasterAt,
+  pickDisasterKind,
+  planDisaster,
+  possibleKinds,
+} from "./world/disasters.js";
+export type { DisasterConfig, DisasterConfigs, DisasterKind, DisasterPlan, DisasterSettings, PlanOptions, TileChange } from "./world/disasters.js";

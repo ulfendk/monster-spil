@@ -4,7 +4,7 @@
   "tilesetImagePath": "areas/startskoven-tileset.png",
   "encounterZoneLayer": "graes",
   "collisionLayer": "bund",
-  "collisionGids": [2, 4],
+  "collisionGids": [2, 4, 6, 10, 11, 13],
   "encounterTable": [
     { "speciesId": "gnistrot", "weight": 3 },
     { "speciesId": "stenbid", "weight": 2 },
@@ -12,5 +12,6 @@
   ],
   "encounterRate": 0.1,
   "playerStart": { "x": 32, "y": 24 },
-  "minimap": { "tree": [2], "water": [4], "path": [5] }
+  "terrain": {"ground": 1, "tree": 2, "grass": 3, "water": 4, "path": 5, "mountain": 6, "burnt": 7, "crater": 8, "flood": 9, "log": 10, "crack": 11, "rubble": 12, "wreck": 13},
+  "minimap": { "tree": [2, 10], "water": [4], "path": [5], "mountain": [6, 11, 13], "burnt": [7], "crater": [8, 12], "flood": [9] }
 }

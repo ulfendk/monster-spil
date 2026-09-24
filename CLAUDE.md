@@ -400,9 +400,52 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   family code become the game "Familien" on first start (solo builds: one game alone,
   `solo`). `GamesScene` is the game list (shown at start when there are 0 or 2+
   games, and from the ⚙ button): a card per game with your figure, ＋ to add one
-  with a spilnøgle or to play alone (never connects), 🗑 to take a game off the
-  device (asks first). Switching games reloads the app (`reloadToGameList`), so
+  with a spilnøgle (there is no "play alone" option in builds with a server; a
+  solo-only build has its one game `solo`), 🗑 to take a game off the device (asks first). Switching games reloads the app (`reloadToGameList`), so
   nothing from the old game lingers.
+
+## Natural disasters (protocol v9)
+
+- **Six kinds** — meteor, earthquake, flood, hurricane, dragon fire and (very rare) a
+  UFO crash. Their numbers (name, weight, warning seconds, size, heal hours, the rare
+  species they leave, how long and how often it turns up, extra food) are content:
+  `shared/content/disasters.json`, read by the server at runtime (the Dockerfile copies
+  it) and by the client. The shapes are code.
+- **Pure rules** (tested): `shared/src/world/terrain.ts` — the map is the base Tiled map
+  plus per-tile overrides; *soft* changes (burnt ground, floodwater, fallen trees,
+  fissures) carry `until` and heal back to what was under them (`after`); *hard* ones
+  (craters, raised hills, rubble passes, the UFO wreck) stay. `staysConnected` is used so
+  a change or a heal never cuts part of the map off; the start, lairs, the map border and
+  tiles where players stand are never blocked. `shared/src/world/disasters.ts` —
+  `planDisaster` (worked out at the warning, so the red danger tiles are exactly what
+  strikes), `applyDisaster`, schedule (`nextDisasterAt`: the average gap ± randomness,
+  never under 2 min) and `pickDisasterKind` by weight.
+- **Tiles**: the tileset has 13 tiles (`scripts/generate-startskoven.mjs` draws them):
+  6 mountain (the base map now has a ridge with a pass and a small massif), 7 burnt,
+  8 crater, 9 floodwater (walkable), 10 fallen tree, 11 fissure, 12 rubble, 13 wreck. The
+  area's `.meta.json` names them in `terrain` (an area without it has no disasters) and
+  lists the blocking ones in `collisionGids`.
+- **Server:** `server/src/world-events.ts` (`WorldEvents`, one per game's room) keeps the
+  schedule, warns (`disaster` phase `warning`), strikes after `warnSeconds` (phase
+  `strike`, with `struck` = players standing in the danger area who aren't busy/away;
+  they pass out for 40 s, kind `"disaster"`), stores the terrain in the game store's
+  `world`, heals every 5 s tick, and sends `terrain` on join and after every change
+  (with the last day's disasters as news). Every game's room is opened at server start,
+  so disasters happen while nobody plays. Rare monsters live in zones (`EventZone`,
+  their own encounter rate); the UFO leaves one `WorldSpawn` (the alien, `rumling`) that
+  the first player next to it claims (`spawnClaim` → `spawnBattle`, `spawnDone`).
+  Hurricanes scatter extra food that doesn't regrow. Disasters happen only in online
+  games; solo builds keep the fixed map.
+- **Client:** `presence` holds `terrain` (cached on the device per game as
+  `terrain:<gameId>`, so the map stays changed offline) and the current warning.
+  `client/src/gfx/world-layer.ts` puts the changed tiles into the tilemap (collisions
+  follow), draws zone sparkles and the alien, the red danger tiles with the icon and
+  a countdown, and the strike effect. `OverworldScene` moves you off a tile that became
+  blocked, uses zones for encounters, shows "Løb væk!" / news toasts, and the minimap is
+  rebaked after changes. The monster book shows the disaster's icon for its species.
+- **Admin portal:** per game, on/off, average gap (15 min – 1 week), randomness,
+  which kinds, trigger now (kind optional), heal soft changes, reset the map, history.
+  `scripts/e2e-disasters.mjs` covers it end to end.
 
 ## Overview map
 

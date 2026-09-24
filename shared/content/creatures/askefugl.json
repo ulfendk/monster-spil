@@ -1,0 +1,11 @@
+{
+  "id": "askefugl",
+  "navn": "Askefugl",
+  "type": "ild",
+  "baseStats": { "hp": 40, "angreb": 15, "forsvar": 9, "fart": 13 },
+  "moveIds": ["gloedslag", "varmeboelge", "kloer"],
+  "spriteFront": "creatures/askefugl_front.png",
+  "spriteBack": "creatures/askefugl_back.png",
+  "sound": "creatures/askefugl.wav",
+  "catchRate": 0.3
+}

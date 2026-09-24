@@ -1,0 +1,11 @@
+{
+  "id": "loevhvirvel",
+  "navn": "Løvhvirvel",
+  "type": "graes",
+  "baseStats": { "hp": 38, "angreb": 12, "forsvar": 9, "fart": 15 },
+  "moveIds": ["bladsving", "tornranke", "kloer"],
+  "spriteFront": "creatures/loevhvirvel_front.png",
+  "spriteBack": "creatures/loevhvirvel_back.png",
+  "sound": "creatures/loevhvirvel.wav",
+  "catchRate": 0.3
+}

@@ -26,6 +26,7 @@ COPY --from=build /app/server/dist server/dist
 # Read at runtime: boss definitions, and the maps (to know where food can grow).
 COPY shared/content/raid shared/content/raid
 COPY shared/content/areas shared/content/areas
+COPY shared/content/disasters.json shared/content/disasters.json
 # Scores, the dragon's HP and unclaimed rewards live here; mount a volume on /data to keep them.
 RUN mkdir -p /data && chown node:node /data
 ENV DATA_DIR=/data

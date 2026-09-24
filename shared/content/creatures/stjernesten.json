@@ -1,0 +1,11 @@
+{
+  "id": "stjernesten",
+  "navn": "Stjernesten",
+  "type": "lyn",
+  "baseStats": { "hp": 40, "angreb": 14, "forsvar": 12, "fart": 10 },
+  "moveIds": ["gnistestoed", "stenkast", "lynnedslag"],
+  "spriteFront": "creatures/stjernesten_front.png",
+  "spriteBack": "creatures/stjernesten_back.png",
+  "sound": "creatures/stjernesten.wav",
+  "catchRate": 0.3
+}

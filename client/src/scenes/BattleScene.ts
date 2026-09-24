@@ -71,6 +71,8 @@ export interface BattleSceneData {
   content: GameContent;
   wildInstance?: CreatureInstance;
   wildSpecies?: CreatureSpecies;
+  /** The wild monster is a single one waiting on the map (the UFO's alien): tell the server how it went. */
+  spawnId?: string;
   duel?: DuelSceneData;
   raid?: RaidSceneData;
   team?: TeamSceneData;
@@ -661,6 +663,8 @@ export class BattleScene extends Phaser.Scene {
     }
 
     void persist().then(() => presence.flushScore());
+    // Caught: it's mine and gone for everyone. Otherwise it waits for the next one to try.
+    if (this.battleData.spawnId) presence.send("spawnDone", { spawnId: this.battleData.spawnId, caught: this.battleState.outcome === "caught" });
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
   }

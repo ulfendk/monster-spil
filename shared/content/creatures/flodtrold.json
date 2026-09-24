@@ -1,0 +1,11 @@
+{
+  "id": "flodtrold",
+  "navn": "Flodtrold",
+  "type": "vand",
+  "baseStats": { "hp": 50, "angreb": 12, "forsvar": 11, "fart": 8 },
+  "moveIds": ["vandpist", "boelgebrus", "stormflod"],
+  "spriteFront": "creatures/flodtrold_front.png",
+  "spriteBack": "creatures/flodtrold_back.png",
+  "sound": "creatures/flodtrold.wav",
+  "catchRate": 0.3
+}
