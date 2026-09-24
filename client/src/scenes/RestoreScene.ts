@@ -9,6 +9,7 @@ import { addScreenBackdrop } from "../gfx/motifs";
 import { addAvatar } from "../gfx/avatar-sprites";
 import { C, CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
+import { hasIcons, ic, richText } from "../ui/rich-text";
 
 export interface RestoreSceneData {
   content: GameContent;
@@ -45,8 +46,13 @@ export class RestoreScene extends Phaser.Scene {
     this.codeInput = undefined;
   }
 
-  private text(x: number, y: number, value: string, size: number, color: string = CSS.text): Phaser.GameObjects.Text {
+  private text(x: number, y: number, value: string, size: number, color: string = CSS.text): Phaser.GameObjects.GameObject {
     const layout = getLayout(this);
+    if (hasIcons(value)) {
+      const rich = richText(this, x, y, value, { fontFamily: FONT, fontSize: layout.font(size), color });
+      this.ui.push(rich);
+      return rich;
+    }
     const label = this.add
       .text(x, y, value, { fontFamily: FONT, fontSize: layout.font(size), color, align: "center", wordWrap: { width: layout.width - 40 } })
       .setOrigin(0.5);
@@ -63,7 +69,7 @@ export class RestoreScene extends Phaser.Scene {
     this.ui.push(addCloseButton(this, () => this.scene.start("Setup", { content: this.content })).button);
 
     if (this.step.kind === "busy") {
-      this.text(width / 2, height / 2, "⏳", 72);
+      this.text(width / 2, height / 2, ic("hourglass"), 72);
       return;
     }
     if (this.step.kind === "code") return this.drawCode(this.step.notice, typed);
@@ -73,7 +79,7 @@ export class RestoreScene extends Phaser.Scene {
   private drawCode(notice: string | undefined, typed: string | undefined): void {
     const layout = getLayout(this);
     const { width, height } = layout;
-    this.text(width / 2, height * 0.22, "🔑", 64);
+    this.text(width / 2, height * 0.22, ic("key"), 64);
     this.text(width / 2, height * 0.22 + layout.px(70), notice ?? t("lobby_code_title"), 30, notice ? CSS.accent : CSS.soft);
     this.codeInput = this.add.dom(
       width / 2,
@@ -132,7 +138,7 @@ export class RestoreScene extends Phaser.Scene {
       const face = addAvatar(this, x, y - r * 0.3, p.avatarId, r * 1.7);
       this.ui.push(circle, face);
       this.text(x, y + r * 0.95, p.navn, 26);
-      this.text(x, y + r * 0.95 + layout.px(32), `🐾 ${p.creatures}`, 20, CSS.soft);
+      this.text(x, y + r * 0.95 + layout.px(32), `${ic("paw")} ${p.creatures}`, 20, CSS.soft);
     });
   }
 

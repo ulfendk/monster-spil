@@ -9,6 +9,7 @@ import { t } from "../i18n/da";
 import { addAvatar } from "../gfx/avatar-sprites";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
+import { hasIcons, ic, richText } from "../ui/rich-text";
 
 
 /** The family's last 7 days: who caught, duelled and fought the dragon the most. Opened from 🏆 on the map. */
@@ -54,7 +55,8 @@ export class ScoreboardScene extends Phaser.Scene {
   }
 
   private text(x: number, y: number, value: string, size: number, color = CSS.text, originX = 0.5): void {
-    this.ui.add(this.add.text(x, y, value, { fontFamily: FONT, fontSize: getLayout(this).font(size), color }).setOrigin(originX, 0.5));
+    const style = { fontFamily: FONT, fontSize: getLayout(this).font(size), color };
+    this.ui.add(hasIcons(value) ? richText(this, x, y, value, style, originX) : this.add.text(x, y, value, style).setOrigin(originX, 0.5));
   }
 
   private draw(): void {
@@ -68,13 +70,13 @@ export class ScoreboardScene extends Phaser.Scene {
     this.ui.add(button);
     // The title is centred in the space left of the close button.
     const titleCx = (safe.left + width - safe.right - size - 24) / 2;
-    this.text(titleCx, headerH / 2 + safe.top / 2, `${SCORES_ICON} ${t("scores_title")}`, 38);
+    this.text(titleCx, headerH / 2 + safe.top / 2, `${ic(SCORES_ICON)} ${t("scores_title")}`, 38);
 
-    if (presence.status !== "online") return this.text(width / 2, height / 2, `📵 ${t("lobby_offline")}`, 32, CSS.soft);
+    if (presence.status !== "online") return this.text(width / 2, height / 2, `${ic("offline")} ${t("lobby_offline")}`, 32, CSS.soft);
     if (!presence.raidSupported) return this.text(width / 2, height / 2, t("lobby_server_old"), 30, CSS.accent);
 
     this.drawDragon(width / 2, headerH + layout.px(8));
-    if (!this.rows) return this.text(width / 2, height / 2, "⏳", 64);
+    if (!this.rows) return this.text(width / 2, height / 2, ic("hourglass"), 64);
 
     // Number columns from the right edge; the name gets what is left.
     const left = safe.left + 12;
@@ -86,17 +88,17 @@ export class ScoreboardScene extends Phaser.Scene {
     const nameX = dotX + Math.max(22, layout.px(26));
     const top = headerH + Math.max(84, layout.px(110));
     // Column headers are icons only: caught, duels won, dragon victories, points.
-    this.text(cols.catches, top, CAUGHT_ICON, 30);
-    this.text(cols.duels, top, DUEL_WIN_ICON, 30);
-    this.text(cols.dragons, top, DRAGON_ICON, 30);
-    this.text(cols.points, top, POINTS_ICON, 30);
+    this.text(cols.catches, top, ic(CAUGHT_ICON), 30);
+    this.text(cols.duels, top, ic(DUEL_WIN_ICON), 30);
+    this.text(cols.dragons, top, ic(DRAGON_ICON), 30);
+    this.text(cols.points, top, ic(POINTS_ICON), 30);
 
     const rowH = Math.min(layout.touch(80), (height - safe.bottom - top - layout.px(40)) / Math.max(1, this.rows.length));
     this.rows.forEach((row, i) => {
       const y = top + layout.px(50) + i * rowH + rowH / 2 - layout.px(10);
       const mine = row.playerId === presence.myId;
       this.ui.add(this.add.rectangle((left + right) / 2, y, right - left, rowH - 8, mine ? C.panelMine : C.background).setStrokeStyle(2, C.border, mine ? 0.8 : 0.2));
-      this.text(medalX, y, MEDALS[row.rank - 1] ?? String(row.rank), row.rank <= 3 ? 38 : 28, CSS.text, 0);
+      this.text(medalX, y, row.rank <= 3 ? ic(MEDALS[row.rank - 1]!) : String(row.rank), row.rank <= 3 ? 32 : 28, CSS.text, 0);
       this.ui.add(this.add.circle(dotX, y, Math.max(12, layout.px(18)), Phaser.Display.Color.HexStringToColor(row.farve).color));
       if (row.avatarId) {
         this.ui.add(addAvatar(this, dotX, y, row.avatarId, Math.max(24, layout.px(36)) * 1.5));
@@ -115,8 +117,8 @@ export class ScoreboardScene extends Phaser.Scene {
     const boss = raid ? bossesById[raid.bossId] : undefined;
     if (!raid || !boss) return;
     const layout = getLayout(this);
-    if (raid.defeated) return this.text(cx, y + layout.px(20), `${DRAGON_ICON} ${boss.navn} ${SLEEP_ICON}`, 28, CSS.soft);
-    this.text(cx, y, `${DRAGON_ICON} ${boss.navn}   ❤️ ${raid.hp}`, 26);
+    if (raid.defeated) return this.text(cx, y + layout.px(20), `${ic(DRAGON_ICON)} ${boss.navn} ${ic(SLEEP_ICON)}`, 28, CSS.soft);
+    this.text(cx, y, `${ic(DRAGON_ICON)} ${boss.navn}   ${ic("heart")} ${raid.hp}`, 26);
     const barW = Math.min(420, layout.width - layout.safe.left - layout.safe.right - 48);
     const barY = y + Math.max(30, layout.px(40));
     this.ui.add(this.add.rectangle(cx - barW / 2, barY, barW, Math.max(16, layout.px(24)), C.panel).setOrigin(0, 0.5).setStrokeStyle(2, C.border, 0.6));

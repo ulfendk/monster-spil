@@ -40,6 +40,8 @@ import {
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 import { getLayout, onRelayout } from "../ui/layout";
+import { ic, richText } from "../ui/rich-text";
+import { addIcon, iconKey } from "../gfx/icon-art";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { C, CSS, FONT } from "../ui/theme";
 
@@ -91,7 +93,7 @@ export class BattleScene extends Phaser.Scene {
   private wildHpBar!: HpBarHandle;
   private logText!: Phaser.GameObjects.Text;
   /** A big emoji above the message, so the battle can be followed without reading. */
-  private logIcon!: Phaser.GameObjects.Text;
+  private logIcon!: Phaser.GameObjects.Image;
   /** Ink, waves and a sun behind the fight (rebuilt on relayout). */
   private backdrop: Phaser.GameObjects.GameObject[] = [];
   /** The message showing now, so a relayout can put it back. */
@@ -105,7 +107,7 @@ export class BattleScene extends Phaser.Scene {
   private raid?: RaidSceneData;
   private team?: TeamSceneData;
   /** Teammates' HP, shown as a row of small labels at the top in a team fight. */
-  private allies?: Phaser.GameObjects.Text;
+  private allies?: Phaser.GameObjects.Container;
   private finished = false;
   /** Set once my monster has fainted and the pass-out wait has been started. */
   private passedOut = false;
@@ -281,7 +283,7 @@ export class BattleScene extends Phaser.Scene {
     this.renderActions();
   }
 
-  /** The other members, with their monster's HP (😵 fainted, 🏃 out). */
+  /** The other members, with their monster's HP (fainted or out shown by icon). */
   private drawAllies(): void {
     this.allies?.destroy();
     const view = this.team?.view;
@@ -290,16 +292,9 @@ export class BattleScene extends Phaser.Scene {
     const others = view.members.filter((m) => m.playerId !== this.myId);
     const nameOf = (id: string) => presence.players.get(id)?.navn ?? "?";
     const line = others
-      .map((m) => `${nameOf(m.playerId)} ${m.status === "fainted" ? "😵" : m.status === "left" ? "🏃" : `❤️ ${m.hp}`}${view.answered.includes(m.playerId) ? " ✓" : ""}`)
+      .map((m) => `${nameOf(m.playerId)} ${m.status === "fainted" ? ic("faint") : m.status === "left" ? ic(FLEE_ICON) : `${ic("heart")} ${m.hp}`}${view.answered.includes(m.playerId) ? " ✓" : ""}`)
       .join("   ");
-    this.allies = this.add
-      .text(layout.safe.left + 12, layout.safe.top + 8, `${TEAM_ICON} ${line}`, {
-        fontFamily: FONT,
-        fontSize: layout.font(20),
-        color: CSS.text,
-        wordWrap: { width: layout.width * (layout.portrait ? 0.95 : 0.5) },
-      })
-      .setDepth(5);
+    this.allies = richText(this, layout.safe.left + 12, layout.safe.top + 8, `${ic(TEAM_ICON)} ${line}`, { fontFamily: FONT, fontSize: layout.font(20), color: CSS.text }, 0, 0).setDepth(5);
   }
 
   private wireRaid(): void {
@@ -366,7 +361,8 @@ export class BattleScene extends Phaser.Scene {
     this.logTextValue = text;
     this.logIconValue = icon;
     this.logText.setText(text);
-    this.logIcon.setText(icon);
+    if (icon) this.logIcon.setTexture(iconKey(icon)).setVisible(true);
+    else this.logIcon.setVisible(false);
   }
 
   private abortDuel(message: string, icon: string): void {
@@ -409,7 +405,7 @@ export class BattleScene extends Phaser.Scene {
 
     const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;
     const iconSize = Math.max(40, layout.px(64));
-    this.logIcon = this.add.text(width / 2, logY - iconSize * 0.9, this.logIconValue, { fontFamily: FONT, fontSize: `${iconSize}px` }).setOrigin(0.5);
+    this.logIcon = this.add.image(width / 2, logY - iconSize * 0.9, iconKey(this.logIconValue || "star")).setDisplaySize(iconSize * 1.2, iconSize * 1.2).setVisible(Boolean(this.logIconValue));
     this.logText = this.add
       .text(width / 2, logY, this.logTextValue, { ...TITLE_STYLE, fontSize: layout.font(24), wordWrap: { width: width - safe.left - safe.right - 40 } })
       .setOrigin(0.5);
@@ -503,7 +499,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private playBallThrowAnimation(onComplete: () => void): void {
-    const ball = this.add.circle(this.playerSprite.x, this.playerSprite.y, 14, C.catch).setStrokeStyle(3, C.border);
+    const ball = addIcon(this, this.playerSprite.x, this.playerSprite.y, CATCH_ICON, 34);
     this.tweens.add({
       targets: ball,
       x: this.wildSprite.x,
@@ -588,8 +584,8 @@ export class BattleScene extends Phaser.Scene {
         // In a team fight a hit on a teammate shows in the allies row, not on either sprite.
         if (entry.targetPlayerId === this.myId) this.shakeSprite(this.playerSprite);
         else if (!this.team || entry.targetPlayerId === BOSS_PLAYER_ID) this.shakeSprite(this.wildSprite);
-        if (entry.effectiveness === "strong") this.flashFeedback(`${STRONG_ICON} ${t("battle_effective_strong")}`);
-        else if (entry.effectiveness === "weak") this.flashFeedback(`${WEAK_ICON} ${t("battle_effective_weak")}`);
+        if (entry.effectiveness === "strong") this.flashFeedback(`${ic(STRONG_ICON)} ${t("battle_effective_strong")}`);
+        else if (entry.effectiveness === "weak") this.flashFeedback(`${ic(WEAK_ICON)} ${t("battle_effective_weak")}`);
       } else if (entry.kind === "miss") {
         playMissSound();
       } else if (entry.kind === "faint") {
@@ -612,10 +608,7 @@ export class BattleScene extends Phaser.Scene {
 
   private flashFeedback(label: string): void {
     const layout = getLayout(this);
-    const text = this.add
-      .text(layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: FONT, fontSize: layout.font(26), color: CSS.accent })
-      .setOrigin(0.5)
-      .setAlpha(0);
+    const text = richText(this, layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: FONT, fontSize: layout.font(26), color: CSS.accent }).setAlpha(0);
     this.tweens.add({ targets: text, alpha: 1, duration: 150, yoyo: true, hold: 500, onComplete: () => text.destroy() });
   }
 

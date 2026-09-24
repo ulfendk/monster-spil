@@ -398,6 +398,16 @@ BFS pathfinding if needed); on the ground it does nothing.
   (defence = wider, HP = taller, strong attack = a fang), a kawaii face, a per-species
   shade, and a type feature (flame crest, wave-scale crest, leaves, Raijin horns,
   rocky cap); dragons get wings and horns.
+- **No emoji in the UI: every icon is drawn in code** (`client/src/gfx/icon-art.ts`,
+  ~50 icons baked at boot into `icon-<name>` textures, woodblock style; Japanese
+  objects where they fit: temari ball for catching, shoji door, furoshiki bag,
+  crossed katanas). `client/src/ui/icons.ts` names what each meaning uses
+  (`TYPE_ICONS`, `LOG_ICONS`, `STAT_ICONS`, …). Show one with `addIcon`, as a
+  button `icon`, as a whole button label `"[[name]]"`, or inline in text with
+  `ic("name")` rendered by `richText`/`richChip` (`client/src/ui/rich-text.ts`) —
+  never put an emoji or a raw icon name in a plain Text. Food and hint arrows are
+  still emoji *values* in saves/messages; `foodIcon`/`arrowAngle` map them to icons.
+  The plain symbols ✓ ✗ ✕ stay text.
 - **App icon** (`client/public/icons/icon-{192,512}.png`) is drawn by
   `scripts/generate-icons.mjs`: a red rising sun, a friendly monster peeking over a
   seigaiha sea, on sumi ink — full-bleed squares (iOS rounds the corners). Both

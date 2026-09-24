@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { getLayout } from "../ui/layout";
 import { createButton } from "../ui/Button";
 import { C, FONT, KANAGAWA } from "../ui/theme";
+import { addIcon } from "./icon-art";
 
 /** One dot on the overview map, in tile coordinates. */
 export interface MinimapDot {
@@ -32,7 +33,7 @@ export class Minimap {
   private objects: Phaser.GameObjects.GameObject[] = [];
   private image?: Phaser.GameObjects.Image;
   private dots?: Phaser.GameObjects.Graphics;
-  private dragonMarker?: Phaser.GameObjects.Text;
+  private dragonMarker?: Phaser.GameObjects.Image;
   private scale = 1;
   private origin = { x: 0, y: 0 };
 
@@ -89,7 +90,7 @@ export class Minimap {
     this.image.setInteractive();
     this.image.on("pointerup", () => this.close());
     this.dots = this.scene.add.graphics();
-    this.dragonMarker = this.scene.add.text(0, 0, "🐉", { fontFamily: FONT, fontSize: "18px" }).setOrigin(0.5).setVisible(false);
+    this.dragonMarker = addIcon(this.scene, 0, 0, "dragon", 24).setVisible(false);
     const size = layout.touch(64);
     const close = createButton(this.scene, width - safe.right - size / 2 - 12, safe.top + size / 2 + 12, "✗", () => this.close(), {
       width: size,
@@ -130,7 +131,7 @@ export class Minimap {
       const x = this.origin.x + px(d.x);
       const y = this.origin.y + px(d.y);
       if (d.kind === "dragon") {
-        this.dragonMarker.setPosition(x, y).setFontSize(Math.round(r * 4.5)).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
+        this.dragonMarker.setPosition(x, y).setDisplaySize(r * 5, r * 5).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
         continue;
       }
       const radius = d.kind === "me" ? r * 1.5 : r;

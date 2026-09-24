@@ -10,6 +10,8 @@ import type { StringKey } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
+import { ic, richText } from "../ui/rich-text";
+import { addIcon } from "../gfx/icon-art";
 
 export interface MonsterInfoSceneData {
   content: GameContent;
@@ -61,8 +63,8 @@ export class MonsterInfoScene extends Phaser.Scene {
     hero.add(this.add.text(cx, 355, species.navn, { fontFamily: FONT, fontSize: "40px", color: CSS.text }).setOrigin(0.5));
     const badge = this.add.rectangle(cx - 60, 430, 190, 56, TYPE_COLOURS[species.type]).setStrokeStyle(3, C.border);
     hero.add(badge);
-    hero.add(this.add.text(badge.x, badge.y, `${TYPE_ICONS[species.type]} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: CSS.text }).setOrigin(0.5));
-    hero.add(createButton(this, cx + 100, 430, SOUND_ICON, () => playCreatureSound(this, species), { width: 84, height: 64, fontSize: "32px", backgroundColor: C.button }));
+    hero.add(richText(this, badge.x, badge.y, `${ic(TYPE_ICONS[species.type])} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: CSS.text }));
+    hero.add(createButton(this, cx + 100, 430, ic(SOUND_ICON), () => playCreatureSound(this, species), { width: 84, height: 64, fontSize: "32px", backgroundColor: C.button }));
 
     // Stats, moves and counters.
     const details = this.add.container(0, 0);
@@ -72,7 +74,7 @@ export class MonsterInfoScene extends Phaser.Scene {
     } else {
       details.add(this.add.text(DETAILS.w / 2, 260, "?", { fontFamily: FONT, fontSize: "120px", color: CSS.faint }).setOrigin(0.5));
     }
-    details.add(this.add.text(DETAILS.w / 2, DETAILS.h - 40, `${CAUGHT_ICON} ${caughtCount}      ${OWNED_ICON} ${owned}`, { fontFamily: FONT, fontSize: "44px", color: CSS.text }).setOrigin(0.5));
+    details.add(richText(this, DETAILS.w / 2, DETAILS.h - 40, `${ic(CAUGHT_ICON)} ${caughtCount}      ${ic(OWNED_ICON)} ${owned}`, { fontFamily: FONT, fontSize: "44px", color: CSS.text }));
 
     // Side by side on a wide screen, stacked on a tall one; scaled to fit either way.
     const closeSize = layout.touch(64);
@@ -107,7 +109,7 @@ export class MonsterInfoScene extends Phaser.Scene {
       const rowY = y + i * 62;
       const fill = Math.min(1, stats[key] / STAT_MAX[key]);
       panel.add([
-        this.add.text(x, rowY, STAT_ICONS[key], { fontFamily: FONT, fontSize: "38px" }).setOrigin(0, 0.5),
+        addIcon(this, x + 24, rowY, STAT_ICONS[key], 48),
         this.add.rectangle(x + 70, rowY, 260, 26, C.panel).setOrigin(0, 0.5).setStrokeStyle(2, C.border, 0.5),
         this.add.rectangle(x + 70, rowY, 260 * fill, 26, TYPE_COLOURS[this.info.species.type]).setOrigin(0, 0.5),
         this.add.text(x + 350, rowY, String(stats[key]), { fontFamily: FONT, fontSize: "30px", color: CSS.text }).setOrigin(0, 0.5),
@@ -124,8 +126,8 @@ export class MonsterInfoScene extends Phaser.Scene {
       const power = move.power >= 50 ? 3 : move.power >= 30 ? 2 : 1;
       panel.add([
         this.add.rectangle(x, rowY, 300, 50, TYPE_COLOURS[move.type]).setOrigin(0, 0.5).setStrokeStyle(3, C.border),
-        this.add.text(x + 14, rowY, `${TYPE_ICONS[move.type]} ${move.navn}`, { fontFamily: FONT, fontSize: "24px", color: CSS.text }).setOrigin(0, 0.5),
-        this.add.text(x + 320, rowY, POWER_ICON.repeat(power), { fontFamily: FONT, fontSize: "28px" }).setOrigin(0, 0.5),
+        richText(this, x + 14, rowY, `${ic(TYPE_ICONS[move.type])} ${move.navn}`, { fontFamily: FONT, fontSize: "24px", color: CSS.text }, 0),
+        richText(this, x + 320, rowY, ic(POWER_ICON).repeat(power), { fontFamily: FONT, fontSize: "24px" }, 0),
       ]);
     });
   }

@@ -8,10 +8,12 @@ import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton } from "../ui/Button";
 import { t } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
-import { CAUGHT_ICON, DRAGON_ICON, OWNED_ICON, STEPS_ICON } from "../ui/icons";
+import { CAUGHT_ICON, DRAGON_ICON, OWNED_ICON, STEPS_ICON, arrowAngle } from "../ui/icons";
 import { bossesById } from "../content/load-raid";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
+import { ic, richText } from "../ui/rich-text";
+import { addIcon } from "../gfx/icon-art";
 
 export interface MonsterbogSceneData {
   content: GameContent;
@@ -80,7 +82,7 @@ export class MonsterbogScene extends Phaser.Scene {
         if (!caught) image.setTint(C.overlay);
         this.add.text(x, y + 72 * k, species.navn, { fontFamily: FONT, fontSize: label(18), color: caught ? CSS.text : CSS.muted }).setOrigin(0.5);
         if (caught) {
-          this.add.text(x, y + 97 * k, `${CAUGHT_ICON} ${caughtCount}   ${OWNED_ICON} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: CSS.text }).setOrigin(0.5);
+          richText(this, x, y + 97 * k, `${ic(CAUGHT_ICON)} ${caughtCount}   ${ic(OWNED_ICON)} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: CSS.text });
         }
         // Tapping a known monster opens its page (and plays its cry).
         ring.setInteractive({ useHandCursor: true });
@@ -91,11 +93,17 @@ export class MonsterbogScene extends Phaser.Scene {
         this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: CSS.faint }).setOrigin(0.5);
         const hint = this.hintFor(species);
         if (hint) {
-          const text = hint.distance === 0 ? hint.arrow : `${STEPS_ICON} ${hint.distance} ${hint.arrow}`;
-          this.add.text(x, y + 76 * k, text, { fontFamily: FONT, fontSize: label(22), color: CSS.accent }).setOrigin(0.5);
+          // How far (in steps) and which way: a drawn arrow turned to point there, or a pin when you are in it.
+          const angle = arrowAngle(hint.arrow);
+          const text = angle === undefined ? ic("pin") : `${ic(STEPS_ICON)} ${hint.distance}`;
+          const hintLabel = richText(this, x, y + 76 * k, text, { fontFamily: FONT, fontSize: label(22), color: CSS.accent });
+          if (angle !== undefined) {
+            const size = Math.max(22, 28 * k);
+            addIcon(this, x + hintLabel.width / 2 + size * 0.7, y + 76 * k, "arrow", size).setAngle(angle);
+          }
         } else if (Object.values(bossesById).some((b) => b.rewardSpeciesId === species.id)) {
           // Not found in the wild: this one hatches from beating the family dragon.
-          this.add.text(x, y + 76 * k, DRAGON_ICON, { fontFamily: FONT, fontSize: label(26) }).setOrigin(0.5);
+          addIcon(this, x, y + 76 * k, DRAGON_ICON, Math.max(26, 34 * k));
         }
       }
     });

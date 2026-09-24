@@ -6,11 +6,12 @@ import type { SaveData } from "../save/schema";
 import { presence } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { t } from "../i18n/da";
-import { TEAM_ICON } from "../ui/icons";
+import { DRAGON_ICON, TEAM_ICON } from "../ui/icons";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
+import { hasIcons, ic, richText } from "../ui/rich-text";
 
 export interface InteractSceneData {
   content: GameContent;
@@ -187,17 +188,17 @@ export class InteractScene extends Phaser.Scene {
     const iLead = team.leaderId === this.myId;
     const nameOf = (id: string) => (id === this.myId ? this.sceneData.save.player.navn : presence.players.get(id)?.navn ?? "?");
     const top = layout.safe.top + layout.touch(64) + layout.px(30);
-    this.addText(width / 2, top, `${TEAM_ICON} ${t("team_title")}   ❤️ ×${team.hpFactor}`, 36);
+    this.addText(width / 2, top, `${ic(TEAM_ICON)} ${t("team_title")}   ${ic("heart")} ×${team.hpFactor}`, 36);
     const lineH = Math.max(34, layout.px(48));
     team.members.forEach((m, i) => {
-      this.addText(width / 2, top + layout.px(70) + i * lineH, `${m.playerId === team.leaderId ? "⭐ " : ""}${nameOf(m.playerId)}`, 30);
+      this.addText(width / 2, top + layout.px(70) + i * lineH, `${m.playerId === team.leaderId ? `${ic("star")} ` : ""}${nameOf(m.playerId)}`, 30);
     });
     const buttonsY = height - layout.safe.bottom - 24 - layout.touch(72) / 2;
     if (iLead) {
-      this.addButton(width / 2 - 90, buttonsY, "⚔️", () => presence.send("teamStart", { teamId: team.id }), 120, C.danger);
+      this.addButton(width / 2 - 90, buttonsY, ic("sword"), () => presence.send("teamStart", { teamId: team.id }), 120, C.danger);
       this.addButton(width / 2 + 90, buttonsY, "✗", () => this.leave(), 120, RED);
     } else {
-      this.addText(width / 2, buttonsY - layout.touch(72), `${t("team_waiting_leader")} ${nameOf(team.leaderId)} ⏳`, 28, CSS.soft);
+      this.addText(width / 2, buttonsY - layout.touch(72), `${t("team_waiting_leader")} ${nameOf(team.leaderId)} ${ic("hourglass")}`, 28, CSS.soft);
       this.addButton(width / 2, buttonsY, "✗", () => this.leave(), 120, RED);
     }
   }
@@ -210,11 +211,11 @@ export class InteractScene extends Phaser.Scene {
     const cancel = () => this.leave();
     if (iAmInviter) {
       this.addText(width / 2, height / 2 - 60, `${t("duel_waiting")} ${otherName}`, 34);
-      this.addText(width / 2, height / 2 + 10, "⚔️", 64);
+      this.addText(width / 2, height / 2 + 10, ic("sword"), 64);
       this.addButton(width / 2, height / 2 + 110, "✗", cancel, 120, RED);
     } else {
       this.addText(width / 2, height / 2 - 60, `${otherName} ${t("duel_invite_suffix")}`, 34);
-      this.addButton(width / 2 - 90, height / 2 + 60, "⚔️", () => presence.send("duelAccept", { duelId: duel.id, seat: seatFor(this.sceneData.save, this.sceneData.content) }), 120, C.ok);
+      this.addButton(width / 2 - 90, height / 2 + 60, ic("sword"), () => presence.send("duelAccept", { duelId: duel.id, seat: seatFor(this.sceneData.save, this.sceneData.content) }), 120, C.ok);
       this.addButton(width / 2 + 90, height / 2 + 60, "✗", cancel, 120, RED);
     }
   }
@@ -229,7 +230,7 @@ export class InteractScene extends Phaser.Scene {
       const cx = width / 2;
       if (iAmInviter) {
         this.addText(cx, height / 2 - 60, `${t("trade_waiting")} ${otherName}`, 34);
-        this.addText(cx, height / 2 + 10, "⏳", 64);
+        this.addText(cx, height / 2 + 10, ic("hourglass"), 64);
         this.addButton(cx, height / 2 + 110, "✗", () => this.cancel(trade), 120, RED);
       } else {
         this.addText(cx, height / 2 - 60, `${otherName} ${t("trade_invite_suffix")}`, 34);
@@ -303,7 +304,7 @@ export class InteractScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const species = this.sceneData.content.speciesById[creature.speciesId];
     const layout = getLayout(this);
-    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, CSS.accent);
+    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `${ic(DRAGON_ICON)} ${t("reward_dragon")}` : t("trade_done"), 48, CSS.accent);
     this.addOfferCircle(width / 2, height / 2, species, false, 90);
     if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
     this.addButton(width / 2, height - layout.safe.bottom - 24 - layout.touch(72) / 2, "OK", () => {
@@ -318,8 +319,13 @@ export class InteractScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- helpers
 
-  private addText(x: number, y: number, text: string, size: number, color = CSS.text, wrap?: number): Phaser.GameObjects.Text {
+  private addText(x: number, y: number, text: string, size: number, color = CSS.text, wrap?: number): Phaser.GameObjects.GameObject {
     const layout = getLayout(this);
+    if (hasIcons(text)) {
+      const rich = richText(this, x, y, text, { fontFamily: FONT, fontSize: layout.font(size), color });
+      this.ui.add(rich);
+      return rich;
+    }
     const label = this.add
       .text(x, y, text, { fontFamily: FONT, fontSize: layout.font(size), color, align: "center", wordWrap: { width: wrap ?? layout.width - 40 } })
       .setOrigin(0.5);

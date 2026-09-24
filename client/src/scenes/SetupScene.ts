@@ -78,10 +78,10 @@ export class SetupScene extends Phaser.Scene {
       const fresh = createButton(this, width / 2, height * 0.46, t("setup_new"), () => {
         this.step = "navn";
         this.renderStep();
-      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "✨", backgroundColor: C.ok });
+      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "sparkle", backgroundColor: C.ok });
       const restore = createButton(this, width / 2, height * 0.46 + buttonH + layout.px(24), t("setup_restore"), () => {
         this.scene.start("Restore", { content: this.content });
-      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "🔄" });
+      }, { width: buttonW, height: buttonH, fontSize: layout.font(26), icon: "refresh" });
       this.stepChildren.push(fresh, restore);
       return;
     }

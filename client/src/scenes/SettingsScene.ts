@@ -6,6 +6,7 @@ import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
+import { hasIcons, ic, richText } from "../ui/rich-text";
 
 const GREY = C.buttonQuiet;
 
@@ -79,22 +80,22 @@ export class SettingsScene extends Phaser.Scene {
 
     if (this.enteringCode) return this.drawCodeEntry();
 
-    const symbol = { online: "🟢", connecting: "⏳", offline: "📵", needCode: "🔑", off: "📵" }[presence.status];
+    const symbol = ic({ online: "online", connecting: "hourglass", offline: "offline", needCode: "key", off: "offline" }[presence.status]);
     this.addText(width / 2, height / 2 - 90, symbol, 96);
     if (presence.status === "online") {
       const others = presence.players.size;
-      this.addText(width / 2, height / 2, others === 0 ? t("lobby_alone") : `👥 ${others}`, 32, CSS.soft);
+      this.addText(width / 2, height / 2, others === 0 ? t("lobby_alone") : `${ic("team")} ${others}`, 32, CSS.soft);
       if (presence.serverVersion === "old" || (typeof presence.serverVersion === "number" && !presence.backupSupported)) {
         this.addText(width / 2, height / 2 + 50, t("lobby_server_old"), 26, CSS.accent);
       } else if (presence.lastBackupAt) {
         // When this device's save was last copied to the family server (safe to reinstall).
         const at = new Date(presence.lastBackupAt).toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-        this.addText(width / 2, height / 2 + 50, `💾 ${t("backup_saved")} ${at}`, 24, CSS.soft);
+        this.addText(width / 2, height / 2 + 50, `${ic("save")} ${t("backup_saved")} ${at}`, 24, CSS.soft);
       }
     } else if (presence.status === "offline") {
       this.addText(width / 2, height / 2, t("lobby_offline"), 32, CSS.soft);
     }
-    this.addButton(layout.safe.left + 16 + 45, height - layout.safe.bottom - 16 - 36, "🔑", () => {
+    this.addButton(layout.safe.left + 16 + 45, height - layout.safe.bottom - 16 - 36, ic("key"), () => {
       this.enteringCode = true;
       this.requestDraw();
     }, 72, GREY);
@@ -102,7 +103,7 @@ export class SettingsScene extends Phaser.Scene {
 
   private drawCodeEntry(): void {
     const { width, height } = this.scale;
-    this.addText(width / 2, height * 0.25, "🔑", 80);
+    this.addText(width / 2, height * 0.25, ic("key"), 80);
     this.addText(width / 2, height * 0.25 + 70, presence.notice ?? t("lobby_code_title"), 30, presence.notice ? CSS.accent : CSS.soft);
     this.codeInput = this.add.dom(
       width / 2,
@@ -127,7 +128,8 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   private addText(x: number, y: number, text: string, size: number, color = CSS.text): void {
-    this.ui.add(this.add.text(x, y, text, { fontFamily: FONT, fontSize: `${size}px`, color }).setOrigin(0.5));
+    const style = { fontFamily: FONT, fontSize: `${size}px`, color };
+    this.ui.add(hasIcons(text) ? richText(this, x, y, text, style) : this.add.text(x, y, text, style).setOrigin(0.5));
   }
 
   private addButton(x: number, y: number, label: string, onTap: () => void, width: number, color?: number): void {

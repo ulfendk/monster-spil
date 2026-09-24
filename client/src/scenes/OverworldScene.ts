@@ -14,10 +14,12 @@ import type { PresenceStatus } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, foodIcon } from "../ui/icons";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
+import { ic, richChip, richText } from "../ui/rich-text";
+import { addIcon } from "../gfx/icon-art";
 import { addAvatar } from "../gfx/avatar-sprites";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
@@ -35,7 +37,8 @@ interface TileCoord {
 
 const TILE_SIZE = 64;
 const MOVE_DURATION_MS = 160;
-const STATUS_ICON: Record<PresenceStatus, string> = { online: "👥", connecting: "⏳", offline: "📵", needCode: "🔑", off: "⚙️" };
+/** The connection button shows the state: others online, connecting, offline, code needed. */
+const STATUS_ICON: Record<PresenceStatus, string> = { online: "team", connecting: "hourglass", offline: "offline", needCode: "key", off: "gear" };
 
 /** How far (px) the finger must move from where it touched down before the player walks. */
 const DRAG_DEAD_ZONE = 18;
@@ -74,7 +77,7 @@ export class OverworldScene extends Phaser.Scene {
   private pendingMeet?: string;
   /** Top-level objects (not nested in a container) so taps hit-test correctly while the camera is scrolled. */
   private popup: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Container> = [];
-  private toast?: Phaser.GameObjects.Text;
+  private toast?: Phaser.GameObjects.Container;
   private statusButton?: Phaser.GameObjects.Container;
   private hud: Phaser.GameObjects.Container[] = [];
   /** The finger currently steering: where it touched down (screen px) and where it is now. */
@@ -82,12 +85,12 @@ export class OverworldScene extends Phaser.Scene {
   private stick?: Phaser.GameObjects.Graphics;
   /** The player has moved since the position was last saved. */
   private positionDirty = false;
-  private foodSprites = new Map<string, Phaser.GameObjects.Text>();
-  private bagChip?: Phaser.GameObjects.Text;
-  /** The "passed out" panel (😵, countdown, food to eat) while the player can't move. */
-  private passOutUi: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container> = [];
+  private foodSprites = new Map<string, Phaser.GameObjects.Image>();
+  private bagChip?: Phaser.GameObjects.Container;
+  /** The "passed out" panel (dizzy face, countdown, food to eat) while the player can't move. */
+  private passOutUi: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container | Phaser.GameObjects.Image> = [];
   private passOutTimer?: Phaser.Time.TimerEvent;
-  private dragon?: { sprite: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text };
+  private dragon?: { sprite: Phaser.GameObjects.Image; label?: Phaser.GameObjects.Container };
   /** My chosen animal, riding on my circle. */
   private playerFace?: Phaser.GameObjects.Image;
   private minimap?: Minimap;
@@ -243,7 +246,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * 😵 and a countdown over the map; one button per piece of food in the bag, each
+   * A dizzy face and a countdown over the map; one button per piece of food in the bag, each
    * taking FOOD_SECONDS off. The player can't move or meet anyone meanwhile, and
    * other players can't invite them.
    */
@@ -265,26 +268,26 @@ export class OverworldScene extends Phaser.Scene {
     const cx = layout.width / 2;
     const cy = layout.height - layout.safe.bottom - layout.px(20) - panelH / 2;
     const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.94).setStrokeStyle(4, C.border);
-    const face = this.add.text(cx - layout.px(60), cy - panelH / 2 + layout.px(70), "😵", { fontFamily: FONT, fontSize: layout.font(64) }).setOrigin(0.5);
-    const count = this.add
-      .text(cx + layout.px(50), cy - panelH / 2 + layout.px(70), "", { fontFamily: FONT, fontSize: layout.font(48), color: CSS.accent })
-      .setOrigin(0.5);
+    const rowY = cy - panelH / 2 + layout.px(70);
+    const face = addIcon(this, cx - layout.px(90), rowY, "faint", Math.max(56, layout.px(80)));
+    const glass = addIcon(this, cx + layout.px(10), rowY, "hourglass", Math.max(40, layout.px(56)));
+    const count = this.add.text(cx + layout.px(48), rowY, "", { fontFamily: FONT, fontSize: layout.font(48), color: CSS.accent }).setOrigin(0, 0.5);
     const rowW = bag.length * buttonSize + (bag.length - 1) * gap;
     const foods = bag.map((kind, i) =>
-      createButton(this, cx - rowW / 2 + buttonSize / 2 + i * (buttonSize + gap), cy + panelH / 2 - layout.px(16) - buttonSize / 2, kind, () => this.eat(i), {
+      createButton(this, cx - rowW / 2 + buttonSize / 2 + i * (buttonSize + gap), cy + panelH / 2 - layout.px(16) - buttonSize / 2, ic(foodIcon(kind)), () => this.eat(i), {
         width: buttonSize,
         height: buttonSize,
         fontSize: `${Math.round(buttonSize * 0.5)}px`,
         backgroundColor: C.ok,
       })
     );
-    this.passOutUi = [bg, face, count, ...foods];
+    this.passOutUi = [bg, face, glass, count, ...foods];
     for (const o of this.passOutUi) o.setScrollFactor(0).setDepth(22);
 
     const tick = () => {
       const left = secondsLeft(this.save.passedOutUntil, new Date());
       if (left <= 0) return this.recover();
-      count.setText(`⏳ ${left}`);
+      count.setText(String(left));
     };
     tick();
     this.passOutTimer = this.time.addEvent({ delay: 250, loop: true, callback: tick });
@@ -321,19 +324,14 @@ export class OverworldScene extends Phaser.Scene {
     this.passOutUi = [];
   }
 
-  /** 🎒 and the food in it, top-left, while there is any. */
+  /** The bag (a furoshiki) and the food in it, top-left, while there is any. */
   private drawBag(): void {
     this.bagChip?.destroy();
     this.bagChip = undefined;
     if (this.save.bag.length === 0) return;
     const layout = getLayout(this);
-    this.bagChip = this.add
-      .text(layout.safe.left + 14, layout.safe.top + 14, `🎒 ${this.save.bag.join("")}`, {
-        fontFamily: FONT,
-        fontSize: layout.font(26),
-        backgroundColor: CSS.chip,
-        padding: { x: 10, y: 6 },
-      })
+    const content = `${ic(OWNED_ICON)} ${this.save.bag.map((kind) => ic(foodIcon(kind))).join("")}`;
+    this.bagChip = richChip(this, layout.safe.left + 14, layout.safe.top + 14, content, { fontFamily: FONT, fontSize: layout.font(24), color: CSS.text }, 0, 0)
       .setScrollFactor(0)
       .setDepth(10);
   }
@@ -351,7 +349,7 @@ export class OverworldScene extends Phaser.Scene {
     for (const f of here) {
       if (this.foodSprites.has(f.id)) continue;
       const c = this.tileCentre(f);
-      this.foodSprites.set(f.id, this.add.text(c.x, c.y, f.kind, { fontFamily: FONT, fontSize: "34px" }).setOrigin(0.5).setDepth(3));
+      this.foodSprites.set(f.id, addIcon(this, c.x, c.y, foodIcon(f.kind), 40).setDepth(3));
     }
   }
 
@@ -427,12 +425,12 @@ export class OverworldScene extends Phaser.Scene {
       return button;
     };
     this.hud = [];
-    add("📖", () => this.openMonsterbog());
+    add(ic("book"), () => this.openMonsterbog());
     if (multiplayerEnabled) {
-      this.statusButton = add(STATUS_ICON[presence.status], () => this.openSettings());
-      add(SCORES_ICON, () => this.openOverlay("Scoreboard"));
+      this.statusButton = add(ic(STATUS_ICON[presence.status]), () => this.openSettings());
+      add(ic(SCORES_ICON), () => this.openOverlay("Scoreboard"));
     }
-    add("🗺️", () => {
+    add(ic("map"), () => {
       this.closePopup();
       this.minimap?.open();
     });
@@ -472,20 +470,21 @@ export class OverworldScene extends Phaser.Scene {
     const onMoved = (id: string) => this.moveOther(id);
     const onInteraction = () => this.openInteractIfNeeded();
     const onStatus = (status: PresenceStatus) => {
-      (this.statusButton?.list[1] as Phaser.GameObjects.Text | undefined)?.setText(STATUS_ICON[status]);
+      void status;
+      this.buildHud(); // the connection button's icon shows the new state
     };
     const onProblem = (reason: string) => {
       if (reason === "too far away") this.showToast(t("meet_far"));
       else if (reason === "player is busy") this.showToast(t("meet_busy"));
-      else if (reason === "dragon sleeping") this.showToast(`${SLEEP_ICON} ${t("raid_sleeping")}`);
-      else if (reason === "resting") this.showToast(`${REST_ICON} ${t("raid_resting")}`);
-      else if (reason === "a team is already at the dragon" || reason === "team is full" || reason === "team has already started") this.showToast(`${TEAM_ICON} ${t("meet_busy")}`);
+      else if (reason === "dragon sleeping") this.showToast(`${ic(SLEEP_ICON)} ${t("raid_sleeping")}`);
+      else if (reason === "resting") this.showToast(`${ic(REST_ICON)} ${t("raid_resting")}`);
+      else if (reason === "a team is already at the dragon" || reason === "team is full" || reason === "team has already started") this.showToast(`${ic(TEAM_ICON)} ${t("meet_busy")}`);
     };
     const onRaid = () => this.syncDragon();
     const onFood = () => this.syncFood();
     const onFoodTaken = (kind: string) => {
       this.drawBag();
-      this.showToast(`+${kind}`);
+      this.showToast(`+ ${ic(foodIcon(kind))}`);
     };
     presence.events.on("food", onFood);
     presence.events.on("foodTaken", onFoodTaken);
@@ -535,30 +534,26 @@ export class OverworldScene extends Phaser.Scene {
     const boss = this.visibleBoss();
     if (!boss) {
       this.dragon?.sprite.destroy();
-      this.dragon?.label.destroy();
+      this.dragon?.label?.destroy();
       this.dragon = undefined;
       return;
     }
     const raid = presence.raid!;
     const centre = this.tileCentre(boss.lair);
     if (!this.dragon) {
-      this.dragon = {
-        sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5),
-        label: this.add
-          .text(centre.x, centre.y - TILE_SIZE * 0.95, "", { fontFamily: FONT, fontSize: "20px", color: CSS.text, stroke: CSS.ink, strokeThickness: 4 })
-          .setOrigin(0.5)
-          .setDepth(7),
-      };
+      this.dragon = { sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5) };
     }
     this.dragon.sprite.setAlpha(raid.defeated ? 0.45 : 1);
-    this.dragon.label.setText(raid.defeated ? SLEEP_ICON : `${DRAGON_ICON} ❤️ ${raid.hp}/${raid.maxHp}`);
+    this.dragon.label?.destroy();
+    const label = raid.defeated ? ic(SLEEP_ICON) : `${ic("heart")} ${raid.hp}/${raid.maxHp}`;
+    this.dragon.label = richChip(this, centre.x, centre.y - TILE_SIZE * 0.98, label, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(7);
   }
 
   private onTapDragon(boss: BossDefinition): void {
     const raid = presence.raid;
     if (!raid) return;
-    if (raid.defeated) return this.showToast(`${SLEEP_ICON} ${t("raid_sleeping")}`);
-    if (presence.restUntil > Date.now()) return this.showToast(`${REST_ICON} ${t("raid_resting")}`);
+    if (raid.defeated) return this.showToast(`${ic(SLEEP_ICON)} ${t("raid_sleeping")}`);
+    if (presence.restUntil > Date.now()) return this.showToast(`${ic(REST_ICON)} ${t("raid_resting")}`);
     if (isAdjacent(this.myPosition(), boss.lair)) return this.showDragonChoice(boss);
     this.walkNextTo(boss.lair, DRAGON_MEET);
   }
@@ -573,17 +568,17 @@ export class OverworldScene extends Phaser.Scene {
     const gathering = presence.teamSupported ? raid?.gathering : undefined;
     if (gathering && gathering.leaderId !== this.save.player.id) {
       const leader = presence.players.get(gathering.leaderId)?.navn ?? "?";
-      this.showPopup(`${TEAM_ICON} ${leader} +${gathering.size - 1}`, [
+      this.showPopup(`${ic(TEAM_ICON)} ${leader} +${gathering.size - 1}`, [
         { label: "✓", colour: C.ok, onTap: () => presence.send("teamJoin", { teamId: gathering.teamId, seat: seat() }) },
         { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
       ]);
       return;
     }
-    const buttons = [{ label: "⚔️", colour: C.danger, onTap: () => presence.send("raidStart", { seat: seat() }) }];
+    const buttons = [{ label: ic("sword"), colour: C.danger, onTap: () => presence.send("raidStart", { seat: seat() }) }];
     // "Fight together" — not just 👥, which is also the connection button in the top row.
-    if (presence.teamSupported && !gathering) buttons.push({ label: `${TEAM_ICON}⚔️`, colour: C.button, onTap: () => presence.send("teamCreate", { seat: seat() }) });
+    if (presence.teamSupported && !gathering) buttons.push({ label: `${ic(TEAM_ICON)}${ic("sword")}`, colour: C.button, onTap: () => presence.send("teamCreate", { seat: seat() }) });
     buttons.push({ label: "✗", colour: C.buttonQuiet, onTap: () => {} });
-    this.showPopup(`${DRAGON_ICON} ${boss.navn}  ❤️ ${raid?.hp ?? "?"}`, buttons);
+    this.showPopup(`${ic(DRAGON_ICON)} ${boss.navn}  ${ic("heart")} ${raid?.hp ?? "?"}`, buttons);
   }
 
   /** The server accepted my attack: the battle takes over the screen until the attempt ends. */
@@ -696,8 +691,8 @@ export class OverworldScene extends Phaser.Scene {
   /** Small 🤝 / ⚔️ / ✗ choice, fixed on screen, for the player I'm standing next to. */
   private showMeeting(player: LobbyPlayer): void {
     this.showPopup(player.navn, [
-      { label: "🤝", colour: C.ok, onTap: () => presence.send("invite", { toPlayerId: player.playerId }) },
-      { label: "⚔️", colour: C.danger, onTap: () => presence.send("duelInvite", { toPlayerId: player.playerId, seat: seatFor(this.save, this.content) }) },
+      { label: ic("trade"), colour: C.ok, onTap: () => presence.send("invite", { toPlayerId: player.playerId }) },
+      { label: ic("sword"), colour: C.danger, onTap: () => presence.send("duelInvite", { toPlayerId: player.playerId, seat: seatFor(this.save, this.content) }) },
       { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
     ]);
   }
@@ -717,9 +712,7 @@ export class OverworldScene extends Phaser.Scene {
     const cx = layout.width / 2;
     const cy = layout.height - layout.safe.bottom - layout.px(16) - panelH / 2;
     const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.95).setStrokeStyle(4, C.border);
-    const name = this.add
-      .text(cx, cy - panelH / 2 + layout.px(40), title, { fontFamily: FONT, fontSize: layout.font(30), color: CSS.text })
-      .setOrigin(0.5);
+    const name = richText(this, cx, cy - panelH / 2 + layout.px(40), title, { fontFamily: FONT, fontSize: layout.font(30), color: CSS.text });
     const rowW = buttons.length * buttonW + (buttons.length - 1) * gap;
     const made = buttons.map((b, i) =>
       createButton(this, cx - rowW / 2 + buttonW / 2 + i * (buttonW + gap), cy + panelH / 2 - layout.px(24) - buttonH / 2, b.label, () => {
@@ -734,22 +727,14 @@ export class OverworldScene extends Phaser.Scene {
 
   private showToast(message: string): void {
     this.toast?.destroy();
-    const toast = this.add
-      .text(this.scale.width / 2, getLayout(this).safe.top + getLayout(this).touch(64) + 60, message, {
-        fontFamily: FONT,
-        fontSize: getLayout(this).font(28),
-        color: CSS.accent,
-        backgroundColor: CSS.chip,
-        padding: { x: 16, y: 10 },
-        align: "center",
-        wordWrap: { width: this.scale.width - 40 },
-      })
-      .setOrigin(0.5)
+    const layout = getLayout(this);
+    const toast = richChip(this, this.scale.width / 2, layout.safe.top + layout.touch(64) + 60, message, { fontFamily: FONT, fontSize: layout.font(28), color: CSS.accent })
       .setScrollFactor(0)
       .setDepth(20);
     this.toast = toast;
     this.time.delayedCall(1600, () => toast.destroy());
   }
+
 
   /** A trade or duel invite (or a just-finished trade) is waiting: show it over the map. */
   private openInteractIfNeeded(): void {

@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { getLayout } from "./layout";
 import { C, CSS, FONT } from "./theme";
+import { hasIcons, richText } from "./rich-text";
+import { addIcon } from "../gfx/icon-art";
 
 export interface ButtonOptions {
   width?: number;
@@ -8,7 +10,7 @@ export interface ButtonOptions {
   fontSize?: string;
   backgroundColor?: number;
   textColor?: string;
-  /** An emoji drawn large above the label, so a child who reads little can tell buttons apart. */
+  /** A drawn icon (by name, see gfx/icon-art.ts) shown large above the label, so a child who reads little can tell buttons apart. */
   icon?: string;
 }
 
@@ -41,19 +43,20 @@ export function createButton(
   };
   draw(false);
 
-  const text = scene.add
-    .text(0, 0, label, {
-      fontFamily: FONT,
-      fontSize: options.fontSize ?? "28px",
-      color: options.textColor ?? CSS.text,
-    })
-    .setOrigin(0.5);
+  const style = { fontFamily: FONT, fontSize: options.fontSize ?? "28px", color: options.textColor ?? CSS.text };
+  // A label may be plain text or hold [[icon]]s — an icon-only button is just "[[map]]".
+  const iconOnly = /^\[\[[a-z0-9-]+\]\]$/.exec(label);
+  const text = iconOnly
+    ? addIcon(scene, 0, 0, label.slice(2, -2), Math.min(width, height) * 0.62)
+    : hasIcons(label)
+      ? richText(scene, 0, 0, label, style)
+      : scene.add.text(0, 0, label, style).setOrigin(0.5);
 
-  // Keep [bg, text] as the first two children (callers update the label via list[1]); the icon goes last.
+  // Keep [bg, text] as the first two children; the icon goes last.
   const parts: Phaser.GameObjects.GameObject[] = [bg, text];
   if (options.icon) {
-    text.setY(height * 0.24);
-    parts.push(scene.add.text(0, -height * 0.2, options.icon, { fontFamily: FONT, fontSize: `${Math.round(height * 0.45)}px` }).setOrigin(0.5));
+    (text as Phaser.GameObjects.Components.Transform).setY(height * 0.24);
+    parts.push(addIcon(scene, 0, -height * 0.18, options.icon, height * 0.46));
   }
 
   const container = scene.add.container(x, y, parts);
