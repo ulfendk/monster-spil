@@ -58,7 +58,7 @@ function drawTileset() {
   const K = {
     ground: [0x5f, 0x7a, 0x55], groundDot: [0x76, 0x94, 0x6a],
     pine: [0x2b, 0x33, 0x28], pineLight: [0x3f, 0x52, 0x38], bark: [0x60, 0x38, 0x2c],
-    grass: [0x4b, 0x62, 0x44], blade: [0x98, 0xbb, 0x6c],
+    grass: [0x4b, 0x62, 0x44], blade: [0x76, 0x94, 0x6a], stem: [0x93, 0x80, 0x56], plume: [0xc0, 0xa3, 0x6e], plumeLight: [0xe6, 0xc3, 0x84],
     water: [0x22, 0x32, 0x49], water2: [0x2d, 0x4f, 0x67], foam: [0xdc, 0xd7, 0xba], spray: [0x7f, 0xb4, 0xca],
     path: [0xc0, 0xa3, 0x6e], pathDot: [0x93, 0x80, 0x56],
   };
@@ -66,11 +66,22 @@ function drawTileset() {
     for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) set(ox + x, y, colour);
   };
 
-  // 1 ground: sage green with a few lighter flecks
+  // Small V-shaped grass tufts, so plain ground reads as a meadow.
+  const tuft = (ox, x, y, colour) => {
+    for (let i = 0; i < 5; i++) {
+      set(ox + x - i, y - i, colour);
+      set(ox + x + i, y - i, colour);
+      set(ox + x, y - i - 1, colour);
+    }
+  };
+
+  // 1 ground: sage green with a few grass tufts
   ground(0, K.ground);
-  speckle(0, K.groundDot, 5);
+  for (const [x, y] of [[12, 16], [44, 12], [28, 38], [52, 50], [10, 54]]) tuft(0, x, y, K.groundDot);
   // 2 tree: a Japanese pine — a crooked trunk under flat, layered cloud-like canopies
   ground(T, K.ground);
+  tuft(T, 12, 58, K.groundDot);
+  tuft(T, 54, 60, K.groundDot);
   for (let y = 36; y < 60; y++) {
     const lean = Math.round(Math.sin((y - 36) / 7) * 3);
     for (let x = 29; x < 35; x++) set(T + x + lean, y, K.bark);
@@ -79,13 +90,32 @@ function drawTileset() {
     ellipse(T, cx, cy, rx, ry, K.pine);
     ellipse(T, cx - 3, cy - 2, rx - 5, ry - 3, K.pineLight);
   }
-  // 3 tall grass (drawn over ground in its own layer): darker sage with light blades
+  // 3 tall grass (drawn over ground in its own layer): susuki, Japanese pampas grass —
+  // slender stems bending in the wind, each topped with a warm, feathery plume.
   ground(2 * T, K.grass);
-  for (let b = 0; b < 7; b++) {
-    const x = 5 + b * 9;
-    const h = 22 + ((b * 7) % 14);
-    for (let y = 60 - h; y < 60; y++) for (let dx = 0; dx < 2; dx++) set(2 * T + x + dx + Math.floor((60 - y) / 8) * (b % 2 ? 1 : -1), y, K.blade);
+  const plumeColours = [K.plume, K.plumeLight];
+  for (let b = 0; b < 6; b++) {
+    const baseX = 6 + b * 10 + (b % 2) * 2;
+    const h = 38 + ((b * 11) % 16);
+    const bend = 7 + (b % 3) * 2; // how far the tip leans right, as if in the wind
+    let tipX = baseX;
+    const tipY = 62 - h;
+    for (let y = 62; y > tipY; y--) {
+      const t = (62 - y) / h;
+      const x = Math.round(baseX + bend * t * t);
+      set(2 * T + x, y, K.stem);
+      tipX = x;
+    }
+    // the plume: a soft teardrop of short strands hanging to the right of the tip
+    for (let k = 0; k < 18; k++) {
+      const t = k / 18;
+      const px = Math.round(tipX + 1 + t * 7);
+      const py = Math.round(tipY + 2 + t * 12);
+      for (let d = -1; d <= 1; d++) set(2 * T + Math.min(T - 1, px + d), Math.min(T - 1, py + (d === 0 ? 0 : 1)), plumeColours[(k + d + 2) % 2]);
+    }
   }
+  // a few low blades at the foot
+  for (let x = 2; x < T - 2; x += 5) for (let y = 56; y < 63; y++) set(2 * T + x + Math.floor((63 - y) / 3), y, K.blade);
   // 4 water: deep indigo with Great-Wave curls of foam and a little spray
   ground(3 * T, K.water2);
   // gentle darker swells that line up across tiles (whole sine periods per tile)

@@ -61,15 +61,29 @@ export function getLayout(scene: Phaser.Scene): Layout {
 }
 
 /**
+ * True while the player is typing in a text field. On iPhone the on-screen keyboard
+ * shrinks the screen, which fires a resize; re-laying out then would rebuild the very
+ * field being typed in, stealing its focus and closing the keyboard again.
+ */
+function typingInField(): boolean {
+  const el = typeof document !== "undefined" ? document.activeElement : null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+}
+
+/**
  * Calls `relayout` after the screen size changes (rotating the device, resizing a
  * window), a moment after the last change so a rotation isn't laid out twice.
- * Unhooks itself when the scene shuts down.
+ * Resizes while typing in a text field are ignored (that is the keyboard opening);
+ * closing the keyboard resizes again, and that one is laid out. Unhooks itself when
+ * the scene shuts down.
  */
 export function onRelayout(scene: Phaser.Scene, relayout: () => void): void {
   let timer: Phaser.Time.TimerEvent | undefined;
   const handler = () => {
+    if (typingInField()) return;
     timer?.remove();
     timer = scene.time.delayedCall(120, () => {
+      if (typingInField()) return;
       if (scene.scene.isActive() || scene.scene.isPaused()) relayout();
     });
   };

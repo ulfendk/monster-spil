@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { CreatureSpecies, TypeId } from "@shared";
-import { C, KANAGAWA } from "../ui/theme";
+import { KANAGAWA } from "../ui/theme";
 
 /** One Kanagawa colour per type — for the creatures, their moves' buttons and badges. */
 export const TYPE_COLOURS: Record<TypeId, number> = {
@@ -12,117 +12,247 @@ export const TYPE_COLOURS: Record<TypeId, number> = {
 };
 
 const SPRITE_SIZE = 128;
+const INK = KANAGAWA.sumiInk0;
+const LINE = 3;
+
+type Point = { x: number; y: number };
+
+const shade = (colour: number, amount: number): number =>
+  amount >= 0 ? Phaser.Display.Color.IntegerToColor(colour).lighten(amount).color : Phaser.Display.Color.IntegerToColor(colour).darken(-amount).color;
 
 /**
- * No creature art exists yet, so this bakes a simple original placeholder
- * (a coloured blob + a type-coded accent shape) into a texture keyed to
- * species.spriteFront/spriteBack. Dropping a real drawing in at that same
- * texture key later requires no code change — only deleting this module.
+ * No creature art exists yet, so this bakes an original placeholder per species into a
+ * texture keyed to species.spriteFront/spriteBack — a little yokai in the game's
+ * Kanagawa woodblock style: bold ink outlines, a round body whose proportions come
+ * from its stats (so no two species look alike), a kawaii face, and a head feature
+ * for its type. Dropping a real drawing in at the same texture key needs no code
+ * change — only deleting this module once every creature has art.
+ *
+ * `dragonIds`: species drawn with wings and horns (the raid bosses and the babies
+ * they give), so they don't look like ordinary monsters.
  */
-/** `dragonIds`: species drawn with wings and horns (the raid bosses and the babies they give), so they don't look like ordinary monsters. */
 export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[], dragonIds: ReadonlySet<string> = new Set()): void {
   for (const s of species) {
     const dragon = dragonIds.has(s.id);
-    if (!scene.textures.exists(s.spriteFront)) {
-      drawCreature(scene, s, s.spriteFront, false, dragon);
-    }
-    if (!scene.textures.exists(s.spriteBack)) {
-      drawCreature(scene, s, s.spriteBack, true, dragon);
-    }
+    if (!scene.textures.exists(s.spriteFront)) drawCreature(scene, s, s.spriteFront, false, dragon);
+    if (!scene.textures.exists(s.spriteBack)) drawCreature(scene, s, s.spriteBack, true, dragon);
   }
+}
+
+/** The body's size from the stats: defence makes it wider, HP taller (clamped to fit the texture). */
+function bodyShape(species: CreatureSpecies): { w: number; h: number } {
+  const { hp, forsvar } = species.baseStats;
+  return {
+    w: Phaser.Math.Clamp(46 + forsvar * 2.4, 62, 94),
+    h: Phaser.Math.Clamp(30 + Math.min(hp, 60) * 0.75, 54, 76),
+  };
+}
+
+/** A small, stable per-species shift (-12..+12) so two monsters of one type differ in shade. */
+function speciesShade(id: string): number {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return (hash % 25) - 12;
 }
 
 function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean, dragon: boolean): void {
   const g = scene.add.graphics();
-  const bodyColor = TYPE_COLOURS[species.type];
+  const colour = shade(TYPE_COLOURS[species.type], dragon ? 0 : speciesShade(species.id));
+  const { w, h } = bodyShape(species);
   const cx = SPRITE_SIZE / 2;
-  const cy = SPRITE_SIZE / 2 + 8;
+  const cy = SPRITE_SIZE - 12 - h / 2; // feet near the bottom of the texture
+  const top = cy - h / 2;
 
-  if (dragon) {
-    // Bat-like wings behind the body, in a darker shade, and two horns instead of the type accent.
-    const wing = Phaser.Display.Color.IntegerToColor(bodyColor).darken(35).color;
-    g.fillStyle(wing, 1);
-    g.fillTriangle(cx - 20, cy - 10, cx - 62, cy - 42, cx - 50, cy + 18);
-    g.fillTriangle(cx + 20, cy - 10, cx + 62, cy - 42, cx + 50, cy + 18);
-    g.fillStyle(bodyColor, 1);
-    g.fillEllipse(cx, cy, SPRITE_SIZE * 0.62, SPRITE_SIZE * 0.56);
-    g.fillStyle(KANAGAWA.oldWhite, 1);
-    g.fillTriangle(cx - 26, cy - 22, cx - 18, cy - 50, cx - 10, cy - 28);
-    g.fillTriangle(cx + 26, cy - 22, cx + 18, cy - 50, cx + 10, cy - 28);
-    if (!isBack) {
-      g.fillStyle(KANAGAWA.carpYellow, 1);
-      g.fillCircle(cx - 16, cy - 6, 8);
-      g.fillCircle(cx + 16, cy - 6, 8);
-      g.fillStyle(KANAGAWA.sumiInk0, 1);
-      g.fillEllipse(cx - 16, cy - 6, 4, 12);
-      g.fillEllipse(cx + 16, cy - 6, 4, 12);
-      g.fillStyle(C.border, 1);
-      g.fillTriangle(cx - 12, cy + 14, cx - 6, cy + 24, cx, cy + 14);
-      g.fillTriangle(cx, cy + 14, cx + 6, cy + 24, cx + 12, cy + 14);
-    }
-    g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
-    g.destroy();
-    return;
+  if (dragon) drawWings(g, cx, cy, colour);
+  // Behind the body: the tail (seen from behind) and the type feature's back parts.
+  if (isBack) drawTail(g, cx + w * 0.42, cy + h * 0.22, colour);
+  if (!dragon) drawTypeFeature(g, species.type, cx, top, w);
+
+  // Feet, then the body with a lighter belly.
+  for (const side of [-1, 1]) {
+    g.fillStyle(shade(colour, -18), 1).fillEllipse(cx + side * w * 0.26, cy + h / 2 - 3, 20, 12);
+    g.lineStyle(LINE, INK, 1).strokeEllipse(cx + side * w * 0.26, cy + h / 2 - 3, 20, 12);
   }
+  g.fillStyle(colour, 1).fillEllipse(cx, cy, w, h);
+  if (!isBack) g.fillStyle(shade(colour, 16), 1).fillEllipse(cx, cy + h * 0.2, w * 0.6, h * 0.46);
+  g.lineStyle(LINE, INK, 1).strokeEllipse(cx, cy, w, h);
 
-  g.fillStyle(bodyColor, 1);
-  g.fillEllipse(cx, cy, SPRITE_SIZE * 0.7, SPRITE_SIZE * 0.6);
-
-  if (!isBack) {
-    g.fillStyle(KANAGAWA.sumiInk0, 1);
-    g.fillCircle(cx - 18, cy - 8, 8);
-    g.fillCircle(cx + 18, cy - 8, 8);
-  }
-
-  drawTypeAccent(g, species.type, cx, cy - 48);
+  if (dragon) drawDragonHorns(g, cx, top, w);
+  if (!isBack) drawFace(g, cx, cy - h * 0.08, w, species.baseStats.angreb >= 13, dragon);
 
   g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
   g.destroy();
 }
 
-function drawTypeAccent(g: Phaser.GameObjects.Graphics, type: TypeId, x: number, y: number): void {
-  g.fillStyle(C.border, 0.9);
-  switch (type) {
-    case "ild":
-      g.fillTriangle(x, y - 14, x - 14, y + 10, x + 14, y + 10);
-      break;
-    case "vand":
-      g.fillCircle(x - 8, y, 10);
-      g.fillCircle(x + 8, y, 10);
-      break;
-    case "graes":
-      g.fillEllipse(x, y, 26, 13);
-      break;
-    case "lyn":
-      g.fillPoints(
-        [
-          { x: x - 6, y: y - 14 },
-          { x: x + 4, y: y - 2 },
-          { x: x - 2, y: y - 2 },
-          { x: x + 6, y: y + 14 },
-          { x: x - 4, y: y + 2 },
-          { x: x + 2, y: y + 2 },
-        ],
-        true
-      );
-      break;
-    case "sten":
-      drawRegularPolygon(g, x, y, 6, 14);
-      break;
+/** Kawaii face: ink eyes with a highlight, pink cheeks, a small smile — and a fang for strong attackers. */
+function drawFace(g: Phaser.GameObjects.Graphics, cx: number, eyeY: number, w: number, fang: boolean, dragon: boolean): void {
+  const dx = Math.max(12, w * 0.19);
+  for (const side of [-1, 1]) {
+    const x = cx + side * dx;
+    if (dragon) {
+      g.fillStyle(KANAGAWA.carpYellow, 1).fillEllipse(x, eyeY, 13, 15);
+      g.fillStyle(INK, 1).fillEllipse(x, eyeY, 4, 12);
+    } else {
+      g.fillStyle(INK, 1).fillEllipse(x, eyeY, 11, 14);
+      g.fillStyle(KANAGAWA.washi, 1).fillCircle(x + 2, eyeY - 3, 2.6);
+    }
+    g.fillStyle(KANAGAWA.sakuraPink, 0.85).fillEllipse(x + side * 8, eyeY + 11, 12, 6);
+  }
+  g.lineStyle(2.5, INK, 1);
+  g.beginPath();
+  g.arc(cx, eyeY + 8, 5, Math.PI * 0.15, Math.PI * 0.85, false);
+  g.strokePath();
+  if (fang || dragon) {
+    g.fillStyle(KANAGAWA.washi, 1).fillTriangle(cx + 1, eyeY + 12, cx + 6, eyeY + 12, cx + 3.5, eyeY + 18);
+    g.lineStyle(1.5, INK, 1).strokeTriangle(cx + 1, eyeY + 12, cx + 6, eyeY + 12, cx + 3.5, eyeY + 18);
   }
 }
 
-function drawRegularPolygon(
-  g: Phaser.GameObjects.Graphics,
-  cx: number,
-  cy: number,
-  sides: number,
-  radius: number
-): void {
-  const points: Phaser.Types.Math.Vector2Like[] = [];
-  for (let i = 0; i < sides; i++) {
-    const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
-    points.push({ x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
+function drawTail(g: Phaser.GameObjects.Graphics, x: number, y: number, colour: number): void {
+  const pts = [
+    { x, y: y - 6 },
+    { x: x + 18, y: y - 16 },
+    { x: x + 22, y: y - 2 },
+    { x: x + 6, y: y + 8 },
+  ];
+  g.fillStyle(shade(colour, -10), 1).fillPoints(pts, true);
+  g.lineStyle(LINE, INK, 1).strokePoints(pts, true);
+}
+
+/** Points of an ellipse rotated by `angle`, for shapes Graphics can't rotate (leaves). */
+function ellipsePoints(cx: number, cy: number, rx: number, ry: number, angle: number, n = 18): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const x = Math.cos(t) * rx;
+    const y = Math.sin(t) * ry;
+    out.push({ x: cx + x * Math.cos(angle) - y * Math.sin(angle), y: cy + x * Math.sin(angle) + y * Math.cos(angle) });
   }
-  g.fillPoints(points, true);
+  return out;
+}
+
+function fillOutlined(g: Phaser.GameObjects.Graphics, pts: Point[], colour: number): void {
+  g.fillStyle(colour, 1).fillPoints(pts, true);
+  g.lineStyle(LINE, INK, 1).strokePoints(pts, true);
+}
+
+/** A teardrop flame with its tip at the top. */
+function flame(cx: number, baseY: number, height: number, width: number): Point[] {
+  return [
+    { x: cx, y: baseY - height },
+    { x: cx + width * 0.3, y: baseY - height * 0.55 },
+    { x: cx + width * 0.5, y: baseY - height * 0.2 },
+    { x: cx + width * 0.3, y: baseY },
+    { x: cx - width * 0.3, y: baseY },
+    { x: cx - width * 0.5, y: baseY - height * 0.2 },
+    { x: cx - width * 0.3, y: baseY - height * 0.55 },
+  ];
+}
+
+/** Each type's head feature, drawn before the body so the body overlaps its base. */
+function drawTypeFeature(g: Phaser.GameObjects.Graphics, type: TypeId, cx: number, top: number, w: number): void {
+  switch (type) {
+    case "ild": {
+      // A crest of three flames (fox-fire), orange with yellow hearts.
+      for (const [dx, h, fw] of [[-13, 24, 16], [13, 24, 16], [0, 34, 20]] as const) {
+        fillOutlined(g, flame(cx + dx, top + 10, h, fw), KANAGAWA.surimiOrange);
+        g.fillStyle(KANAGAWA.carpYellow, 1).fillPoints(flame(cx + dx, top + 8, h * 0.55, fw * 0.5), true);
+      }
+      break;
+    }
+    case "vand": {
+      // A crest of wave scales (seigaiha), like a little Great Wave on its head.
+      for (const [dx, r] of [[-11, 12], [11, 12], [0, 15]] as const) {
+        const x = cx + dx;
+        const y = top + 8;
+        g.fillStyle(KANAGAWA.waveBlue2, 1);
+        g.beginPath();
+        g.arc(x, y, r, Math.PI, 0, false);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(2, KANAGAWA.fujiWhite, 1);
+        for (const k of [0.72, 0.42]) {
+          g.beginPath();
+          g.arc(x, y, r * k, Math.PI, 0, false);
+          g.strokePath();
+        }
+        g.lineStyle(LINE, INK, 1);
+        g.beginPath();
+        g.arc(x, y, r, Math.PI, 0, false);
+        g.strokePath();
+      }
+      break;
+    }
+    case "graes": {
+      // Two leaves sprouting from the head, with a centre vein, and a small bud.
+      for (const side of [-1, 1]) {
+        const pts = ellipsePoints(cx + side * 12, top - 6, 16, 7, side * -0.6);
+        fillOutlined(g, pts, KANAGAWA.autumnGreen);
+        g.lineStyle(1.5, KANAGAWA.winterGreen, 1).lineBetween(cx + side * 2, top + 2, cx + side * 22, top - 13);
+      }
+      g.fillStyle(KANAGAWA.sakuraPink, 1).fillCircle(cx, top - 2, 5);
+      g.lineStyle(2, INK, 1).strokeCircle(cx, top - 2, 5);
+      break;
+    }
+    case "lyn": {
+      // Zigzag horns, like Raijin's.
+      for (const side of [-1, 1]) {
+        const x = cx + side * w * 0.22;
+        const pts = [
+          { x: x - 5, y: top + 8 },
+          { x: x + side * 2, y: top - 8 },
+          { x: x - side * 5, y: top - 8 },
+          { x: x + side * 4, y: top - 26 },
+          { x: x + side * 2, y: top - 12 },
+          { x: x + side * 9, y: top - 12 },
+          { x: x + 5, y: top + 8 },
+        ];
+        fillOutlined(g, pts, KANAGAWA.carpYellow);
+      }
+      break;
+    }
+    case "sten": {
+      // A rocky cap of plates, with cracks.
+      const cap = [
+        { x: cx - w * 0.36, y: top + 12 },
+        { x: cx - w * 0.3, y: top - 6 },
+        { x: cx - w * 0.08, y: top - 14 },
+        { x: cx + w * 0.16, y: top - 12 },
+        { x: cx + w * 0.34, y: top - 2 },
+        { x: cx + w * 0.38, y: top + 12 },
+      ];
+      fillOutlined(g, cap, KANAGAWA.katanaGray);
+      g.lineStyle(2, INK, 0.8);
+      g.lineBetween(cx - w * 0.08, top - 14, cx - w * 0.04, top + 4);
+      g.lineBetween(cx + w * 0.16, top - 12, cx + w * 0.2, top + 2);
+      g.fillStyle(KANAGAWA.autumnGreen, 0.9).fillCircle(cx - w * 0.2, top - 4, 3).fillCircle(cx + w * 0.26, top + 2, 2.5); // moss
+      break;
+    }
+  }
+}
+
+function drawWings(g: Phaser.GameObjects.Graphics, cx: number, cy: number, colour: number): void {
+  const wing = shade(colour, -30);
+  for (const side of [-1, 1]) {
+    const pts = [
+      { x: cx + side * 18, y: cy - 8 },
+      { x: cx + side * 60, y: cy - 40 },
+      { x: cx + side * 54, y: cy - 16 },
+      { x: cx + side * 60, y: cy + 4 },
+      { x: cx + side * 44, y: cy + 14 },
+    ];
+    fillOutlined(g, pts, wing);
+  }
+}
+
+function drawDragonHorns(g: Phaser.GameObjects.Graphics, cx: number, top: number, w: number): void {
+  for (const side of [-1, 1]) {
+    const x = cx + side * w * 0.22;
+    const pts = [
+      { x: x - 7, y: top + 10 },
+      { x: x + side * 4, y: top - 22 },
+      { x: x + 7, y: top + 10 },
+    ];
+    fillOutlined(g, pts, KANAGAWA.oldWhite);
+  }
 }

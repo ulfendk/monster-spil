@@ -371,7 +371,13 @@ BFS pathfinding if needed); on the ground it does nothing.
   screen — decoration only; all text stays Danish. Buttons are rounded cards with a
   thin warm-white edge and an ink shadow they sink into when pressed.
 - **Map tiles** come from `scripts/generate-startskoven.mjs` in the same palette:
-  Japanese pines, indigo water with Great-Wave foam curls, sand paths.
+  Japanese pines, indigo water with Great-Wave foam curls, sand paths, meadow tufts,
+  and susuki (pampas grass with feathery plumes) for the tall-grass encounter zones.
+- **Placeholder monsters** (`client/src/gfx/placeholder-sprites.ts`) are little
+  yokai in woodblock style: bold ink outlines, body proportions from the stats
+  (defence = wider, HP = taller, strong attack = a fang), a kawaii face, a per-species
+  shade, and a type feature (flame crest, wave-scale crest, leaves, Raijin horns,
+  rocky cap); dragons get wings and horns.
 - **App icon** (`client/public/icons/icon-{192,512}.png`) is drawn by
   `scripts/generate-icons.mjs`: a red rising sun, a friendly monster peeking over a
   seigaiha sea, on sumi ink — full-bleed squares (iOS rounds the corners). Both
@@ -384,7 +390,9 @@ BFS pathfinding if needed); on the ground it does nothing.
   status bar, home indicator — read from `env(safe-area-inset-*)`), and a size factor
   `s` with helpers `px()`, `font()` (never below 16px) and `touch()` (never below
   64px). Sizes in scenes are written for the ~1024×768 iPad and passed through these.
-- **Rotation:** `onRelayout(scene, fn)` calls `fn` after a resize; `restartOnResize`
+- **Rotation:** `onRelayout(scene, fn)` calls `fn` after a resize — except while a
+  text field has focus (on iPhone the keyboard opening is a resize; rebuilding the
+  field would steal its focus and close the keyboard); `restartOnResize`
   restarts screens that are pure drawings of their data (monster book, info page,
   starter pick). Stateful screens re-lay out in place: the battle rebuilds its
   sprites/bars/buttons from the live battle state; the map rebuilds its HUD.
