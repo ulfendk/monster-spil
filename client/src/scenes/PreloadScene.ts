@@ -3,6 +3,8 @@ import type { GameContent } from "../content/load-content";
 import { loadContent } from "../content/load-content";
 import { contentAssets } from "../content/load-assets";
 import { cryKey } from "../audio/creature-sound";
+import { bossesById } from "../content/load-raid";
+import { bossSpecies } from "@shared";
 import { generatePlaceholderSprites } from "../gfx/placeholder-sprites";
 import { loadInitialState } from "../save/game-state";
 
@@ -19,7 +21,7 @@ export class PreloadScene extends Phaser.Scene {
    */
   preload(): void {
     this.content = loadContent();
-    for (const species of Object.values(this.content.speciesById)) {
+    for (const species of [...Object.values(this.content.speciesById), ...Object.values(bossesById).map(bossSpecies)]) {
       for (const key of [species.spriteFront, species.spriteBack]) {
         const url = contentAssets[key];
         if (url) this.load.image(key, url);
@@ -31,7 +33,9 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     const content = this.content;
-    generatePlaceholderSprites(this, Object.values(content.speciesById));
+    const bosses = Object.values(bossesById);
+    const dragonIds = new Set([...bosses.map((b) => b.id), ...bosses.map((b) => b.rewardSpeciesId)]);
+    generatePlaceholderSprites(this, [...Object.values(content.speciesById), ...bosses.map(bossSpecies)], dragonIds);
 
     loadInitialState().then((save) => {
       if (save) {

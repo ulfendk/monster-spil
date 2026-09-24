@@ -29,13 +29,17 @@ image. See "Family server (Milestone 2)" below.
 Milestone 3 (PvP duels) is built and tested against a local server with scripted
 clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
+Since then: a shared 64×48 world where players see each other, a weekly family
+dragon raid, a weekly scoreboard and an overview map (sections below). Ideas not
+yet scheduled live in `docs/backlog.md`.
+
 ## Monorepo layout
 
 ```
 shared/   Types, content (creatures/moves/areas as JSON), and the battle engine.
           Plain data + pure functions only — no DOM, no network, no Node-only APIs.
 client/   Vite + TypeScript + Phaser 3.
-server/   Node + TypeScript + Colyseus lobby/trading server (Milestone 2).
+server/   Node + TypeScript + Colyseus server: lobby, trading, duels, dragon raid, scoreboard.
 ```
 
 `shared` is consumed two ways: `client` imports it as TypeScript source directly
@@ -48,7 +52,7 @@ compiled `shared/dist` output, since it runs under plain Node.
 npm install
 npm run dev -- --host      # client dev server, reachable over the home LAN
 npm run typecheck          # tsc -b across all three packages
-npm test                   # builds shared, runs shared/**/*.test.ts via node --test
+npm test                   # builds shared + server, runs their *.test.ts via node --test
 npm run build              # production build of shared + client -> client/dist
 ```
 
@@ -258,6 +262,47 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   players against a running server. For real rendering, two headless Chromium
   instances with separate profiles (remote debugging) give genuinely separate
   saves; the Claude-in-Chrome window is often `hidden` and never renders frames.
+
+## Family dragon and scoreboard (protocol v4)
+
+- **Pure rules in `shared/src/raid/raid.ts`** (week id in Danish time, shared-HP
+  turns, final blow, contributors) and `shared/src/score/scoreboard.ts` (rolling
+  7-day rows, `SCORE_POINTS`). The server only stores and calls them.
+- **Boss content** is `shared/content/raid/<id>.json` (stats, its own moves, HP,
+  lair position, reward species, rest seconds). The server reads these at runtime
+  (`server/src/bosses.ts`; the Dockerfile copies the folder), one boss per week in
+  rotation. The client globs the same files for sprites, cries and the map marker.
+  The reward species (`drageunge`) is an ordinary creature file, never in any
+  encounter table; the monster book shows 🐉 for it instead of a distance hint.
+- **Persistence:** `server/src/family-store.ts` keeps `DATA_DIR/family.json`
+  (`/data` in Docker — mount a volume): known players, score events (pruned after
+  8 days), the raid, and rewards until the device sends `rewardAck`. Writes are
+  debounced and atomic; an unwritable directory is logged, not fatal.
+- **Catches are reported by the device**: a wild catch is queued in
+  `SaveData.pendingScore` (so offline catches count later) and sent as
+  `scoreReport`; the server dedupes by event id and acks every well-formed id.
+- **Client:** `presence` holds `raid` and applies `reward`s like trade deliveries.
+  The dragon sits on its lair tile (blocked for walking) in `OverworldScene`;
+  tapping it walks you next to it and offers ⚔️. `BattleScene` has a third mode,
+  `raid`, driven by `presence` messages. 🏆 opens `ScoreboardScene`.
+- **Testing:** `scripts/e2e-raid.mjs` (needs a server with a fresh `DATA_DIR`,
+  since it beats the dragon) covers the whole raid, rewards, scores and a won duel.
+
+## Overview map
+
+`client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture
+(nearest filtering), fixed top-left, with dots for me (white ring), other players
+(dark ring), 🐉 at the lair and the camera frame. Tap to enlarge, tap again to
+close. Which tile ids are trees, water or paths comes from `minimap` in the area's
+`.meta.json` sidecar (without it, blocking tiles are drawn as trees).
+
+## Danish texts
+
+All UI text is in `client/src/i18n/da.ts`; battle messages are written by the
+engine (`shared/src/battle/engine.ts`, which also has the `genitive` helper for
+names ending in s/x/z: "Flammepels' Glødslag"). Write "gjorde N i skade", not "gav
+N skade"; Danish compounds without hyphens ("biplyd", "monsterfil"); only the first
+word of a name capitalised. Keep sentences short: the youngest player reads little.
 
 ## Dependency policy
 

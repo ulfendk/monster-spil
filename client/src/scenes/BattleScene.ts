@@ -9,8 +9,11 @@ import type {
   BattleLogEntry,
   DuelView,
 } from "@shared";
-import { createBattle, resolveTurn, createRng, outcomeFor } from "@shared";
+import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID } from "@shared";
 import { listen, say } from "../net/lobby";
+import { presence } from "../net/presence";
+import type { RaidBattleUpdate } from "../net/presence";
+import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant } from "../battle-participant";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
@@ -42,13 +45,20 @@ export interface DuelSceneData {
   myId: string;
 }
 
-/** Either a wild encounter (wildInstance/wildSpecies) or a duel (duel), never both. */
+/** An attempt on the family dragon: the server resolves every turn (and the dragon's moves). */
+export interface RaidSceneData {
+  battle: BattleState;
+  myId: string;
+}
+
+/** Exactly one of: a wild encounter (wildInstance/wildSpecies), a duel, or a raid attempt. */
 export interface BattleSceneData {
   save: SaveData;
   content: GameContent;
   wildInstance?: CreatureInstance;
   wildSpecies?: CreatureSpecies;
   duel?: DuelSceneData;
+  raid?: RaidSceneData;
 }
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -75,6 +85,7 @@ export class BattleScene extends Phaser.Scene {
   /** "player" in wild battles, the real player id in duels. */
   private myId = "player";
   private duel?: DuelSceneData;
+  private raid?: RaidSceneData;
   private finished = false;
 
   constructor() {
@@ -86,8 +97,13 @@ export class BattleScene extends Phaser.Scene {
     this.busy = false;
     this.finished = false;
     this.duel = data.duel;
+    this.raid = data.raid;
 
-    if (data.duel) {
+    if (data.raid) {
+      this.myId = data.raid.myId;
+      this.battleState = data.raid.battle;
+      this.wireRaid();
+    } else if (data.duel) {
       this.myId = data.duel.myId;
       this.battleState = data.duel.view.battle!;
       // This scene runs on top of the paused lobby, so it needs its own opaque background.
@@ -101,6 +117,7 @@ export class BattleScene extends Phaser.Scene {
       this.battleState = createBattle(Date.now(), player, wild);
     }
     this.buildUi();
+    playCreatureSound(this, this.foe().species);
   }
 
   private me(): BattleParticipant {
@@ -159,6 +176,50 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  private wireRaid(): void {
+    const onUpdate = (update: RaidBattleUpdate) => this.onRaidUpdate(update);
+    const onStatus = (status: string) => {
+      if (status !== "online") this.abortDuel(t("duel_connection_lost"), CONNECTION_LOST_ICON);
+    };
+    const onProblem = () => {
+      if (this.busy && !this.finished) {
+        this.busy = false;
+        this.renderActions();
+      }
+    };
+    presence.events.on("raidBattle", onUpdate);
+    presence.events.on("status", onStatus);
+    presence.events.on("problem", onProblem);
+    this.events.once("shutdown", () => {
+      presence.events.off("raidBattle", onUpdate);
+      presence.events.off("status", onStatus);
+      presence.events.off("problem", onProblem);
+    });
+  }
+
+  private onRaidUpdate(update: RaidBattleUpdate): void {
+    if (this.finished) return;
+    if (update.over === "defeated") return this.abortDuel(t("raid_won"), OUTCOME_ICONS.won);
+    const next = update.battle;
+    const previousLogLength = this.battleState.log.length;
+    this.battleState = next;
+    this.updateHpBars();
+    this.reactToEntries(next.log.slice(previousLogLength));
+    if (next.outcome === "ongoing") {
+      this.busy = false;
+      this.renderActions();
+      return;
+    }
+    this.finished = true;
+    this.clearActionButtons();
+    const dealt = next.log
+      .filter((e) => e.kind === "damage" && e.targetPlayerId === BOSS_PLAYER_ID)
+      .reduce((sum, e) => sum + (e.amount ?? 0), 0);
+    if (next.winnerId === this.myId) this.say(t("raid_won"), OUTCOME_ICONS.won);
+    else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
+    this.time.delayedCall(2200, () => this.endBattle());
+  }
+
   /** Shows a battle message with its icon. */
   private say(text: string, icon: string): void {
     this.logText.setText(text);
@@ -178,7 +239,8 @@ export class BattleScene extends Phaser.Scene {
     const player = this.me();
     const wild = this.foe();
 
-    this.wildSprite = this.add.image(width * 0.72, height * 0.28, this.textureFor(wild.species.spriteFront)).setScale(1.4);
+    // The dragon is drawn bigger than any monster.
+    this.wildSprite = this.add.image(width * 0.72, height * 0.28, this.textureFor(wild.species.spriteFront)).setScale(this.raid ? 2.1 : 1.4);
     this.wildHpBar = createHpBar(this, width * 0.72, height * 0.1, wild.species.navn);
 
     this.playerSprite = this.add.image(width * 0.28, height * 0.62, this.textureFor(player.species.spriteBack)).setScale(1.4);
@@ -204,7 +266,7 @@ export class BattleScene extends Phaser.Scene {
     const player = this.me();
     const moveIds = Object.keys(player.moves);
     const y = height - 90;
-    const canCatch = !this.duel; // you can't catch another player's monster
+    const canCatch = !this.duel && !this.raid; // you can't catch another player's monster, or the dragon
     const buttonCount = moveIds.length + (canCatch ? 2 : 1); // moves + flee (+ catch)
     const spacing = Math.min(220, (width - 80) / buttonCount);
     const startX = width / 2 - (spacing * (buttonCount - 1)) / 2;
@@ -285,6 +347,13 @@ export class BattleScene extends Phaser.Scene {
   private performTurn(playerAction: BattleAction): void {
     if (this.busy || this.finished || this.battleState.outcome !== "ongoing") return;
     this.busy = true;
+
+    if (this.raid) {
+      if (playerAction.kind === "catch") return;
+      this.clearActionButtons();
+      presence.send("raidAction", { action: playerAction });
+      return;
+    }
 
     if (this.duel) {
       if (playerAction.kind === "catch") return;
@@ -368,6 +437,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private endBattle(): void {
+    if (this.raid) {
+      // A raid attempt changes nobody's save; the damage lives on the server.
+      this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
+      return;
+    }
     if (this.duel) {
       // A duel changes nobody's save. Hand control back to the interaction screen underneath.
       this.finished = true;
@@ -390,12 +464,14 @@ export class BattleScene extends Phaser.Scene {
       this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
       const counts = this.battleData.save.caughtCounts;
       counts[wild.species.id] = (counts[wild.species.id] ?? 0) + 1;
+      // Counted on the family scoreboard when the server has acknowledged it (now, or once back online).
+      this.battleData.save.pendingScore.push({ id: crypto.randomUUID(), kind: "catch", at: new Date().toISOString() });
       if (!this.battleData.save.seenSpeciesIds.includes(wild.species.id)) {
         this.battleData.save.seenSpeciesIds.push(wild.species.id);
       }
     }
 
-    void persist();
+    void persist().then(() => presence.flushScore());
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
   }

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { t } from "../i18n/da";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -9,7 +10,7 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.add
-      .text(width / 2, height / 2, "Monsterjagt", {
+      .text(width / 2, height / 2, t("boot_title"), {
         fontFamily: "sans-serif",
         fontSize: "64px",
         color: "#ffce54",

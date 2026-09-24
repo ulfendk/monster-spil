@@ -9,8 +9,12 @@ export interface BattleParticipant {
   moves: Record<string, Move>;
 }
 
-/** "wild": one human vs. an AI-driven wild creature (catching allowed). "pvp": two humans, no catching. */
-export type BattleMode = "wild" | "pvp";
+/**
+ * "wild": one human vs. an AI-driven wild creature (catching allowed). "pvp": two humans, no
+ * catching, fleeing is a forfeit. "boss": one human vs. the family dragon — no catching, and
+ * fleeing just ends the attempt ("fled").
+ */
+export type BattleMode = "wild" | "pvp" | "boss";
 
 /**
  * participants[0] is "the player" and participants[1] is the opponent — that's
@@ -42,4 +46,6 @@ export interface BattleLogEntry {
   targetPlayerId?: string;
   /** Set on "damage" entries so the UI can show type-advantage feedback. */
   effectiveness?: "strong" | "weak" | "neutral";
+  /** Set on "damage" entries: how much HP it took. */
+  amount?: number;
 }

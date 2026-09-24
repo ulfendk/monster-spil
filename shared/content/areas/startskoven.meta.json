@@ -11,5 +11,6 @@
     { "speciesId": "boelgehale", "weight": 2 }
   ],
   "encounterRate": 0.1,
-  "playerStart": { "x": 32, "y": 24 }
+  "playerStart": { "x": 32, "y": 24 },
+  "minimap": { "tree": [2], "water": [4], "path": [5] }
 }

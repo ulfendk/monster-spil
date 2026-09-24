@@ -1,0 +1,11 @@
+{
+  "id": "drageunge",
+  "navn": "Drageunge",
+  "type": "ild",
+  "baseStats": { "hp": 44, "angreb": 14, "forsvar": 11, "fart": 11 },
+  "moveIds": ["gloedslag", "kloer", "varmeboelge"],
+  "spriteFront": "creatures/drageunge_front.png",
+  "spriteBack": "creatures/drageunge_back.png",
+  "sound": "creatures/drageunge.wav",
+  "catchRate": 0
+}

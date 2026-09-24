@@ -16,8 +16,14 @@ services:
       FAMILY_CODE: ${FAMILY_CODE:?set FAMILY_CODE to the family code}
       # Origin(s) of the client, comma-separated. Leave unset to allow any origin.
       # ALLOWED_ORIGINS: "https://<user>.github.io"
+    volumes:
+      # Scoreboard, dragon and unclaimed rewards (family.json) survive rebuilds here.
+      - monsterjagt-data:/data
     networks:
       - proxy
+
+volumes:
+  monsterjagt-data:
 
 networks:
   proxy:

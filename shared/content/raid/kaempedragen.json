@@ -1,0 +1,18 @@
+{
+  "id": "kaempedragen",
+  "navn": "Kæmpedragen",
+  "type": "ild",
+  "maxHp": 600,
+  "baseStats": { "hp": 600, "angreb": 12, "forsvar": 12, "fart": 9 },
+  "moves": [
+    { "id": "dragebrand", "navn": "Dragebrand", "type": "ild", "power": 45, "accuracy": 0.9 },
+    { "id": "halesmaek", "navn": "Halesmæk", "type": "sten", "power": 35, "accuracy": 0.95 },
+    { "id": "vingestorm", "navn": "Vingestorm", "type": "lyn", "power": 40, "accuracy": 0.85 }
+  ],
+  "spriteFront": "raid/kaempedragen_front.png",
+  "spriteBack": "raid/kaempedragen_back.png",
+  "sound": "raid/kaempedragen.wav",
+  "lair": { "areaId": "startskoven", "x": 5, "y": 3 },
+  "rewardSpeciesId": "drageunge",
+  "restSeconds": 60
+}

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { isAdjacent } from "@shared";
-import type { CreatureInstance, AreaMeta, LobbyPlayer } from "@shared";
+import type { CreatureInstance, AreaMeta, LobbyPlayer, BossDefinition } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
@@ -12,8 +12,13 @@ import { multiplayerEnabled } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { PresenceStatus } from "../net/presence";
 import { seatFor } from "../battle-participant";
+import { bossesById } from "../content/load-raid";
+import type { RaidBattleUpdate } from "../net/presence";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
+import { Minimap } from "../gfx/minimap";
+import type { MinimapDot } from "../gfx/minimap";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -28,6 +33,9 @@ interface TileCoord {
 const TILE_SIZE = 64;
 const MOVE_DURATION_MS = 160;
 const STATUS_ICON: Record<PresenceStatus, string> = { online: "👥", connecting: "⏳", offline: "📵", needCode: "🔑", off: "⚙️" };
+
+/** `pendingMeet` value meaning "I'm walking over to the dragon". */
+const DRAGON_MEET = "__dragon__";
 
 /** How another player is drawn on the map. */
 interface OtherView {
@@ -53,6 +61,8 @@ export class OverworldScene extends Phaser.Scene {
   private popup: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Container> = [];
   private toast?: Phaser.GameObjects.Text;
   private statusButton?: Phaser.GameObjects.Container;
+  private dragon?: { sprite: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text };
+  private minimap?: Minimap;
 
   constructor() {
     super("Overworld");
@@ -122,6 +132,8 @@ export class OverworldScene extends Phaser.Scene {
       };
       const tapped = this.playerAt(targetTile);
       if (tapped) return this.onTapPlayer(tapped);
+      const boss = this.visibleBoss();
+      if (boss && targetTile.x === boss.lair.x && targetTile.y === boss.lair.y) return this.onTapDragon(boss);
       const path = this.findPath(this.playerTile, targetTile);
       if (path.length > 0) {
         this.pendingPath = path;
@@ -129,12 +141,43 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
+    const minimapIds = area.meta.minimap ?? {};
+    this.minimap = new Minimap(
+      this,
+      this.map,
+      groundLayer,
+      grassLayer,
+      { tree: minimapIds.tree ?? area.meta.collisionGids, water: minimapIds.water ?? [], path: minimapIds.path ?? [] },
+      `minimap-${area.meta.id}`
+    );
+
     // HUD buttons stay put on screen while the camera scrolls.
     this.hudButton(this.scale.width - 60, "📖", () => this.openMonsterbog());
     if (multiplayerEnabled) {
       this.statusButton = this.hudButton(this.scale.width - 140, STATUS_ICON[presence.status], () => this.openSettings());
+      this.hudButton(this.scale.width - 220, SCORES_ICON, () => this.openOverlay("Scoreboard"));
       this.joinWorld();
     }
+  }
+
+  update(): void {
+    if (!this.minimap) return;
+    const dots: MinimapDot[] = this.visibleOthers().map((p) => ({
+      x: p.x,
+      y: p.y,
+      colour: Phaser.Display.Color.HexStringToColor(p.farve).color,
+      dim: p.busy || p.away,
+    }));
+    const boss = this.visibleBoss();
+    if (boss) dots.push({ x: boss.lair.x, y: boss.lair.y, colour: 0, kind: "dragon", dim: presence.raid?.defeated });
+    // My dot follows the sprite while it walks, not just the tile it left.
+    dots.push({
+      x: (this.player.x - TILE_SIZE / 2) / TILE_SIZE,
+      y: (this.player.y - TILE_SIZE / 2) / TILE_SIZE,
+      colour: Phaser.Display.Color.HexStringToColor(this.save.player.farve).color,
+      kind: "me",
+    });
+    this.minimap.draw(dots, this.cameras.main.worldView, TILE_SIZE);
   }
 
   // ------------------------------------------------------------ other players
@@ -154,7 +197,13 @@ export class OverworldScene extends Phaser.Scene {
     const onProblem = (reason: string) => {
       if (reason === "too far away") this.showToast(t("meet_far"));
       else if (reason === "player is busy") this.showToast(t("meet_busy"));
+      else if (reason === "dragon sleeping") this.showToast(`${SLEEP_ICON} ${t("raid_sleeping")}`);
+      else if (reason === "resting") this.showToast(`${REST_ICON} ${t("raid_resting")}`);
     };
+    const onRaid = () => this.syncDragon();
+    const onRaidBattle = (update: RaidBattleUpdate) => this.startRaidBattle(update);
+    presence.events.on("raid", onRaid);
+    presence.events.on("raidBattle", onRaidBattle);
     presence.events.on("players", onPlayers);
     presence.events.on("moved", onMoved);
     presence.events.on("interaction", onInteraction);
@@ -172,9 +221,84 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("interaction", onInteraction);
       presence.events.off("status", onStatus);
       presence.events.off("problem", onProblem);
+      presence.events.off("raid", onRaid);
+      presence.events.off("raidBattle", onRaidBattle);
     });
+    this.dragon = undefined;
+    this.syncDragon();
     // Coming back from a menu or a battle (onResume): show anyone who moved meanwhile, and anything waiting for me.
     this.syncOthers(true);
+  }
+
+  // ------------------------------------------------------------ the family dragon
+
+  /** The boss whose lair is on this map, while the server runs the raid (protocol v4). */
+  private visibleBoss(): BossDefinition | undefined {
+    if (!presence.raidSupported || !presence.raid) return undefined;
+    const boss = bossesById[presence.raid.bossId];
+    return boss && boss.lair.areaId === this.save.position.areaId ? boss : undefined;
+  }
+
+  /** Draws (or removes) the dragon at its lair, with its shared HP — or 💤 once the family has beaten it. */
+  private syncDragon(): void {
+    const boss = this.visibleBoss();
+    if (!boss) {
+      this.dragon?.sprite.destroy();
+      this.dragon?.label.destroy();
+      this.dragon = undefined;
+      return;
+    }
+    const raid = presence.raid!;
+    const centre = this.tileCentre(boss.lair);
+    if (!this.dragon) {
+      this.dragon = {
+        sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5),
+        label: this.add
+          .text(centre.x, centre.y - TILE_SIZE * 0.95, "", { fontFamily: "sans-serif", fontSize: "20px", color: "#ffffff", stroke: "#000000", strokeThickness: 4 })
+          .setOrigin(0.5)
+          .setDepth(7),
+      };
+    }
+    this.dragon.sprite.setAlpha(raid.defeated ? 0.45 : 1);
+    this.dragon.label.setText(raid.defeated ? SLEEP_ICON : `${DRAGON_ICON} ❤️ ${raid.hp}/${raid.maxHp}`);
+  }
+
+  private onTapDragon(boss: BossDefinition): void {
+    const raid = presence.raid;
+    if (!raid) return;
+    if (raid.defeated) return this.showToast(`${SLEEP_ICON} ${t("raid_sleeping")}`);
+    if (presence.restUntil > Date.now()) return this.showToast(`${REST_ICON} ${t("raid_resting")}`);
+    if (isAdjacent(this.myPosition(), boss.lair)) return this.showDragonChoice(boss);
+    this.walkNextTo(boss.lair, DRAGON_MEET);
+  }
+
+  private showDragonChoice(boss: BossDefinition): void {
+    this.closePopup();
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    const cy = height - 130;
+    const raid = presence.raid;
+    const bg = this.add.rectangle(cx, cy, 480, 190, 0x1b1f3b, 0.95).setStrokeStyle(4, 0xffffff);
+    const name = this.add
+      .text(cx, cy - 60, `${DRAGON_ICON} ${boss.navn}  ❤️ ${raid?.hp ?? "?"}`, { fontFamily: "sans-serif", fontSize: "28px", color: "#ffffff" })
+      .setOrigin(0.5);
+    const buttonOptions = { width: 150, height: 72, fontSize: "36px" };
+    const fight = createButton(this, cx - 90, cy + 25, "⚔️", () => {
+      presence.send("raidStart", { seat: seatFor(this.save, this.content) });
+      this.closePopup();
+    }, { ...buttonOptions, backgroundColor: 0xc62828 });
+    const cancel = createButton(this, cx + 90, cy + 25, "✗", () => this.closePopup(), { ...buttonOptions, backgroundColor: 0x555555 });
+    this.popup = [bg, name, fight, cancel];
+    for (const object of this.popup) object.setScrollFactor(0).setDepth(20);
+  }
+
+  /** The server accepted my attack: the battle takes over the screen until the attempt ends. */
+  private startRaidBattle(update: RaidBattleUpdate): void {
+    if (!this.scene.isActive() || update.over || update.battle.outcome !== "ongoing") return;
+    this.closePopup();
+    this.pendingPath = [];
+    const data: BattleSceneData = { save: this.save, content: this.content, raid: { battle: update.battle, myId: this.save.player.id } };
+    this.scene.start("Battle", data);
   }
 
   private visibleOthers(): LobbyPlayer[] {
@@ -247,17 +371,21 @@ export class OverworldScene extends Phaser.Scene {
   private onTapPlayer(player: LobbyPlayer): void {
     if (player.busy || player.away) return this.showToast(t("meet_busy"));
     if (isAdjacent(this.myPosition(), player)) return this.showMeeting(player);
+    this.walkNextTo(player, player.playerId);
+  }
 
+  /** Walks to the nearest free tile touching `target`; `meet` says what to offer on arrival (a playerId or DRAGON_MEET). */
+  private walkNextTo(target: TileCoord, meet: string): void {
     let best: TileCoord[] | undefined;
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
-        const path = this.findPath(this.playerTile, { x: player.x + dx, y: player.y + dy });
+        const path = this.findPath(this.playerTile, { x: target.x + dx, y: target.y + dy });
         if (path.length > 0 && (!best || path.length < best.length)) best = path;
       }
     }
     if (!best) return;
-    this.pendingMeet = player.playerId;
+    this.pendingMeet = meet;
     this.pendingPath = best;
     this.advancePath();
   }
@@ -325,7 +453,12 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private openSettings(): void {
-    this.scene.launch("Settings");
+    this.openOverlay("Settings");
+  }
+
+  private openOverlay(key: string): void {
+    this.closePopup();
+    this.scene.launch(key);
     this.scene.pause();
   }
 
@@ -337,6 +470,8 @@ export class OverworldScene extends Phaser.Scene {
 
   private isWalkable(x: number, y: number): boolean {
     if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
+    const boss = this.dragon ? this.visibleBoss() : undefined;
+    if (boss && boss.lair.x === x && boss.lair.y === y) return false; // nobody walks through the dragon
     const tile = this.groundLayer.getTileAt(x, y);
     return !!tile && !tile.collides;
   }
@@ -411,10 +546,16 @@ export class OverworldScene extends Phaser.Scene {
         }
 
         if (this.pendingPath.length === 0 && this.pendingMeet) {
-          // Walked over to someone: offer the choice if they're still next to me.
-          const target = presence.players.get(this.pendingMeet);
+          // Walked over to someone (or to the dragon): offer the choice if they're still next to me.
+          const meet = this.pendingMeet;
           this.pendingMeet = undefined;
-          if (target && isAdjacent(this.myPosition(), target)) this.showMeeting(target);
+          const boss = this.visibleBoss();
+          if (meet === DRAGON_MEET) {
+            if (boss && isAdjacent(this.myPosition(), boss.lair)) this.onTapDragon(boss);
+          } else {
+            const target = presence.players.get(meet);
+            if (target && isAdjacent(this.myPosition(), target)) this.showMeeting(target);
+          }
         }
 
         this.advancePath();

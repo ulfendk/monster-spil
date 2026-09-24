@@ -1,7 +1,9 @@
 import type { CreatureInstance } from "../types/creature.js";
-import type { BattleParticipant } from "../types/battle.js";
+import type { BattleParticipant, BattleState } from "../types/battle.js";
 import type { DuelAction, DuelView } from "../duel/duel-session.js";
 import type { WorldPosition } from "../world/adjacency.js";
+import type { RaidView } from "../raid/raid.js";
+import type { ScoreRow } from "../score/scoreboard.js";
 import type { TradeDelivery, TradeSession } from "./trade-session.js";
 
 /** Someone in the family lobby. No accounts — playerId is the id from their own save. */
@@ -32,12 +34,12 @@ export const FAMILY_CODE_REJECTED = 4401;
 /**
  * Bump when a message changes in a way older peers can't handle. v1 = trading
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
- * invites need adjacency. The server announces its version with the
+ * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -59,6 +61,21 @@ export interface ClientMessages {
   move: WorldPosition;
   /** True while I can't be approached (e.g. in a wild battle); false when I'm back on the map. */
   away: { away: boolean };
+  /** Start an attempt on the dragon; I must stand next to its lair and not be resting. */
+  raidStart: { seat: BattleParticipant };
+  raidAction: { action: DuelAction };
+  /** Catches made on this device (possibly while offline), so they count on the scoreboard. */
+  scoreReport: { events: Array<{ id: string; kind: "catch"; at: string }> };
+  getScores: Record<string, never>;
+  /** The reward has been added to my save and persisted; the server may forget it. */
+  rewardAck: { rewardId: string };
+}
+
+/** A creature the server hands out (e.g. for beating the dragon). Apply, persist, then send rewardAck. */
+export interface RewardDelivery {
+  rewardId: string;
+  reason: "dragon";
+  creature: CreatureInstance;
 }
 
 /** Server -> client message names and payloads. */
@@ -77,4 +94,15 @@ export interface ServerMessages {
   /** The duel as this player may see it, sent to both sides after every change. */
   duel: DuelView;
   duelEnded: { duelId: string; reason: "cancelled" | "left" };
+  /** The family dragon, sent on join and whenever its HP changes. */
+  raid: RaidView;
+  /**
+   * My own attempt on the dragon after each turn. `over` is set when the attempt
+   * has ended for a reason other than the battle outcome ("defeated": someone else
+   * beat it meanwhile). `restUntil` is when I may try again.
+   */
+  raidBattle: { battle: BattleState; over?: "defeated"; restUntil?: string };
+  scoreReportAck: { ids: string[] };
+  scores: { rows: ScoreRow[]; days: number };
+  reward: RewardDelivery;
 }

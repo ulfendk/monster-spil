@@ -6,6 +6,10 @@ import type {
   CreatureInstance,
   DuelView,
   LobbyPlayer,
+  BattleState,
+  RaidView,
+  RewardDelivery,
+  ScoreRow,
   TradeDelivery,
   TradeSession,
   WorldPosition,
@@ -13,10 +17,14 @@ import type {
 import { getState, persist } from "../save/game-state";
 import { getFamilyCode, joinLobby, listen, multiplayerEnabled, say } from "./lobby";
 import { t } from "../i18n/da";
+import { loadContent } from "../content/load-content";
 
 export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "offline";
 
-/** Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction", "duelActive" (DuelView), "received" (CreatureInstance), "problem" (reason). */
+/**
+ * Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction",
+ * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]).
+ */
 const HELLO_TIMEOUT_MS = 3000;
 const RETRY_MIN_MS = 3000;
 const RETRY_MAX_MS = 30000;
@@ -37,8 +45,13 @@ class Presence {
   trade: TradeSession | null = null;
   /** A duel invite that hasn't started yet; once active it belongs to the Battle scene. */
   duel: DuelView | null = null;
-  /** Set right after a completed trade, until the trade screen has shown it. */
+  /** Set right after a completed trade or a dragon reward, until the interaction screen has shown it. */
   received?: CreatureInstance;
+  receivedReason: "trade" | "dragon" = "trade";
+  /** The family dragon, once the server has told us about it (protocol v4+). */
+  raid?: RaidView;
+  /** When I may attack the dragon again (ms since epoch). */
+  restUntil = 0;
   /** One-shot message for the settings screen, e.g. a wrong family code. */
   notice?: string;
   /** One-shot message for the interaction screen, e.g. "the trade was cancelled" by the other player. */
@@ -59,6 +72,22 @@ class Presence {
   /** True when the server knows about positions (protocol v3+), so the map can show other players. */
   get worldSupported(): boolean {
     return typeof this.serverVersion === "number" && this.serverVersion >= 3;
+  }
+
+  /** True when the server runs the dragon raid and the scoreboard (protocol v4+). */
+  get raidSupported(): boolean {
+    return typeof this.serverVersion === "number" && this.serverVersion >= 4;
+  }
+
+  /** Sends catches the scoreboard hasn't counted yet (they wait in the save while offline). */
+  flushScore(): void {
+    const pending = getState()?.pendingScore ?? [];
+    if (pending.length && this.raidSupported) this.send("scoreReport", { events: pending.slice(0, 100) });
+  }
+
+  /** My own player id (from the save), for highlighting myself in lists. */
+  get myId(): string | undefined {
+    return getState()?.player.id;
   }
 
   get connectedRoom(): Room | undefined {
@@ -159,7 +188,19 @@ class Presence {
     listen(room, "hello", ({ protocolVersion }) => {
       this.serverVersion = protocolVersion;
       this.events.emit("players");
+      this.flushScore();
     });
+    listen(room, "raid", (view) => {
+      this.raid = view;
+      this.events.emit("raid", view);
+    });
+    listen(room, "raidBattle", (payload) => {
+      if (payload.restUntil) this.restUntil = Date.parse(payload.restUntil);
+      this.events.emit("raidBattle", payload);
+    });
+    listen(room, "scores", ({ rows }) => this.events.emit("scores", rows));
+    listen(room, "scoreReportAck", ({ ids }) => void this.scoreAcked(ids));
+    listen(room, "reward", (reward) => void this.receiveReward(reward));
     // An old server never says hello, so silence means it predates the shared map.
     setTimeout(() => {
       if (this.room === room && this.serverVersion === undefined) {
@@ -222,7 +263,9 @@ class Presence {
       this.trade = null;
       this.duel = null;
       this.serverVersion = undefined;
+      this.raid = undefined;
       this.events.emit("players");
+      this.events.emit("raid", undefined);
       this.setStatus("offline");
       this.scheduleRetry();
     });
@@ -245,8 +288,41 @@ class Presence {
     }
     this.trade = null;
     this.received = delivery.receive;
+    this.receivedReason = "trade";
+    this.events.emit("interaction");
+  }
+
+  private async scoreAcked(ids: string[]): Promise<void> {
+    const save = getState();
+    if (!save) return;
+    const done = new Set(ids);
+    save.pendingScore = save.pendingScore.filter((e) => !done.has(e.id));
+    await persist();
+    this.flushScore(); // more than 100 waiting: send the next batch
+  }
+
+  /** A baby dragon for helping beat the dragon: add it (once), persist, then let the server forget it. */
+  private async receiveReward(reward: RewardDelivery): Promise<void> {
+    const save = getState();
+    if (!save) return;
+    const species = loadContent().speciesById[reward.creature.speciesId];
+    if (!save.creatures.some((c) => c.instanceId === reward.creature.instanceId)) {
+      save.creatures.push({ ...reward.creature, currentHp: species?.baseStats.hp ?? reward.creature.currentHp });
+    }
+    if (!save.seenSpeciesIds.includes(reward.creature.speciesId)) save.seenSpeciesIds.push(reward.creature.speciesId);
+    try {
+      await persist();
+      this.send("rewardAck", { rewardId: reward.rewardId });
+    } catch (error) {
+      console.error("Kunne ikke gemme belønningen", error);
+    }
+    this.received = reward.creature;
+    this.receivedReason = "dragon";
     this.events.emit("interaction");
   }
 }
+
+export type RaidBattleUpdate = { battle: BattleState; over?: "defeated"; restUntil?: string };
+export type { RaidView, ScoreRow };
 
 export const presence = new Presence();

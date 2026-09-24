@@ -18,21 +18,21 @@ Vælg én type:
 
 🔥 Ild · 💧 Vand · 🌿 Græs · ⚡ Lyn · 🪨 Sten
 
-Find også på 2-4 angreb, som dit monster kan bruge i kamp.
+Find også på 2 til 4 angreb, som dit monster kan bruge i kamp.
 
-Find også på en lyd, som dit monster laver! 🔊 Optag den på iPad'en (Stemmememoer)
-eller lav den med munden. Den må gerne være kort — 1 til 2 sekunder.
+Hvilken lyd siger dit monster? 🔊 Optag den på iPad'en med appen Diktafon. Du kan
+bruge din stemme eller noget, der larmer. Den må gerne være kort — 1 til 2 sekunder.
 
 ## Trin 3: Spørg en voksen
 
-Bed en voksen om at lægge din monster-fil ind i spillet.
+Bed en voksen om at sætte dit monster ind i spillet.
 
 Her er et eksempel, som den voksne kan bruge som skabelon:
 
 ```json
 {
   "id": "dit-monsters-navn",
-  "navn": "Dit Monsters Navn",
+  "navn": "Dit monsters navn",
   "type": "ild",
   "baseStats": { "hp": 40, "angreb": 12, "forsvar": 10, "fart": 10 },
   "moveIds": ["gloedslag", "kloer"],
@@ -46,10 +46,12 @@ Her er et eksempel, som den voksne kan bruge som skabelon:
 - `navn` er navnet på dit monster.
 - `type` er én af de fem typer ovenfor (skriv `ild`, `vand`, `graes`, `lyn` eller `sten`).
 - `spriteFront`, `spriteBack` og `sound` er filnavne. Læg billederne (.png) og lyden
-  (.wav, .mp3 eller .m4a) i mappen `shared/content/creatures/` med præcis de navne.
-  Mangler en fil, bruger spillet en simpel figur og en lille bip-lyd i stedet.
+  (.wav, .mp3 eller .m4a) i mappen `shared/content/creatures/` med præcis de samme
+  navne. Mangler en fil, bruger spillet en simpel figur og en lille biplyd i stedet.
 - `hp`, `angreb`, `forsvar` og `fart` er tal — prøv omkring 30-50 for `hp` og
-  8-15 for de andre. Høje tal gør monsteret bedre til den ting.
+  8-15 for de andre. Jo højere tal, jo bedre er monsteret til den ting.
+- For at monsteret kan dukke op ude i naturen, skal det også stå i `encounterTable`
+  i `shared/content/areas/startskoven.meta.json` (`weight` er, hvor ofte det dukker op).
 
 ## Trin 4: Find dit monster i spillet!
 

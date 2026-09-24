@@ -260,3 +260,10 @@ test("wild: a win or loss also records winnerId, while fled and caught do not", 
   assert.equal(fled.winnerId, undefined);
   assert.equal(outcomeFor(fled, "player"), "fled");
 });
+
+test("battle texts use the Danish possessive: an extra s, or an apostrophe after s/x/z", async () => {
+  const { genitive } = await import("../engine.js");
+  assert.equal(genitive("Dryppel"), "Dryppels");
+  assert.equal(genitive("Flammepels"), "Flammepels'");
+  assert.equal(genitive("Max"), "Max'");
+});

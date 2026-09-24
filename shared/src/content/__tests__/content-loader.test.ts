@@ -19,11 +19,11 @@ function loadMoves(): Move[] {
   return JSON.parse(readFileSync(path.join(contentDir, "moves.json"), "utf-8")) as Move[];
 }
 
-test("all six placeholder creatures load and index without id collisions", () => {
+test("all creatures load and index without id collisions", () => {
   const species = loadCreatures();
-  assert.equal(species.length, 6);
+  assert.ok(species.length >= 7);
   const byId = indexCreatures(species);
-  assert.equal(Object.keys(byId).length, 6);
+  assert.equal(Object.keys(byId).length, species.length);
 });
 
 test("moves load and index without id collisions", () => {
@@ -59,6 +59,6 @@ test("every creature's sound file exists and is a format iPad Safari plays", () 
   }
 });
 
-test("the six starting monsters all have a cry", () => {
+test("every monster has a cry", () => {
   for (const s of loadCreatures()) assert.ok(s.sound, `${s.id} has no sound`);
 });

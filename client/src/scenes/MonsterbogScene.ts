@@ -6,7 +6,9 @@ import { getAreaAssets } from "../content/load-areas";
 import type { SaveData } from "../save/schema";
 import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton } from "../ui/Button";
-import { CAUGHT_ICON, OWNED_ICON, STEPS_ICON } from "../ui/icons";
+import { t } from "../i18n/da";
+import { CAUGHT_ICON, DRAGON_ICON, OWNED_ICON, STEPS_ICON } from "../ui/icons";
+import { bossesById } from "../content/load-raid";
 
 export interface MonsterbogSceneData {
   content: GameContent;
@@ -33,7 +35,7 @@ export class MonsterbogScene extends Phaser.Scene {
     const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0, 0);
     overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
 
-    this.add.text(width / 2, 36, "Monsterbog", { fontFamily: FONT, fontSize: "36px", color: "#ffffff" }).setOrigin(0.5, 0);
+    this.add.text(width / 2, 36, t("monsterbog_title"), { fontFamily: FONT, fontSize: "36px", color: "#ffffff" }).setOrigin(0.5, 0);
 
     const speciesList = Object.values(data.content.speciesById);
     const owned = new Map<string, number>();
@@ -72,6 +74,9 @@ export class MonsterbogScene extends Phaser.Scene {
         if (hint) {
           const text = hint.distance === 0 ? hint.arrow : `${STEPS_ICON} ${hint.distance} ${hint.arrow}`;
           this.add.text(x, y + 76, text, { fontFamily: FONT, fontSize: "22px", color: "#ffce54" }).setOrigin(0.5);
+        } else if (Object.values(bossesById).some((b) => b.rewardSpeciesId === species.id)) {
+          // Not found in the wild: this one hatches from beating the family dragon.
+          this.add.text(x, y + 76, DRAGON_ICON, { fontFamily: FONT, fontSize: "26px" }).setOrigin(0.5);
         }
       }
     });

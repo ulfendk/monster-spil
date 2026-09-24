@@ -21,7 +21,7 @@ export {
 export type { TradePhase, TradeSide, TradeSession, TradeResult, TradeDelivery } from "./trade/trade-session.js";
 export { applyDelivery } from "./trade/apply-trade.js";
 export { LOBBY_ROOM, FAMILY_CODE_REJECTED, PROTOCOL_VERSION } from "./trade/protocol.js";
-export type { LobbyPlayer, LobbyJoinOptions, ClientMessages, ServerMessages } from "./trade/protocol.js";
+export type { LobbyPlayer, LobbyJoinOptions, ClientMessages, ServerMessages, RewardDelivery } from "./trade/protocol.js";
 export {
   createDuel,
   acceptDuel,
@@ -40,3 +40,17 @@ export { isAdjacent } from "./world/adjacency.js";
 export type { WorldPosition } from "./world/adjacency.js";
 export { arrowFor, nearestSpot, paintedTiles } from "./world/hint.js";
 export type { SpotHint, Tile } from "./world/hint.js";
+export {
+  BOSS_PLAYER_ID,
+  bossSpecies,
+  contributors,
+  currentRaid,
+  freshRaid,
+  raidTurn,
+  raidView,
+  startAttempt,
+  weekIdFor,
+} from "./raid/raid.js";
+export type { BossDefinition, RaidState, RaidView, RaidTurnResult } from "./raid/raid.js";
+export { SCORE_POINTS, SCOREBOARD_DAYS, inWindow, scoreboard } from "./score/scoreboard.js";
+export type { ScoreEvent, ScoreKind, ScorePlayer, ScoreRow } from "./score/scoreboard.js";

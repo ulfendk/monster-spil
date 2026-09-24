@@ -13,6 +13,15 @@ import {
   duelInvolves,
   duelView,
   forfeitDuel,
+  contributors,
+  currentRaid,
+  inWindow,
+  raidTurn,
+  raidView,
+  scoreboard,
+  startAttempt,
+  weekIdFor,
+  SCOREBOARD_DAYS,
   involves,
   isAdjacent,
   sanitizeSeat,
@@ -21,10 +30,15 @@ import {
   timeoutTurn,
 } from "@monster-spil/shared";
 import { clientAddress, type FamilyGate } from "./family-gate.js";
+import type { FamilyStore } from "./family-store.js";
+import { bossForWeek } from "./bosses.js";
 import type {
   ClientMessages,
+  BattleState,
+  BossDefinition,
   CreatureInstance,
   DuelResult,
+  RaidState,
   DuelSession,
   LobbyJoinOptions,
   LobbyPlayer,
@@ -82,6 +96,11 @@ function cleanCreature(raw: unknown): CreatureInstance | undefined {
  * a delivery is idempotent). State is in memory only: a server restart drops
  * open trades and duels, which is fine because nothing has moved until
  * "tradeComplete", and a duel changes nobody's save.
+ *
+ * The family dragon, the weekly scoreboard and unclaimed rewards are the
+ * exception: they live in the FamilyStore (a JSON file on a volume) so they
+ * survive restarts. Each player fights the dragon in their own server-run battle;
+ * the damage comes off one shared HP pool (see shared/src/raid/raid.ts).
  */
 export class LobbyRoom extends Room {
   maxClients = 30;
@@ -93,6 +112,13 @@ export class LobbyRoom extends Room {
   private duels = new Map<string, DuelSession>();
   private duelTimers = new Map<string, { clear(): void }>();
   private gate!: FamilyGate;
+  private store!: FamilyStore;
+  private bosses!: BossDefinition[];
+  /** Each player's current attempt on the dragon. */
+  private raidBattles = new Map<string, BattleState>();
+  /** When each player may attack the dragon again (ms since epoch). */
+  private restUntil = new Map<string, number>();
+  private announcedWeek = "";
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. */
   onAuth(_client: Client, options: LobbyJoinOptions, context: AuthContext): boolean {
@@ -102,8 +128,19 @@ export class LobbyRoom extends Room {
     return true;
   }
 
-  onCreate(options: { gate: FamilyGate }): void {
+  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[] }): void {
     this.gate = options.gate;
+    this.store = options.store;
+    this.bosses = options.bosses;
+    this.announcedWeek = this.raid().weekId;
+    // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
+    this.clock.setInterval(() => {
+      const raid = this.raid();
+      if (raid.weekId !== this.announcedWeek) {
+        this.announcedWeek = raid.weekId;
+        this.broadcastRaid();
+      }
+    }, 60_000);
 
     this.onMessage("move", (client, msg: ClientMessages["move"]) => {
       const me = this.playerOf(client);
@@ -189,6 +226,84 @@ export class LobbyRoom extends Room {
       if (session && me) this.settleDuel(forfeitDuel(session, me.info.playerId), "cancelled");
     });
 
+    this.onMessage("raidStart", (client, msg: ClientMessages["raidStart"]) => {
+      const me = this.playerOf(client);
+      if (!me) return;
+      const id = me.info.playerId;
+      const boss = this.boss();
+      const raid = this.raid();
+      if (this.raidBattles.has(id)) return this.tell(client, "raidBattle", { battle: this.raidBattles.get(id)! });
+      if (me.info.busy || me.info.away) return this.problem(client, "player is busy");
+      if (!isAdjacent(me.info, boss.lair)) return this.problem(client, "too far away");
+      if (raid.hp <= 0) return this.problem(client, "dragon sleeping");
+      if ((this.restUntil.get(id) ?? 0) > Date.now()) return this.problem(client, "resting");
+      const seat = sanitizeSeat(msg?.seat, id);
+      if (!seat) return this.problem(client, "invalid creature");
+      const battle = startAttempt(raid, boss, seat, randomInt(0, 2 ** 31));
+      this.raidBattles.set(id, battle);
+      this.tell(client, "raidBattle", { battle });
+      this.broadcastPlayers();
+    });
+
+    this.onMessage("raidAction", (client, msg: ClientMessages["raidAction"]) => {
+      const me = this.playerOf(client);
+      const battle = me && this.raidBattles.get(me.info.playerId);
+      if (!me || !battle) return this.problem(client, "no raid");
+      const action = msg?.action;
+      if (action?.kind === "move" && !battle.participants[0].moves[String(action.moveId)]) return this.problem(client, "unknown move");
+      if (action?.kind !== "move" && action?.kind !== "flee") return this.problem(client, "unknown action");
+      const result = raidTurn(
+        this.raid(),
+        battle,
+        me.info.playerId,
+        action.kind === "move" ? { kind: "move", moveId: String(action.moveId) } : { kind: "flee" },
+        new Date()
+      );
+      this.store.data.raid = result.raid;
+      this.store.changed();
+      if (result.battle.outcome === "ongoing") {
+        this.raidBattles.set(me.info.playerId, result.battle);
+        this.tell(client, "raidBattle", { battle: result.battle });
+      } else {
+        this.endAttempt(me.info.playerId);
+        this.tell(client, "raidBattle", { battle: result.battle, restUntil: this.restIso(me.info.playerId) });
+      }
+      if (result.damage > 0) this.broadcastRaid();
+      if (result.defeatedNow) this.dragonDefeated(result.raid);
+    });
+
+    this.onMessage("scoreReport", (client, msg: ClientMessages["scoreReport"]) => {
+      const me = this.playerOf(client);
+      if (!me || !Array.isArray(msg?.events)) return;
+      const known = new Set(this.store.data.events.map((e) => e.id));
+      const ids: string[] = [];
+      const now = new Date();
+      for (const raw of msg.events.slice(0, 100)) {
+        if (!isText(raw?.id, 80)) continue;
+        // Acknowledge anything well-formed (even duplicates or stale ones), so the device stops re-sending it.
+        ids.push(raw.id);
+        if (raw.kind !== "catch" || typeof raw.at !== "string" || !inWindow(raw.at, now) || known.has(raw.id)) continue;
+        known.add(raw.id);
+        this.store.data.events.push({ id: raw.id, playerId: me.info.playerId, kind: "catch", at: new Date(raw.at).toISOString() });
+      }
+      this.store.changed();
+      this.tell(client, "scoreReportAck", { ids });
+    });
+
+    this.onMessage("getScores", (client) => {
+      const rows = scoreboard(this.store.data.events, this.store.data.players, new Date());
+      this.tell(client, "scores", { rows, days: SCOREBOARD_DAYS });
+    });
+
+    this.onMessage("rewardAck", (client, msg: ClientMessages["rewardAck"]) => {
+      const me = this.playerOf(client);
+      if (!me) return;
+      const left = (this.store.data.rewards[me.info.playerId] ?? []).filter((r) => r.rewardId !== msg?.rewardId);
+      if (left.length) this.store.data.rewards[me.info.playerId] = left;
+      else delete this.store.data.rewards[me.info.playerId];
+      this.store.changed();
+    });
+
     this.onMessage("ack", (client, msg: ClientMessages["ack"]) => {
       const me = this.playerOf(client);
       if (!me) return;
@@ -219,8 +334,14 @@ export class LobbyRoom extends Room {
     };
     this.online.set(info.playerId, { client, info });
 
+    // Remember every family member, so the scoreboard lists them even while they are offline.
+    this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, lastSeen: new Date().toISOString() };
+    this.store.changed();
+
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });
+    this.tell(client, "raid", raidView(this.raid()));
     for (const delivery of this.pending.get(info.playerId) ?? []) this.tell(client, "tradeComplete", delivery);
+    for (const reward of this.store.data.rewards[info.playerId] ?? []) this.tell(client, "reward", reward);
     this.broadcastPlayers();
   }
 
@@ -236,6 +357,68 @@ export class LobbyRoom extends Room {
     for (const session of [...this.duels.values()]) {
       if (duelInvolves(session, me.info.playerId)) this.settleDuel(forfeitDuel(session, me.info.playerId), "left");
     }
+    // Leaving mid-attempt just ends it; damage already dealt stays on the dragon.
+    if (this.raidBattles.has(me.info.playerId)) this.endAttempt(me.info.playerId);
+    this.broadcastPlayers();
+  }
+
+  // ------------------------------------------------------------ dragon and scoreboard
+
+  private boss(): BossDefinition {
+    return bossForWeek(this.bosses, weekIdFor(new Date()));
+  }
+
+  /** This week's dragon, waking a fresh one (and saving it) when a new week has begun. */
+  private raid(): RaidState {
+    const stored = this.store.data.raid;
+    const raid = currentRaid(stored, this.boss(), new Date());
+    if (raid !== stored) {
+      this.store.data.raid = raid;
+      this.store.changed();
+    }
+    return raid;
+  }
+
+  private broadcastRaid(): void {
+    const view = raidView(this.raid());
+    for (const entry of this.online.values()) this.tell(entry.client, "raid", view);
+  }
+
+  private endAttempt(playerId: string): void {
+    this.raidBattles.delete(playerId);
+    this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
+    this.broadcastPlayers();
+  }
+
+  private restIso(playerId: string): string | undefined {
+    const until = this.restUntil.get(playerId);
+    return until ? new Date(until).toISOString() : undefined;
+  }
+
+  /** Everyone who hurt the dragon this week shares the win: a scoreboard event and a baby dragon each. */
+  private dragonDefeated(raid: RaidState): void {
+    const boss = this.boss();
+    const at = new Date().toISOString();
+    for (const playerId of contributors(raid)) {
+      this.store.data.events.push({ id: randomUUID(), playerId, kind: "dragon", at, ...(playerId === raid.finalBlowBy ? { finalBlow: true } : {}) });
+      const reward = {
+        rewardId: randomUUID(),
+        reason: "dragon" as const,
+        // HP is set to the species' full HP by the device, which knows the species' stats.
+        creature: { instanceId: randomUUID(), speciesId: boss.rewardSpeciesId, ownerId: playerId, niveau: 1, currentHp: 1, caughtAt: at },
+      };
+      this.store.data.rewards[playerId] = [...(this.store.data.rewards[playerId] ?? []), reward];
+      const target = this.online.get(playerId);
+      if (target) this.tell(target.client, "reward", reward);
+    }
+    // Anyone else mid-attempt: the dragon is gone, so their attempt ends too.
+    for (const [playerId, battle] of [...this.raidBattles]) {
+      this.raidBattles.delete(playerId);
+      const target = this.online.get(playerId);
+      if (target) this.tell(target.client, "raidBattle", { battle, over: "defeated" });
+    }
+    this.store.changed();
+    this.broadcastRaid();
     this.broadcastPlayers();
   }
 
@@ -272,6 +455,11 @@ export class LobbyRoom extends Room {
     if (session.phase === "done") {
       this.pushDuel(session);
       this.duels.delete(session.id);
+      const winnerId = session.battle?.winnerId;
+      if (winnerId) {
+        this.store.data.events.push({ id: randomUUID(), playerId: winnerId, kind: "duel", at: new Date().toISOString() });
+        this.store.changed();
+      }
     } else if (session.phase === "cancelled") {
       this.duels.delete(session.id);
       for (const playerId of [session.inviterId, session.inviteeId]) {
@@ -380,6 +568,7 @@ export class LobbyRoom extends Room {
       busy.add(s.inviterId);
       busy.add(s.inviteeId);
     }
+    for (const playerId of this.raidBattles.keys()) busy.add(playerId);
     const players = [...this.online.values()].map(({ info }) => ({ ...info, busy: busy.has(info.playerId) }));
     for (const entry of this.online.values()) {
       entry.info.busy = busy.has(entry.info.playerId);

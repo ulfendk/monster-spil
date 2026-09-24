@@ -1,6 +1,6 @@
 # Self-hosting the family server
 
-The multiplayer server (lobby + trading + duels) is a small Node/Colyseus container.
+The multiplayer server (lobby, trading, duels, the family dragon and the weekly scoreboard) is a small Node/Colyseus container.
 Solo play never needs it — the client only connects (and shows the ⚙ button) when
 it was built with a server URL. Players on the same server see each other walking
 around the shared map and can trade or duel when they stand next to each other.
@@ -68,14 +68,26 @@ services:
       FAMILY_CODE: "<your family code>"
       # Optional: only let browsers from the client's site call the matchmaking endpoint.
       # ALLOWED_ORIGINS: "https://ulfendk.github.io"
+    volumes:
+      # The weekly scoreboard, the dragon's HP and unclaimed rewards (one small JSON file).
+      - monsterjagt-data:/data
     networks:
       - proxy
+
+volumes:
+  monsterjagt-data:
 
 networks:
   proxy:
     external: true
     name: npm_default # the Docker network your Nginx Proxy Manager container is on
 ```
+
+**The `/data` volume** holds `family.json`: the last week's scoreboard events,
+everyone who has joined (so offline family members stay on the board), this week's
+dragon and any baby-dragon rewards not yet delivered. Without the volume the
+server still runs, but all of that resets whenever the container is recreated
+(e.g. on every *Pull and redeploy*). Back it up if you like — it is plain JSON.
 
 Find the network name with `docker network ls` (or in Portainer → Networks). To
 update later: Portainer → the stack → *Pull and redeploy*.
@@ -158,3 +170,12 @@ trusted dev certificate, or put the dev server behind NPM too.
   ready, so it catches up on its own.
 - Positions are held in server memory only: a restart empties the map until
   clients reconnect (they do so automatically, retrying every 3–30 seconds).
+- **The family dragon** wakes every Monday at 00:00 Danish time with full HP. Each
+  attempt is fought on the server; damage comes off one shared HP pool. After an
+  attempt a player rests 60 seconds. When the family beats it, everyone who hurt
+  it that week gets a Drageunge (delivered on their next connect if offline). Its
+  stats, HP, rest time and lair are in `shared/content/raid/kaempedragen.json`;
+  another JSON file there adds a second boss, and the bosses take turns weekly.
+- **The scoreboard** (🏆) shows the last 7 days: catches (1 point, reported by the
+  device — offline catches count once it reconnects), duels won (2), dragon
+  victories (5, +3 for the final blow).

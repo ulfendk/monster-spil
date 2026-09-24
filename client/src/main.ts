@@ -9,6 +9,7 @@ import { MonsterbogScene } from "./scenes/MonsterbogScene";
 import { MonsterInfoScene } from "./scenes/MonsterInfoScene";
 import { InteractScene } from "./scenes/InteractScene";
 import { SettingsScene } from "./scenes/SettingsScene";
+import { ScoreboardScene } from "./scenes/ScoreboardScene";
 import { keepAppUpToDate } from "./pwa-update";
 
 keepAppUpToDate();
@@ -26,5 +27,5 @@ new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene],
+  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene],
 });

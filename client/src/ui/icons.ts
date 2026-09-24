@@ -39,3 +39,12 @@ export const SOUND_ICON = "🔊";
 export const STAT_ICONS = { hp: "❤️", angreb: "⚔️", forsvar: "🛡️", fart: "👟" } as const;
 export const POWER_ICON = "💥";
 export const STEPS_ICON = "👣";
+
+/** The family dragon and the scoreboard. */
+export const DRAGON_ICON = "🐉";
+export const SLEEP_ICON = "💤";
+export const REST_ICON = "⏳";
+export const SCORES_ICON = "🏆";
+export const DUEL_WIN_ICON = "⚔️";
+export const POINTS_ICON = "⭐";
+export const MEDALS = ["🥇", "🥈", "🥉"] as const;

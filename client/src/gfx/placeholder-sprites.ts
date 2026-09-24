@@ -17,22 +17,51 @@ const SPRITE_SIZE = 128;
  * species.spriteFront/spriteBack. Dropping a real drawing in at that same
  * texture key later requires no code change — only deleting this module.
  */
-export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[]): void {
+/** `dragonIds`: species drawn with wings and horns (the raid bosses and the babies they give), so they don't look like ordinary monsters. */
+export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[], dragonIds: ReadonlySet<string> = new Set()): void {
   for (const s of species) {
+    const dragon = dragonIds.has(s.id);
     if (!scene.textures.exists(s.spriteFront)) {
-      drawCreature(scene, s, s.spriteFront, false);
+      drawCreature(scene, s, s.spriteFront, false, dragon);
     }
     if (!scene.textures.exists(s.spriteBack)) {
-      drawCreature(scene, s, s.spriteBack, true);
+      drawCreature(scene, s, s.spriteBack, true, dragon);
     }
   }
 }
 
-function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean): void {
+function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean, dragon: boolean): void {
   const g = scene.add.graphics();
   const bodyColor = TYPE_COLOURS[species.type];
   const cx = SPRITE_SIZE / 2;
   const cy = SPRITE_SIZE / 2 + 8;
+
+  if (dragon) {
+    // Bat-like wings behind the body, in a darker shade, and two horns instead of the type accent.
+    const wing = Phaser.Display.Color.IntegerToColor(bodyColor).darken(35).color;
+    g.fillStyle(wing, 1);
+    g.fillTriangle(cx - 20, cy - 10, cx - 62, cy - 42, cx - 50, cy + 18);
+    g.fillTriangle(cx + 20, cy - 10, cx + 62, cy - 42, cx + 50, cy + 18);
+    g.fillStyle(bodyColor, 1);
+    g.fillEllipse(cx, cy, SPRITE_SIZE * 0.62, SPRITE_SIZE * 0.56);
+    g.fillStyle(0xfff3c4, 1);
+    g.fillTriangle(cx - 26, cy - 22, cx - 18, cy - 50, cx - 10, cy - 28);
+    g.fillTriangle(cx + 26, cy - 22, cx + 18, cy - 50, cx + 10, cy - 28);
+    if (!isBack) {
+      g.fillStyle(0xffe066, 1);
+      g.fillCircle(cx - 16, cy - 6, 8);
+      g.fillCircle(cx + 16, cy - 6, 8);
+      g.fillStyle(0x1b1f3b, 1);
+      g.fillEllipse(cx - 16, cy - 6, 4, 12);
+      g.fillEllipse(cx + 16, cy - 6, 4, 12);
+      g.fillStyle(0xffffff, 1);
+      g.fillTriangle(cx - 12, cy + 14, cx - 6, cy + 24, cx, cy + 14);
+      g.fillTriangle(cx, cy + 14, cx + 6, cy + 24, cx + 12, cy + 14);
+    }
+    g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
+    g.destroy();
+    return;
+  }
 
   g.fillStyle(bodyColor, 1);
   g.fillEllipse(cx, cy, SPRITE_SIZE * 0.7, SPRITE_SIZE * 0.6);

@@ -1,6 +1,6 @@
-// Generates a placeholder cry for each of the six starting monsters:
+// Generates placeholder cries for the monsters and the raid dragon:
 //   node scripts/generate-creature-sounds.mjs
-// Writes shared/content/creatures/<id>.wav (mono, 16-bit, 22.05 kHz). These are
+// Writes shared/content/creatures/<id>.wav and shared/content/raid/<id>.wav (mono, 16-bit, 22.05 kHz). These are
 // stand-ins: to give a monster its own voice, record a sound and save it over the
 // file (or under the name in the monster's "sound" field), then rebuild.
 // Dependency-free on purpose (hand-written WAV encoder).
@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../shared/content/creatures");
+const CONTENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../shared/content");
 const SR = 22050;
 const TAU = Math.PI * 2;
 
@@ -32,9 +32,29 @@ const lowpass = (fc) => {
 };
 const smooth = (x) => x * x * (3 - 2 * x);
 
+/** A roar: a growling, pitch-bending sawtooth with breathy noise. `pitch` scales it (small dragon = higher). */
+function roar(seconds, pitch, seed) {
+  const r = rng(seed);
+  const lp = lowpass(1400 * pitch);
+  const breath = lowpass(2500);
+  let phase = 0;
+  return make(seconds, (t) => {
+    const x = t / seconds;
+    const f = pitch * (70 + 90 * Math.sin(Math.PI * Math.min(1, x * 1.3)));
+    phase += (f * (1 + 0.08 * Math.sin(TAU * 11 * t))) / SR;
+    const env = smooth(Math.min(1, x / 0.15)) * (1 - smooth(Math.max(0, (x - 0.55) / 0.45)));
+    const body = lp(saw(phase) + 0.5 * saw(phase * 1.51)) * (0.7 + 0.3 * Math.sin(TAU * 27 * t));
+    return env * (body * 1.6 + breath(r() * 2 - 1) * 0.5);
+  });
+}
+
 const sounds = {
+  // Fire dragon hatchling: a small, squeaky roar.
+  "creatures/drageunge": () => roar(0.9, 2.4, 7),
+  // The raid dragon: a long, deep roar.
+  "raid/kaempedragen": () => roar(1.8, 1, 8),
   // Fire: a crackling growl.
-  flammepels() {
+  "creatures/flammepels"() {
     const r = rng(1);
     const lp = lowpass(900);
     let phase = 0;
@@ -47,7 +67,7 @@ const sounds = {
     });
   },
   // Water: three rising bubbles.
-  dryppel() {
+  "creatures/dryppel"() {
     return make(0.85, (t) => {
       let out = 0;
       for (const start of [0.05, 0.3, 0.55]) {
@@ -60,7 +80,7 @@ const sounds = {
     });
   },
   // Grass: a rustle, then a two-note chirp.
-  lovgro() {
+  "creatures/lovgro"() {
     const r = rng(3);
     let prev = 0;
     return make(0.85, (t) => {
@@ -79,7 +99,7 @@ const sounds = {
     });
   },
   // Lightning: a fast falling zap with crackle.
-  gnistrot() {
+  "creatures/gnistrot"() {
     const r = rng(4);
     let phase = 0;
     return make(0.6, (t) => {
@@ -92,7 +112,7 @@ const sounds = {
     });
   },
   // Stone: a thud and a low rumble.
-  stenbid() {
+  "creatures/stenbid"() {
     const r = rng(5);
     const lp = lowpass(220);
     let p1 = 0;
@@ -106,7 +126,7 @@ const sounds = {
     });
   },
   // Wave: a whoosh that swells and ebbs, with a gliding hum.
-  boelgehale() {
+  "creatures/boelgehale"() {
     const r = rng(6);
     let y = 0;
     let phase = 0;
@@ -140,8 +160,8 @@ function encodeWav(samples) {
   return Buffer.concat([header, data]);
 }
 
-for (const [id, build] of Object.entries(sounds)) {
+for (const [name, build] of Object.entries(sounds)) {
   const samples = build();
-  writeFileSync(path.join(OUT, `${id}.wav`), encodeWav(samples));
-  console.log(`${id}.wav  ${(samples.length / SR).toFixed(2)} s`);
+  writeFileSync(path.join(CONTENT, `${name}.wav`), encodeWav(samples));
+  console.log(`${name}.wav  ${(samples.length / SR).toFixed(2)} s`);
 }

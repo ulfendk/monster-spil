@@ -34,7 +34,7 @@ const b = await join("bob", at(30, 30));
 const c = await join("carol"); // an old-style client: no position
 await wait(400);
 
-check("hello carries protocol version 3", a.got.hello?.protocolVersion === 3);
+check("hello carries protocol version 3 or newer", a.got.hello?.protocolVersion >= 3);
 const bobInList = a.got.players.find((p) => p.playerId === "bob");
 check("players carry their join position", bobInList?.x === 30 && bobInList?.y === 30 && bobInList?.areaId === "skov");
 check("a client without a position is listed but nowhere", a.got.players.find((p) => p.playerId === "carol")?.areaId === "");

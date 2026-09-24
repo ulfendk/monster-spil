@@ -229,7 +229,7 @@ export class InteractScene extends Phaser.Scene {
   private drawReceived(creature: CreatureInstance): void {
     const { width, height } = this.scale;
     const species = this.sceneData.content.speciesById[creature.speciesId];
-    this.addText(width / 2, 100, t("trade_done"), 48, "#ffce54");
+    this.addText(width / 2, 100, presence.receivedReason === "dragon" ? `🐉 ${t("reward_dragon")}` : t("trade_done"), 48, "#ffce54");
     this.addOfferCircle(width / 2, height / 2, species, false, 90);
     if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
     this.addButton(width / 2, height - 90, "OK", () => {

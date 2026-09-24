@@ -105,7 +105,7 @@ export function resolveTurn(
       log.push({
         turn,
         kind: "miss",
-        text: `${speciesName(attacker)}s ${move.navn} ramte ikke!`,
+        text: `${genitive(speciesName(attacker))} ${move.navn} ramte ikke!`,
         targetPlayerId: defender.playerId,
       });
       continue;
@@ -117,9 +117,10 @@ export function resolveTurn(
     log.push({
       turn,
       kind: "damage",
-      text: `${speciesName(attacker)} brugte ${move.navn} og gav ${damage} skade!`,
+      text: `${speciesName(attacker)} brugte ${move.navn} og gjorde ${damage} i skade!`,
       targetPlayerId: defender.playerId,
       effectiveness: multiplier > 1 ? "strong" : multiplier < 1 ? "weak" : "neutral",
+      amount: damage,
     });
 
     if (defender.active.currentHp === 0) {
@@ -172,6 +173,11 @@ function otherParticipant(
   p: BattleParticipant
 ): BattleParticipant {
   return participants[0].playerId === p.playerId ? participants[1] : participants[0];
+}
+
+/** Danish possessive: "Dryppels", but "Flammepels'" for names already ending in s, x or z. */
+export function genitive(name: string): string {
+  return /[sxz]$/i.test(name) ? `${name}'` : `${name}s`;
 }
 
 function speciesName(p: BattleParticipant): string {

@@ -4,6 +4,8 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { LOBBY_ROOM } from "@monster-spil/shared";
 import { LobbyRoom } from "./LobbyRoom.js";
 import { FamilyGate } from "./family-gate.js";
+import { FamilyStore } from "./family-store.js";
+import { loadBosses } from "./bosses.js";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -43,9 +45,14 @@ if (gate.isOpen) {
   }
   console.warn("WARNING: FAMILY_CODE is not set — anyone who can reach this server can join. Fine for local dev only.");
 }
-gameServer.define(LOBBY_ROOM, LobbyRoom, { gate });
+// Scores, the dragon and unclaimed rewards are kept in DATA_DIR/family.json (a volume in Docker).
+const dataDir = process.env.DATA_DIR ?? "data";
+const store = await FamilyStore.open(dataDir);
+const bosses = await loadBosses();
+gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses });
+gameServer.onShutdown(() => store.flush());
 
 await gameServer.listen(port);
-console.log(`Monsterjagt server listening on :${port}`);
+console.log(`Monsterjagt server listening on :${port} (data in ${dataDir})`);
 
 // Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.

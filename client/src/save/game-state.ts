@@ -35,5 +35,6 @@ function normalise(save: SaveData | undefined): SaveData | undefined {
       save.caughtCounts[creature.speciesId] = (save.caughtCounts[creature.speciesId] ?? 0) + 1;
     }
   }
+  if (save && !save.pendingScore) save.pendingScore = [];
   return save;
 }

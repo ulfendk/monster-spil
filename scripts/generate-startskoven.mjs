@@ -203,7 +203,8 @@ writeFileSync(path.join(AREAS, "startskoven-tileset.png"), encodePng(drawTileset
 const metaPath = path.join(AREAS, "startskoven.meta.json");
 const metaText = readFileSync(metaPath, "utf8")
   .replace(/"collisionGids":\s*\[[^\]]*\]/, `"collisionGids": [${TREE}, ${WATER}]`)
-  .replace(/"playerStart":\s*\{[^}]*\}/, `"playerStart": { "x": ${START.x}, "y": ${START.y} }`);
+  .replace(/"playerStart":\s*\{[^}]*\}/, `"playerStart": { "x": ${START.x}, "y": ${START.y} }`)
+  .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}], "water": [${WATER}], "path": [${PATH}] }`);
 writeFileSync(metaPath, metaText);
 
 console.log(`Startskoven ${W}x${H}: ${reach.size} walkable tiles, ${grassTiles} grass tiles, ${sealed} sealed-off tiles turned to trees`);
