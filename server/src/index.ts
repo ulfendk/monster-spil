@@ -6,6 +6,7 @@ import { LobbyRoom } from "./LobbyRoom.js";
 import { FamilyGate } from "./family-gate.js";
 import { FamilyStore } from "./family-store.js";
 import { loadBosses } from "./bosses.js";
+import { loadFoodSpots } from "./areas.js";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -49,7 +50,9 @@ if (gate.isOpen) {
 const dataDir = process.env.DATA_DIR ?? "data";
 const store = await FamilyStore.open(dataDir);
 const bosses = await loadBosses();
-gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses });
+// Food grows on open ground; never on a dragon's lair.
+const foodSpots = await loadFoodSpots(bosses.map((b) => b.lair));
+gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses, foodSpots });
 gameServer.onShutdown(() => store.flush());
 
 await gameServer.listen(port);

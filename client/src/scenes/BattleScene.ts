@@ -10,7 +10,7 @@ import type {
   DuelView,
   TeamView,
 } from "@shared";
-import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID } from "@shared";
+import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromDamage, closenessFromFoe, passOutUntil } from "@shared";
 import { listen, say } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
@@ -18,7 +18,7 @@ import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant } from "../battle-participant";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
-import { persist } from "../save/game-state";
+import { passOut, persist } from "../save/game-state";
 import { createButton } from "../ui/Button";
 import { createHpBar } from "../ui/HpBar";
 import type { HpBarHandle } from "../ui/HpBar";
@@ -103,6 +103,8 @@ export class BattleScene extends Phaser.Scene {
   /** Teammates' HP, shown as a row of small labels at the top in a team fight. */
   private allies?: Phaser.GameObjects.Text;
   private finished = false;
+  /** Set once my monster has fainted and the pass-out wait has been started. */
+  private passedOut = false;
 
   constructor() {
     super("Battle");
@@ -112,6 +114,7 @@ export class BattleScene extends Phaser.Scene {
     this.battleData = data;
     this.busy = false;
     this.finished = false;
+    this.passedOut = false;
     this.duel = data.duel;
     this.raid = data.raid;
     this.team = data.team;
@@ -194,6 +197,10 @@ export class BattleScene extends Phaser.Scene {
 
     if (next.outcome !== "ongoing") {
       this.finished = true;
+      // Losing a duel by fainting (not by running away) means passing out.
+      if (outcomeFor(next, this.myId) === "lost" && this.me().active.currentHp <= 0) {
+        this.startPassOut(closenessFromFoe(this.foe().active.currentHp, this.foe().species.baseStats.hp));
+      }
       this.showOutcomeMessage(outcomeFor(next, this.myId));
       this.clearActionButtons();
       this.time.delayedCall(1400, () => this.endBattle());
@@ -243,6 +250,8 @@ export class BattleScene extends Phaser.Scene {
     this.battleState = next;
     this.updateHpBars();
     this.reactToEntries(next.log.slice(previousLogLength));
+    // My monster fainted: my pass-out wait starts now, even if the team fights on.
+    if (this.meInTeam(view)?.status === "fainted") this.startPassOut(closenessFromDamage(this.dealtToDragon(), this.me().species.baseStats.hp));
 
     if (view.phase === "done") {
       this.finished = true;
@@ -330,7 +339,22 @@ export class BattleScene extends Phaser.Scene {
       .reduce((sum, e) => sum + (e.amount ?? 0), 0);
     if (next.winnerId === this.myId) this.say(t("raid_won"), OUTCOME_ICONS.won);
     else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
+    if (next.outcome === "lost") this.startPassOut(closenessFromDamage(dealt, this.me().species.baseStats.hp));
     this.time.delayedCall(2200, () => this.endBattle());
+  }
+
+  /** My monster fainted: start the pass-out wait (once), longer the less of a fight it was. */
+  private startPassOut(closeness: number): void {
+    if (this.passedOut) return;
+    this.passedOut = true;
+    void passOut(closeness);
+  }
+
+  /** Damage my monster dealt to the dragon in this fight. */
+  private dealtToDragon(): number {
+    return this.battleState.log
+      .filter((e) => e.kind === "damage" && e.targetPlayerId === BOSS_PLAYER_ID && (e.actorPlayerId ?? this.myId) === this.myId)
+      .reduce((sum, e) => sum + (e.amount ?? 0), 0);
   }
 
   /** Shows a battle message with its icon. */
@@ -614,10 +638,15 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const player = this.battleState.participants[0];
+    if (this.battleState.outcome === "lost") {
+      // Fainting in the wild: pass out for a while (the monster is healed meanwhile).
+      const wild = this.battleState.participants[1];
+      this.battleData.save.passedOutUntil = passOutUntil(new Date(), closenessFromFoe(wild.active.currentHp, wild.species.baseStats.hp));
+    }
     const saved = this.battleData.save.creatures.find((c) => c.instanceId === player.active.instanceId);
     if (saved) {
-      // No healing items exist yet in Milestone 1, so a loss auto-heals rather
-      // than permanently soft-locking the player's only creature at 0 HP.
+      // A loss heals the monster (it recovers while the player is passed out), rather
+      // than soft-locking the player's only creature at 0 HP.
       saved.currentHp =
         this.battleState.outcome === "lost" ? player.species.baseStats.hp : player.active.currentHp;
     }

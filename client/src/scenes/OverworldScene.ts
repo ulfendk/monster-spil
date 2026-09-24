@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, isAdjacent } from "@shared";
+import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAdjacent, secondsLeft } from "@shared";
 import type { CreatureInstance, AreaMeta, LobbyPlayer, BossDefinition } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
@@ -73,6 +73,11 @@ export class OverworldScene extends Phaser.Scene {
   private stick?: Phaser.GameObjects.Graphics;
   /** The player has moved since the position was last saved. */
   private positionDirty = false;
+  private foodSprites = new Map<string, Phaser.GameObjects.Text>();
+  private bagChip?: Phaser.GameObjects.Text;
+  /** The "passed out" panel (😵, countdown, food to eat) while the player can't move. */
+  private passOutUi: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container> = [];
+  private passOutTimer?: Phaser.Time.TimerEvent;
   private dragon?: { sprite: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text };
   private minimap?: Minimap;
 
@@ -142,6 +147,7 @@ export class OverworldScene extends Phaser.Scene {
       // A UI button (e.g. the Monsterbog corner button) already handled this tap.
       if (this.input.hitTestPointer(pointer).length > 0) return;
       if (this.drag) return; // one steering finger at a time
+      if (this.isPassedOut()) return; // can't move (or meet anyone) while passed out
       this.closePopup();
       this.pendingMeet = undefined;
       this.pendingPath = [];
@@ -189,13 +195,159 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     this.buildHud();
+    this.foodSprites.clear();
+    this.bagChip = undefined;
+    this.passOutUi = [];
+    this.passOutTimer = undefined;
     // Rotating the phone: the camera resizes itself; the HUD, popups and the open map are laid out again.
     onRelayout(this, () => {
       this.closePopup();
       this.buildHud();
       this.minimap?.relayout();
+      this.drawBag();
+      if (this.isPassedOut()) this.showPassOut();
     });
     if (multiplayerEnabled) this.joinWorld();
+    const onResumeRecovery = () => {
+      this.drawBag();
+      this.checkPassOut();
+    };
+    this.events.on("resume", onResumeRecovery);
+    this.events.once("shutdown", () => this.events.off("resume", onResumeRecovery));
+    this.drawBag();
+    this.checkPassOut();
+  }
+
+  // ------------------------------------------------------------ passing out and food
+
+  private isPassedOut(): boolean {
+    return secondsLeft(this.save.passedOutUntil, new Date()) > 0;
+  }
+
+  /** Shows the passed-out panel if the wait isn't over; clears a finished one. */
+  private checkPassOut(): void {
+    if (this.isPassedOut()) return this.showPassOut();
+    if (this.save.passedOutUntil) this.recover();
+  }
+
+  /**
+   * 😵 and a countdown over the map; one button per piece of food in the bag, each
+   * taking FOOD_SECONDS off. The player can't move or meet anyone meanwhile, and
+   * other players can't invite them.
+   */
+  private showPassOut(): void {
+    this.clearPassOutUi();
+    this.closePopup();
+    this.drag = undefined;
+    this.stick?.clear();
+    this.pendingPath = [];
+    this.player.setAlpha(0.45);
+    if (multiplayerEnabled) presence.setAway(true);
+
+    const layout = getLayout(this);
+    const bag = this.save.bag;
+    const buttonSize = layout.touch(72);
+    const gap = layout.px(12);
+    const panelW = Math.min(layout.width - 24, Math.max(layout.px(300), bag.length * (buttonSize + gap) + gap + layout.px(40)));
+    const panelH = layout.px(150) + (bag.length ? buttonSize + layout.px(20) : 0);
+    const cx = layout.width / 2;
+    const cy = layout.height - layout.safe.bottom - layout.px(20) - panelH / 2;
+    const bg = this.add.rectangle(cx, cy, panelW, panelH, 0x1b1f3b, 0.94).setStrokeStyle(4, 0xffffff);
+    const face = this.add.text(cx - layout.px(60), cy - panelH / 2 + layout.px(70), "😵", { fontFamily: "sans-serif", fontSize: layout.font(64) }).setOrigin(0.5);
+    const count = this.add
+      .text(cx + layout.px(50), cy - panelH / 2 + layout.px(70), "", { fontFamily: "sans-serif", fontSize: layout.font(48), color: "#ffce54" })
+      .setOrigin(0.5);
+    const rowW = bag.length * buttonSize + (bag.length - 1) * gap;
+    const foods = bag.map((kind, i) =>
+      createButton(this, cx - rowW / 2 + buttonSize / 2 + i * (buttonSize + gap), cy + panelH / 2 - layout.px(16) - buttonSize / 2, kind, () => this.eat(i), {
+        width: buttonSize,
+        height: buttonSize,
+        fontSize: `${Math.round(buttonSize * 0.5)}px`,
+        backgroundColor: 0x2e7d32,
+      })
+    );
+    this.passOutUi = [bg, face, count, ...foods];
+    for (const o of this.passOutUi) o.setScrollFactor(0).setDepth(22);
+
+    const tick = () => {
+      const left = secondsLeft(this.save.passedOutUntil, new Date());
+      if (left <= 0) return this.recover();
+      count.setText(`⏳ ${left}`);
+    };
+    tick();
+    this.passOutTimer = this.time.addEvent({ delay: 250, loop: true, callback: tick });
+  }
+
+  private eat(index: number): void {
+    const until = this.save.passedOutUntil;
+    if (!until || !this.save.bag[index]) return;
+    this.save.bag.splice(index, 1);
+    const next = eatFood(until, new Date());
+    if (next) this.save.passedOutUntil = next;
+    else delete this.save.passedOutUntil;
+    void persist();
+    this.drawBag();
+    if (next) this.showPassOut();
+    else this.recover();
+  }
+
+  /** Back on its feet: the panel goes, the player can move and be invited again. */
+  private recover(): void {
+    this.clearPassOutUi();
+    this.player.setAlpha(1);
+    if (this.save.passedOutUntil) {
+      delete this.save.passedOutUntil;
+      void persist();
+    }
+    if (multiplayerEnabled) presence.setAway(false);
+  }
+
+  private clearPassOutUi(): void {
+    this.passOutTimer?.remove();
+    this.passOutTimer = undefined;
+    for (const o of this.passOutUi) o.destroy();
+    this.passOutUi = [];
+  }
+
+  /** 🎒 and the food in it, top-left, while there is any. */
+  private drawBag(): void {
+    this.bagChip?.destroy();
+    this.bagChip = undefined;
+    if (this.save.bag.length === 0) return;
+    const layout = getLayout(this);
+    this.bagChip = this.add
+      .text(layout.safe.left + 14, layout.safe.top + 14, `🎒 ${this.save.bag.join("")}`, {
+        fontFamily: "sans-serif",
+        fontSize: layout.font(26),
+        backgroundColor: "#1b1f3bcc",
+        padding: { x: 10, y: 6 },
+      })
+      .setScrollFactor(0)
+      .setDepth(10);
+  }
+
+  /** Food lying on this map, drawn where it grows (shared with everyone on the server). */
+  private syncFood(): void {
+    const here = presence.food.filter((f) => f.areaId === this.save.position.areaId);
+    const wanted = new Set(here.map((f) => f.id));
+    for (const [id, sprite] of this.foodSprites) {
+      if (!wanted.has(id)) {
+        sprite.destroy();
+        this.foodSprites.delete(id);
+      }
+    }
+    for (const f of here) {
+      if (this.foodSprites.has(f.id)) continue;
+      const c = this.tileCentre(f);
+      this.foodSprites.set(f.id, this.add.text(c.x, c.y, f.kind, { fontFamily: "sans-serif", fontSize: "34px" }).setOrigin(0.5).setDepth(3));
+    }
+  }
+
+  /** Stepped onto food: ask the server for it (it may already be gone), if the bag has room. */
+  private pickUpFood(tile: TileCoord): void {
+    if (!multiplayerEnabled || this.save.bag.length >= BAG_MAX) return;
+    const item = presence.food.find((f) => f.areaId === this.save.position.areaId && f.x === tile.x && f.y === tile.y);
+    if (item) presence.send("foodTake", { foodId: item.id });
   }
 
   /** A tap (no drag): on another player or the dragon, meet them; on the ground, nothing. */
@@ -316,6 +468,13 @@ export class OverworldScene extends Phaser.Scene {
       else if (reason === "a team is already at the dragon" || reason === "team is full" || reason === "team has already started") this.showToast(`${TEAM_ICON} ${t("meet_busy")}`);
     };
     const onRaid = () => this.syncDragon();
+    const onFood = () => this.syncFood();
+    const onFoodTaken = (kind: string) => {
+      this.drawBag();
+      this.showToast(`+${kind}`);
+    };
+    presence.events.on("food", onFood);
+    presence.events.on("foodTaken", onFoodTaken);
     const onRaidBattle = (update: RaidBattleUpdate) => this.startRaidBattle(update);
     presence.events.on("raid", onRaid);
     presence.events.on("raidBattle", onRaidBattle);
@@ -337,10 +496,13 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("status", onStatus);
       presence.events.off("problem", onProblem);
       presence.events.off("raid", onRaid);
+      presence.events.off("food", onFood);
+      presence.events.off("foodTaken", onFoodTaken);
       presence.events.off("raidBattle", onRaidBattle);
     });
     this.dragon = undefined;
     this.syncDragon();
+    this.syncFood();
     // Coming back from a menu or a battle (onResume): show anyone who moved meanwhile, and anything waiting for me.
     this.syncOthers(true);
   }
@@ -679,6 +841,7 @@ export class OverworldScene extends Phaser.Scene {
         this.playerTile = next;
         this.isMoving = false;
         this.positionDirty = true;
+        this.pickUpFood(next);
 
         if (this.isEncounterTile(next.x, next.y) && this.rollEncounter()) {
           this.pendingPath = [];

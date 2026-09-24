@@ -1,5 +1,6 @@
 import type { SaveData } from "./schema";
 import { loadSave, writeSave } from "./db";
+import { passOutUntil } from "@shared";
 
 let current: SaveData | undefined;
 
@@ -9,6 +10,17 @@ export function getState(): SaveData | undefined {
 
 export function setState(data: SaveData): void {
   current = data;
+}
+
+/**
+ * Marks the player as passed out after their monster fainted; `closeness` says how
+ * close they came to winning (see passOutSeconds). The wait is saved, so closing the
+ * app doesn't skip it.
+ */
+export async function passOut(closeness: number): Promise<void> {
+  if (!current) return;
+  current.passedOutUntil = passOutUntil(new Date(), closeness);
+  await persist();
 }
 
 /** Explicit checkpoint save — call after setup/starter/catch/battle/area-transition events. */
@@ -36,5 +48,6 @@ function normalise(save: SaveData | undefined): SaveData | undefined {
     }
   }
   if (save && !save.pendingScore) save.pendingScore = [];
+  if (save && !save.bag) save.bag = [];
   return save;
 }

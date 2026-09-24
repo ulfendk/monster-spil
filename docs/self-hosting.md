@@ -179,6 +179,10 @@ trusted dev certificate, or put the dev server behind NPM too.
   Players can also **team up**: one gathers a team at the lair, others join, and
   every monster gets +25% HP per extra player (at most double). Needs this server
   version or newer (protocol v5); older servers just don't offer 👥⚔️.
+- **Food** (🍎🍓🍌🥕🍇) grows on the map and is shared: whoever steps on it first
+  gets it, and it grows back after 3 minutes. It is kept in server memory only (a
+  restart just grows a fresh crop). Players eat it to recover faster after their
+  monster faints. Needs this server version or newer (protocol v6).
 - **The scoreboard** (🏆) shows the last 7 days: catches (1 point, reported by the
   device — offline catches count once it reconnects), duels won (2), dragon
   victories (5, +3 for the final blow).

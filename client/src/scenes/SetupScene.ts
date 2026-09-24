@@ -177,6 +177,7 @@ export class SetupScene extends Phaser.Scene {
       seenSpeciesIds: [],
       caughtCounts: {},
       pendingScore: [],
+      bag: [],
       position: { areaId: "startskoven", x: 0, y: 0 },
       createdAt: now,
       updatedAt: now,

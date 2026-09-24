@@ -71,3 +71,19 @@ export {
   timeoutTeamTurn,
 } from "./raid/team.js";
 export type { TeamMember, TeamMemberView, TeamPhase, TeamResult, TeamSession, TeamTurnResult, TeamView } from "./raid/team.js";
+export {
+  BAG_MAX,
+  FOOD_KINDS,
+  FOOD_SECONDS,
+  PASS_OUT_MAX_S,
+  PASS_OUT_MIN_S,
+  closenessFromDamage,
+  closenessFromFoe,
+  eatFood,
+  passOutSeconds,
+  passOutUntil,
+  pickFoodKind,
+  pickFoodSpot,
+  secondsLeft,
+} from "./recovery/recovery.js";
+export type { FoodItem, FoodKind } from "./recovery/recovery.js";

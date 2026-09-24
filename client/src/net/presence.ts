@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import { FAMILY_CODE_REJECTED, applyDelivery } from "@shared";
+import { BAG_MAX, FAMILY_CODE_REJECTED, applyDelivery } from "@shared";
 import type {
   ClientMessages,
   CreatureInstance,
@@ -11,6 +11,7 @@ import type {
   RewardDelivery,
   ScoreRow,
   TeamView,
+  FoodItem,
   TradeDelivery,
   TradeSession,
   WorldPosition,
@@ -25,7 +26,7 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
 /**
  * Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction",
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
- * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason).
+ * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind).
  */
 const HELLO_TIMEOUT_MS = 3000;
 const RETRY_MIN_MS = 3000;
@@ -54,6 +55,8 @@ class Presence {
   raid?: RaidView;
   /** When I may attack the dragon again (ms since epoch). */
   restUntil = 0;
+  /** Food lying on the maps (protocol v6+); empty offline. */
+  food: FoodItem[] = [];
   /** My team at the dragon (gathering or fighting), if I'm in one (protocol v5+). */
   team?: TeamView;
   /** The team whose start we already announced, so per-turn updates don't re-announce it. */
@@ -219,6 +222,11 @@ class Presence {
       this.events.emit("team", view);
       if (view.phase === "gathering") this.events.emit("interaction");
     });
+    listen(room, "food", (items) => {
+      this.food = items;
+      this.events.emit("food");
+    });
+    listen(room, "foodTaken", ({ kind }) => void this.putInBag(kind));
     listen(room, "teamEnded", ({ reason }) => {
       const wasGathering = this.team?.phase === "gathering";
       this.team = undefined;
@@ -292,6 +300,8 @@ class Presence {
       this.serverVersion = undefined;
       this.raid = undefined;
       this.team = undefined;
+      this.food = [];
+      this.events.emit("food");
       this.events.emit("players");
       this.events.emit("raid", undefined);
       this.setStatus("offline");
@@ -318,6 +328,14 @@ class Presence {
     this.received = delivery.receive;
     this.receivedReason = "trade";
     this.events.emit("interaction");
+  }
+
+  private async putInBag(kind: FoodItem["kind"]): Promise<void> {
+    const save = getState();
+    if (!save || save.bag.length >= BAG_MAX) return;
+    save.bag.push(kind);
+    await persist();
+    this.events.emit("foodTaken", kind);
   }
 
   private async scoreAcked(ids: string[]): Promise<void> {

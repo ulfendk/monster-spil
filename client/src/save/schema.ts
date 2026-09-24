@@ -1,4 +1,4 @@
-import type { CreatureInstance } from "@shared";
+import type { CreatureInstance, FoodKind } from "@shared";
 
 export interface SaveData {
   version: 1;
@@ -10,6 +10,10 @@ export interface SaveData {
   caughtCounts: Record<string, number>;
   /** Catches not yet counted by the family server's scoreboard (made offline, or not yet acknowledged). */
   pendingScore: Array<{ id: string; kind: "catch"; at: string }>;
+  /** Food collected on the map (at most BAG_MAX), eaten to recover faster after passing out. */
+  bag: FoodKind[];
+  /** While set and in the future, the player has passed out and can't move (ISO timestamp). */
+  passedOutUntil?: string;
   position: { areaId: string; x: number; y: number };
   createdAt: string;
   updatedAt: string;

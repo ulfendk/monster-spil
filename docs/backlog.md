@@ -19,11 +19,3 @@ Ideas agreed on but not scheduled yet. Newest at the bottom.
   code) or one server per group; whether a child's monsters and progress are shared
   across groups or kept separate per group (today each device has exactly one save);
   who creates groups and hands out codes (ties in with the admin portal).
-- **Passing out, and food.** When your monster faints (a lost wild battle, a duel or
-  the dragon), you can't move for 30–60 seconds while it recovers. Food to find
-  and collect on the map makes the recovery quicker. Today a lost wild battle just
-  heals the monster straight away, and the dragon has its own 60-second rest.
-  Open questions: fixed or random duration within 30–60 s; whether food is eaten
-  automatically or kept in a bag and used by tapping; where food appears (grass,
-  trees, random spots) and whether it grows back; whether the dragon rest becomes
-  the same thing.

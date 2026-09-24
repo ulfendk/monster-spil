@@ -30,6 +30,8 @@ import {
   teamInvolves,
   teamViewFor,
   timeoutTeamTurn,
+  pickFoodKind,
+  pickFoodSpot,
   involves,
   isAdjacent,
   sanitizeSeat,
@@ -40,6 +42,7 @@ import {
 import { clientAddress, type FamilyGate } from "./family-gate.js";
 import type { FamilyStore } from "./family-store.js";
 import { bossForWeek } from "./bosses.js";
+import type { AreaSpots } from "./areas.js";
 import type {
   ClientMessages,
   BattleState,
@@ -49,6 +52,7 @@ import type {
   RaidState,
   RaidView,
   TeamSession,
+  FoodItem,
   DuelSession,
   LobbyJoinOptions,
   LobbyPlayer,
@@ -63,6 +67,10 @@ interface Online {
   client: Client;
   info: LobbyPlayer;
 }
+
+/** How many pieces of food lie on each map at once, and how long a picked one takes to grow back. */
+const FOOD_PER_AREA = 14;
+const FOOD_REGROW_MS = 3 * 60_000;
 
 /** How long a duel waits for both players to pick a move before skipping the silent one. */
 const TURN_MS = 30_000;
@@ -132,6 +140,9 @@ export class LobbyRoom extends Room {
   /** The one team at the dragon: gathering at the lair or fighting. */
   private team?: TeamSession;
   private teamTimer?: { clear(): void };
+  /** Food lying on the maps, shared by everyone (in memory: it regrows anyway). */
+  private food = new Map<string, FoodItem>();
+  private foodSpots: AreaSpots[] = [];
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. */
   onAuth(_client: Client, options: LobbyJoinOptions, context: AuthContext): boolean {
@@ -141,10 +152,12 @@ export class LobbyRoom extends Room {
     return true;
   }
 
-  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[] }): void {
+  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[]; foodSpots?: AreaSpots[] }): void {
     this.gate = options.gate;
     this.store = options.store;
     this.bosses = options.bosses;
+    this.foodSpots = options.foodSpots ?? [];
+    for (const area of this.foodSpots) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
     this.clock.setInterval(() => {
@@ -276,7 +289,7 @@ export class LobbyRoom extends Room {
         this.raidBattles.set(me.info.playerId, result.battle);
         this.tell(client, "raidBattle", { battle: result.battle });
       } else {
-        this.endAttempt(me.info.playerId);
+        this.endAttempt(me.info.playerId, result.battle.outcome === "lost");
         this.tell(client, "raidBattle", { battle: result.battle, restUntil: this.restIso(me.info.playerId) });
       }
       if (result.damage > 0) this.broadcastRaid();
@@ -335,6 +348,23 @@ export class LobbyRoom extends Room {
       const result = submitTeamAction(team, me.info.playerId, clean, this.raid(), this.boss(), new Date());
       if (!result.ok) return this.problem(client, result.reason);
       this.afterTeamTurn(team, result);
+    });
+
+    this.onMessage("foodTake", (client, msg: ClientMessages["foodTake"]) => {
+      const me = this.playerOf(client);
+      const item = this.food.get(String(msg?.foodId));
+      // Gone already (someone was quicker), or not where I am: nothing happens.
+      if (!me || !item || !isAdjacent(me.info, item)) return;
+      this.food.delete(item.id);
+      this.tell(client, "foodTaken", { foodId: item.id, kind: item.kind });
+      this.broadcastFood();
+      const area = this.foodSpots.find((a) => a.areaId === item.areaId);
+      if (area) {
+        this.clock.setTimeout(() => {
+          this.growFood(area);
+          this.broadcastFood();
+        }, FOOD_REGROW_MS);
+      }
     });
 
     this.onMessage("scoreReport", (client, msg: ClientMessages["scoreReport"]) => {
@@ -405,6 +435,7 @@ export class LobbyRoom extends Room {
 
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });
     this.tell(client, "raid", this.raidViewNow());
+    this.tell(client, "food", [...this.food.values()]);
     // Rejoining mid-team: show the team again (e.g. after a short drop-out).
     if (this.team && teamInvolves(this.team, info.playerId)) this.tell(client, "team", teamViewFor(this.team, info.playerId, this.raid(), this.boss()));
     for (const delivery of this.pending.get(info.playerId) ?? []) this.tell(client, "tradeComplete", delivery);
@@ -445,6 +476,20 @@ export class LobbyRoom extends Room {
       this.store.changed();
     }
     return raid;
+  }
+
+  /** One new piece of food on a random free spot of the area. */
+  private growFood(area: AreaSpots): void {
+    const taken = [...this.food.values()].filter((f) => f.areaId === area.areaId);
+    const spot = pickFoodSpot(area.spots, taken, Math.random);
+    if (!spot) return;
+    const item: FoodItem = { id: randomUUID(), areaId: area.areaId, x: spot.x, y: spot.y, kind: pickFoodKind(Math.random) };
+    this.food.set(item.id, item);
+  }
+
+  private broadcastFood(): void {
+    const all = [...this.food.values()];
+    for (const entry of this.online.values()) this.tell(entry.client, "food", all);
   }
 
   /** Why this player can't fight the dragon right now (solo or in a team), or undefined. */
@@ -516,7 +561,10 @@ export class LobbyRoom extends Room {
     this.teamTimer = undefined;
     this.pushTeam(team);
     const restUntil = Date.now() + this.boss().restSeconds * 1000;
-    for (const m of team.members) this.restUntil.set(m.playerId, Math.max(this.restUntil.get(m.playerId) ?? 0, restUntil));
+    // Members whose monster fainted pass out on their device instead.
+    for (const m of team.members) {
+      if (m.status !== "fainted") this.restUntil.set(m.playerId, Math.max(this.restUntil.get(m.playerId) ?? 0, restUntil));
+    }
     this.team = undefined;
     this.broadcastRaid();
     this.broadcastPlayers();
@@ -549,9 +597,10 @@ export class LobbyRoom extends Room {
     for (const entry of this.online.values()) this.tell(entry.client, "raid", view);
   }
 
-  private endAttempt(playerId: string): void {
+  /** Ends a solo attempt. A monster that fainted passes out on the device instead of resting here. */
+  private endAttempt(playerId: string, fainted = false): void {
     this.raidBattles.delete(playerId);
-    this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
+    if (!fainted) this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
     this.broadcastPlayers();
   }
 

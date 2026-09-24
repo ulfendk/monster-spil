@@ -4,6 +4,7 @@ import type { DuelAction, DuelView } from "../duel/duel-session.js";
 import type { WorldPosition } from "../world/adjacency.js";
 import type { RaidView } from "../raid/raid.js";
 import type { TeamView } from "../raid/team.js";
+import type { FoodItem, FoodKind } from "../recovery/recovery.js";
 import type { ScoreRow } from "../score/scoreboard.js";
 import type { TradeDelivery, TradeSession } from "./trade-session.js";
 
@@ -36,12 +37,12 @@ export const FAMILY_CODE_REJECTED = 4401;
  * Bump when a message changes in a way older peers can't handle. v1 = trading
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
  * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,
- * v5 = teaming up against the dragon. The server announces its version with the
+ * v5 = teaming up against the dragon, v6 = food growing on the map. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -79,6 +80,8 @@ export interface ClientMessages {
   /** Leader only: start the fight with whoever has joined. */
   teamStart: { teamId: string };
   teamAction: { teamId: string; action: DuelAction };
+  /** I stepped onto this food and have room in my bag. */
+  foodTake: { foodId: string };
 }
 
 /** A creature the server hands out (e.g. for beating the dragon). Apply, persist, then send rewardAck. */
@@ -119,4 +122,8 @@ export interface ServerMessages {
   team: TeamView;
   /** The team is gone: "cancelled" (the leader left while gathering) or "defeated" (someone else beat the dragon first). */
   teamEnded: { teamId: string; reason: "cancelled" | "defeated" };
+  /** All food lying on the map right now (sent on join and whenever it changes). */
+  food: FoodItem[];
+  /** The food I took is mine: put it in the bag. */
+  foodTaken: { foodId: string; kind: FoodKind };
 }

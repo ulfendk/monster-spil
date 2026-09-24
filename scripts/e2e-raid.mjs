@@ -7,6 +7,10 @@ import { randomUUID } from "node:crypto";
 
 const [url = "ws://localhost:2599", code = "test123"] = process.argv.slice(2);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Waits until `cond()` holds (or `ms` passes), so checks don't depend on a machine's speed. */
+const until = async (cond, ms = 2000) => {
+  for (let t = 0; t < ms && !cond(); t += 50) await wait(50);
+};
 let failed = 0;
 const check = (name, ok) => { console.log(ok ? "PASS" : "FAIL", name); if (!ok) failed++; };
 
@@ -74,7 +78,8 @@ const old = new Date(Date.now() - 9 * 86400000).toISOString();
 a.room.send("scoreReport", { events: [{ id: catchId, kind: "catch", at: new Date().toISOString() }, { id: "old-one", kind: "catch", at: old }] }); await wait(150);
 a.room.send("scoreReport", { events: [{ id: catchId, kind: "catch", at: new Date().toISOString() }] }); await wait(150);
 check("reported catches are acknowledged, including duplicates and stale ones", a.got.acks.filter((x) => x === catchId).length === 2 && a.got.acks.includes("old-one"));
-a.room.send("getScores", {}); await wait(200);
+a.got.scores = null;
+a.room.send("getScores", {}); await until(() => a.got.scores);
 const rowA = a.got.scores?.rows.find((r) => r.playerId === "alice");
 const rowB = a.got.scores?.rows.find((r) => r.playerId === "bob");
 check("a duplicate or stale catch counts once", rowA?.catches === 1);
@@ -88,7 +93,7 @@ a.room.send("rewardAck", { rewardId: a.got.rewards[0].rewardId }); await wait(20
 await a.room.leave(); await wait(300);
 a = await join("alice", at(32, 24)); await wait(400);
 check("an acknowledged reward is not sent again", a.got.rewards.length === 0);
-a.room.send("getScores", {}); await wait(200);
+a.room.send("getScores", {}); await until(() => a.got.scores);
 check("offline family members stay on the scoreboard", a.got.scores?.rows.length === 2);
 
 // A won duel counts too.
@@ -102,7 +107,8 @@ for (let i = 0; i < 10; i++) {
   b.room.send("duelAction", { duelId, action: { kind: "move", moveId: "slag" } });
   await wait(150);
 }
-a.room.send("getScores", {}); await wait(250);
+a.got.scores = null;
+a.room.send("getScores", {}); await until(() => a.got.scores);
 check("a won duel is on the scoreboard", a.got.scores?.rows.find((r) => r.playerId === "alice")?.duels === 1);
 
 await a.room.leave(); await b.room.leave();
