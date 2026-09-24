@@ -330,7 +330,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private openMonsterbog(): void {
-    const data: MonsterbogSceneData = { content: this.content, save: this.save };
+    const data: MonsterbogSceneData = { content: this.content, save: this.save, position: { ...this.playerTile } };
     this.scene.launch("Monsterbog", data);
     this.scene.pause();
   }

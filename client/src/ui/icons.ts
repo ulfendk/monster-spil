@@ -31,3 +31,11 @@ export const CONNECTION_LOST_ICON = "📵";
 export const CANCELLED_ICON = "✋";
 export const STRONG_ICON = "⭐";
 export const WEAK_ICON = "🛡️";
+
+/** Monster book and info page. */
+export const CAUGHT_ICON = "🔴"; // times caught, matching the Fang! ball
+export const OWNED_ICON = "🎒"; // in your possession right now
+export const SOUND_ICON = "🔊";
+export const STAT_ICONS = { hp: "❤️", angreb: "⚔️", forsvar: "🛡️", fart: "👟" } as const;
+export const POWER_ICON = "💥";
+export const STEPS_ICON = "👣";

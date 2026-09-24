@@ -388,6 +388,8 @@ export class BattleScene extends Phaser.Scene {
     if (this.battleState.outcome === "caught") {
       const wild = this.battleState.participants[1];
       this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
+      const counts = this.battleData.save.caughtCounts;
+      counts[wild.species.id] = (counts[wild.species.id] ?? 0) + 1;
       if (!this.battleData.save.seenSpeciesIds.includes(wild.species.id)) {
         this.battleData.save.seenSpeciesIds.push(wild.species.id);
       }

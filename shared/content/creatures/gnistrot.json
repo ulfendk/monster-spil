@@ -6,5 +6,6 @@
   "moveIds": ["gnistestoed", "kloer", "lynnedslag"],
   "spriteFront": "creatures/gnistrot_front.png",
   "spriteBack": "creatures/gnistrot_back.png",
+  "sound": "creatures/gnistrot.wav",
   "catchRate": 0.45
 }

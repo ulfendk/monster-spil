@@ -17,6 +17,12 @@ export interface CreatureSpecies {
   moveIds: string[];
   spriteFront: string;
   spriteBack: string;
+  /**
+   * The monster's cry, a path relative to shared/content/ (e.g. "creatures/flammepels.wav";
+   * wav, mp3 or m4a so it plays on iPad Safari). Optional: without it the game plays a short
+   * type-coloured blip instead.
+   */
+  sound?: string;
   /** Base catch-rate modifier, 0-1 */
   catchRate: number;
 }

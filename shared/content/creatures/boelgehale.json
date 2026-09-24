@@ -6,5 +6,6 @@
   "moveIds": ["vandpist", "kloer", "stormflod"],
   "spriteFront": "creatures/boelgehale_front.png",
   "spriteBack": "creatures/boelgehale_back.png",
+  "sound": "creatures/boelgehale.wav",
   "catchRate": 0.5
 }

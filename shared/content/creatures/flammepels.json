@@ -6,5 +6,6 @@
   "moveIds": ["gloedslag", "kloer", "varmeboelge"],
   "spriteFront": "creatures/flammepels_front.png",
   "spriteBack": "creatures/flammepels_back.png",
+  "sound": "creatures/flammepels.wav",
   "catchRate": 0.45
 }

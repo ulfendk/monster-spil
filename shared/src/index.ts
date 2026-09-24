@@ -38,3 +38,5 @@ export type { DuelPhase, DuelAction, DuelSession, DuelView, DuelResult } from ".
 export { sanitizeSeat } from "./duel/sanitize.js";
 export { isAdjacent } from "./world/adjacency.js";
 export type { WorldPosition } from "./world/adjacency.js";
+export { arrowFor, nearestSpot, paintedTiles } from "./world/hint.js";
+export type { SpotHint, Tile } from "./world/hint.js";

@@ -6,5 +6,6 @@
   "moveIds": ["vandpist", "kloer", "boelgebrus"],
   "spriteFront": "creatures/dryppel_front.png",
   "spriteBack": "creatures/dryppel_back.png",
+  "sound": "creatures/dryppel.wav",
   "catchRate": 0.5
 }

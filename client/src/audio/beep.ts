@@ -34,3 +34,8 @@ export function playMissSound(): void {
 export function playFaintSound(): void {
   playBeep(180, 350, "sawtooth");
 }
+
+/** A short tone for callers outside this file (the fallback monster cry). */
+export function playBlip(frequency: number, durationMs: number): void {
+  playBeep(frequency, durationMs, "triangle");
+}

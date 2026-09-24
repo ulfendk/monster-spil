@@ -19,6 +19,21 @@ export async function persist(): Promise<void> {
 }
 
 export async function loadInitialState(): Promise<SaveData | undefined> {
-  current = await loadSave();
+  current = normalise(await loadSave());
   return current;
+}
+
+/**
+ * Fills in fields added after a save was written. Saves from before the catch
+ * counters existed get a best guess: everything owned except the first creature
+ * (the starter) counts as caught once per monster.
+ */
+function normalise(save: SaveData | undefined): SaveData | undefined {
+  if (save && !save.caughtCounts) {
+    save.caughtCounts = {};
+    for (const creature of save.creatures.slice(1)) {
+      save.caughtCounts[creature.speciesId] = (save.caughtCounts[creature.speciesId] ?? 0) + 1;
+    }
+  }
+  return save;
 }

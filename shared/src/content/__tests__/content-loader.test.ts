@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { CreatureSpecies } from "../../types/creature.js";
 import type { Move } from "../../types/move.js";
@@ -49,4 +49,16 @@ test("each creature has 3-4 moves and positive stats", () => {
       assert.ok(value > 0, `${species.id}.${stat} should be positive`);
     }
   }
+});
+
+test("every creature's sound file exists and is a format iPad Safari plays", () => {
+  for (const s of loadCreatures()) {
+    if (!s.sound) continue;
+    assert.match(s.sound, /\.(wav|mp3|m4a)$/, `${s.id}: sound must be wav, mp3 or m4a`);
+    assert.ok(existsSync(path.join(contentDir, s.sound)), `${s.id}: missing file ${s.sound}`);
+  }
+});
+
+test("the six starting monsters all have a cry", () => {
+  for (const s of loadCreatures()) assert.ok(s.sound, `${s.id} has no sound`);
 });

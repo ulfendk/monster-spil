@@ -6,5 +6,6 @@
   "moveIds": ["stenkast", "kloer", "jordrystelse"],
   "spriteFront": "creatures/stenbid_front.png",
   "spriteBack": "creatures/stenbid_back.png",
+  "sound": "creatures/stenbid.wav",
   "catchRate": 0.35
 }

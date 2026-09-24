@@ -6,5 +6,6 @@
   "moveIds": ["bladsving", "kloer", "tornranke"],
   "spriteFront": "creatures/lovgro_front.png",
   "spriteBack": "creatures/lovgro_back.png",
+  "sound": "creatures/lovgro.wav",
   "catchRate": 0.5
 }
