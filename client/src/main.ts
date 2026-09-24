@@ -7,6 +7,9 @@ import { OverworldScene } from "./scenes/OverworldScene";
 import { BattleScene } from "./scenes/BattleScene";
 import { MonsterbogScene } from "./scenes/MonsterbogScene";
 import { LobbyScene } from "./scenes/LobbyScene";
+import { keepAppUpToDate } from "./pwa-update";
+
+keepAppUpToDate();
 
 new Phaser.Game({
   type: Phaser.AUTO,
