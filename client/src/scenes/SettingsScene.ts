@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { presence } from "../net/presence";
-import { setFamilyCode } from "../net/lobby";
+import { multiplayerEnabled } from "../net/lobby";
+import { currentGame, updateGame } from "../save/games";
+import { reloadToGameList } from "./start-game";
 import { t } from "../i18n/da";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
@@ -10,7 +12,7 @@ import { hasIcons, ic, richText } from "../ui/rich-text";
 
 const GREY = C.buttonQuiet;
 
-/** Connection state and the family-code entry (🔑), opened from the ⚙ button on the map. */
+/** The game being played, its connection state and the spilnøgle entry (🔑), and switching games; opened from ⚙ on the map. */
 export class SettingsScene extends Phaser.Scene {
   private ui!: Phaser.GameObjects.Container;
   private codeInput?: Phaser.GameObjects.DOMElement;
@@ -44,7 +46,7 @@ export class SettingsScene extends Phaser.Scene {
     };
     this.events.once("shutdown", () => this.off?.());
     onRelayout(this, () => {
-      // Keep a half-typed family code across the redraw.
+      // Keep a half-typed key across the redraw.
       this.typed = (this.codeInput?.node as HTMLInputElement | undefined)?.value ?? "";
       this.requestDraw();
     });
@@ -80,6 +82,14 @@ export class SettingsScene extends Phaser.Scene {
 
     if (this.enteringCode) return this.drawCodeEntry();
 
+    const game = currentGame();
+    if (game) this.addText(width / 2, layout.safe.top + layout.px(50), `${ic(game.online ? "team" : "person")} ${game.navn}`, 32);
+    // Switch to (or add) another game. Only builds with a server have more than one.
+    if (multiplayerEnabled) {
+      this.addButton(width - layout.safe.right - 16 - 45, height - layout.safe.bottom - 16 - 36, ic("games"), () => reloadToGameList(), 90, GREY);
+    }
+    if (!game?.online) return; // a game alone never connects: no status, no key
+
     const symbol = ic({ online: "online", connecting: "hourglass", offline: "offline", needCode: "key", off: "offline" }[presence.status]);
     this.addText(width / 2, height / 2 - 90, symbol, 96);
     if (presence.status === "online") {
@@ -113,17 +123,19 @@ export class SettingsScene extends Phaser.Scene {
     );
     const el = this.codeInput.node as HTMLInputElement;
     el.value = this.typed;
-    el.type = "password";
     el.autocomplete = "off";
     el.autocapitalize = "off";
     el.setAttribute("autocorrect", "off");
+    el.spellcheck = false;
     this.addButton(width / 2, height * 0.5 + 110, "✓", () => {
-      const code = el.value.trim();
-      if (!code) return;
-      setFamilyCode(code);
+      const key = el.value.trim();
+      const game = currentGame();
+      if (!key || !game) return;
       this.enteringCode = false;
-      presence.reconnect();
-      this.requestDraw();
+      void updateGame(game.id, { key }).then(() => {
+        presence.reconnect();
+        this.requestDraw();
+      });
     }, 120);
   }
 

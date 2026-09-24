@@ -71,7 +71,7 @@ export function resolveTurn(
       log.push({
         turn,
         kind: success ? "catch-success" : "catch-fail",
-        text: success ? `${speciesName(opponent)} blev fanget!` : `${speciesName(opponent)} slap fri!`,
+        text: success ? `${speciesName(opponent)} blev fanget!` : `${speciesName(opponent)} undveg!`,
         targetPlayerId: opponent.playerId,
       });
       return {

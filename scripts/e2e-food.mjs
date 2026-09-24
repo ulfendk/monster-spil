@@ -9,7 +9,7 @@ let failed = 0;
 const check = (name, ok) => { console.log(ok ? "PASS" : "FAIL", name); if (!ok) failed++; };
 
 async function join(id, x, y) {
-  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn: id, avatarId: "a", farve: "#ff0000", familyCode: code, areaId: "startskoven", x, y });
+  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn: id, avatarId: "a", farve: "#ff0000", gameId: "familien", familyCode: code, areaId: "startskoven", x, y });
   const got = { food: [], taken: [], battles: [], problems: [], hello: null };
   room.onMessage("hello", (m) => (got.hello = m));
   room.onMessage("food", (m) => (got.food = m));

@@ -4,7 +4,6 @@ import {
   BAG_MAX,
   FOOD_KINDS,
   FOOD_SECONDS,
-  closenessFromDamage,
   closenessFromFoe,
   eatFood,
   passOutSeconds,
@@ -29,7 +28,7 @@ test("a lost wild battle is gentler: 30 s for a quick knock-out, down to 10 s wh
   assert.equal(passOutSeconds(0.5, "wild"), 20);
   const now = new Date("2026-09-25T10:00:00Z");
   assert.equal(secondsLeft(passOutUntil(now, 0, "wild"), now), 30);
-  assert.equal(passOutSeconds(0.5), 45, "duels and the dragon keep 30–60 s");
+  assert.equal(passOutSeconds(0.5), 45, "duels keep 30–60 s");
 });
 
 test("closeness in a wild battle or duel is how much of the opponent's HP you took", () => {
@@ -39,10 +38,11 @@ test("closeness in a wild battle or duel is how much of the opponent's HP you to
   assert.equal(closenessFromFoe(5, 0), 0);
 });
 
-test("against the dragon it is damage dealt compared with your own HP", () => {
-  assert.equal(closenessFromDamage(0, 40), 0);
-  assert.equal(closenessFromDamage(20, 40), 0.5);
-  assert.equal(passOutSeconds(closenessFromDamage(80, 40)), 30);
+test("losing to the dragon is always the full 60 s, however close it was", () => {
+  assert.equal(passOutSeconds(0, "dragon"), 60);
+  assert.equal(passOutSeconds(1, "dragon"), 60);
+  const now = new Date("2026-09-25T10:00:00Z");
+  assert.equal(secondsLeft(passOutUntil(now, 1, "dragon"), now), 60);
 });
 
 test("the wait counts down, and each piece of food takes 15 s off", () => {

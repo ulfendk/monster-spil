@@ -29,30 +29,44 @@ Packages are **private** by default. Either:
   GitHub/Custom, `ghcr.io`, your username, a personal access token with
   `read:packages`).
 
-## 2. The family code
+## 2. Games and spilnøgler
 
-The server refuses every join without the shared **family code**, so outsiders
-can't get in even if they find the URL.
+One server can host **several games** — say, the family and a school class. Each
+game is its own world with its own players, monsters, scoreboard, dragon and
+backups; nothing crosses between games. A child can play several games on one
+iPad/iPhone and picks one when the app starts.
 
-- Choose a code (a short passphrase, not something guessable) and set it as
-  `FAMILY_CODE` on the container. In production (the Docker image) the server
-  **refuses to start** without it and logs `FAMILY_CODE is not set`, so a
-  forgotten variable shows up as a crash-looping container instead of an open
-  server. Outside production (local dev) it starts open and logs a warning.
-- The first time a device taps ⚙ (it shows 🔑 until a code is stored) it asks for
-  the code. A parent types it once; it is remembered on that device. If the code
-  changes or is wrong, the device asks again. To type a different code on
-  purpose, tap the 🔑 button at the bottom-left of the ⚙ screen; the old code
-  stays until a new one is entered, so backing out with ✕ changes nothing.
-- Wrong guesses are counted per client address: after 5 within 10 minutes that
-  address is refused — even with the right code — until the window passes. (If
-  you lock yourself out, wait 10 minutes or restart the container.)
-- The code is not tied to any person and there are no accounts. Anyone who has
-  it can join, so treat it like the Wi-Fi password and change it if it leaks.
+Every game has a **spilnøgle** (game key). The server refuses anyone without the
+right key, so outsiders can't get in even if they find the URL.
+
+- **Games are made in the admin portal** (`ADMIN_PASSWORD`, see below): *Nyt spil*,
+  a name and a key. *Lav en nøgle* suggests one that's easy to type on an iPad, like
+  `modig-ugle-472`. Hand the key to the people who should play that game (a friend's
+  parents, say).
+- **On the device:** the game list → ＋ → *Med spilnøgle* → type the key. The key is
+  remembered on that device. *Spil alene* adds a game that never connects.
+- Keys ignore upper/lower case and spaces around them, are 6–40 characters, and
+  must be different for each game.
+- **Changing a key** (admin portal) sends everyone playing that game right now back
+  to the key screen; they type the new key. Other games aren't touched.
+- Wrong guesses are counted per client address, across all games: after 5 within 10
+  minutes that address is refused — even with a right key — until the window
+  passes. (If you lock yourself out, wait 10 minutes or restart the container.)
+- A key is not tied to any person and there are no accounts. Anyone who has it can
+  join that game, so treat it like the Wi-Fi password and change it if it leaks.
+
+**Upgrading from a server with one family:** set nothing new. On its first start
+the new server turns `family.json` and `saves/` into the game **"Familien"** with
+your old `FAMILY_CODE` as its key, and devices that played before land in that
+game with the code they already have. After that `FAMILY_CODE` is no longer used
+(keys live in `/data/games.json` and are changed in the admin portal) — you can
+remove it once you have `ADMIN_PASSWORD` set. A brand-new server needs
+`ADMIN_PASSWORD` (or `FAMILY_CODE`, which then creates "Familien"); in production
+it **refuses to start** with neither, since nobody could ever join.
 
 This is a family-trust design: the server does not verify creatures (each device
-is the source of truth), it only makes sure that only people you gave the code
-to can reach it.
+is the source of truth), it only makes sure that only people you gave a key to can
+reach a game.
 
 ## 3. Portainer stack
 
@@ -65,14 +79,16 @@ services:
     container_name: monsterjagt-server
     restart: unless-stopped
     environment:
-      FAMILY_CODE: "<your family code>"
-      # Optional: turns on the parent's admin portal at https://<your server>/admin.
-      # Use a different password from the family code (the kids know that one).
-      # ADMIN_PASSWORD: "<a password only the parents know>"
+      # The parent's admin portal at https://<your server>/admin, where games and their
+      # spilnøgler are made. Use a password the kids don't know (never a spilnøgle).
+      ADMIN_PASSWORD: "<a password only the parents know>"
+      # Only for upgrading an old one-family server: its family code becomes the key of
+      # the game "Familien" on first start (ignored after that; you can then remove it).
+      # FAMILY_CODE: "<your old family code>"
       # Optional: only let browsers from the client's site call the matchmaking endpoint.
       # ALLOWED_ORIGINS: "https://ulfendk.github.io"
     volumes:
-      # The weekly scoreboard, the dragon's HP and unclaimed rewards (one small JSON file).
+      # The games and, per game, its scoreboard, dragon, rewards and save backups (plain JSON).
       - monsterjagt-data:/data
     networks:
       - proxy
@@ -86,11 +102,13 @@ networks:
     name: npm_default # the Docker network your Nginx Proxy Manager container is on
 ```
 
-**The `/data` volume** holds `saves/` — a backup copy of every player's save, so
-a reinstalled or new iPad/iPhone can get its player back (first setup screen → 🔄
-"Hent min spiller" → family code → pick the player) — and `family.json`: the last week's scoreboard events,
-everyone who has joined (so offline family members stay on the board), this week's
-dragon and any baby-dragon rewards not yet delivered. Without the volume the
+**The `/data` volume** holds `games.json` (every game: name, key) and a folder per
+game in `games/<id>/`: `saves/` — a backup copy of every player's save, so a
+reinstalled or new iPad/iPhone can get its player back (add the game with its key →
+🔄 "Hent min spiller" → pick the player) — and `game.json`: the last week's
+scoreboard events, everyone who has joined (so offline players stay on the board),
+this week's dragon, baby-dragon rewards not yet delivered and names changed in the
+admin portal that a device hasn't picked up yet. Without the volume the
 server still runs, but all of that resets whenever the container is recreated
 (e.g. on every *Pull and redeploy*). Back it up if you like — it is plain JSON.
 
@@ -98,10 +116,10 @@ Find the network name with `docker network ls` (or in Portainer → Networks). T
 update later: Portainer → the stack → *Pull and redeploy*.
 
 Building locally instead: `server/docker-compose.yml` does the same with
-`build:`; run `FAMILY_CODE=… docker compose up -d --build` in `server/`.
+`build:`; run `ADMIN_PASSWORD=… docker compose up -d --build` in `server/`.
 
 `ALLOWED_ORIGINS` (comma-separated) is only a browser-side courtesy — non-browser
-clients ignore CORS. The family code is what actually keeps people out.
+clients ignore CORS. The spilnøgler are what actually keep people out.
 
 ## 4. Nginx Proxy Manager
 
@@ -134,7 +152,8 @@ The client reads the server address at **build time** from `VITE_SERVER_URL`.
   add `VITE_SERVER_URL` = `wss://monster.example.com`. The deploy workflow passes
   it to the build. Without the variable the build is solo-only (no ⚙ button, no connection).
 - **Local dev:** `VITE_SERVER_URL=ws://localhost:2567 npm run dev`, and start the
-  server with `npm run build:server && FAMILY_CODE=test npm start -w server`
+  server with `npm run build:server && FAMILY_CODE=test ADMIN_PASSWORD=admin npm start -w server`
+  (FAMILY_CODE makes a first game, "Familien", with the key `test`)
   (or `npm run dev -w server`).
 
 ## Local dev HTTPS
@@ -200,10 +219,13 @@ trusted dev certificate, or put the dev server behind NPM too.
   back up to the same player and the most recent save wins. Restore onto a device
   that replaces the old one, not alongside it.
 - **Admin portal** (`https://<your server>/admin`, only when `ADMIN_PASSWORD` is
-  set): see every player (figure, last seen, backup, points, online), download a
-  player's backup or all of them, delete a player (their points, backup and
-  unclaimed rewards on the server — the game on their device is untouched), wake
+  set): make games and see their keys; rename a game, change its key or delete it
+  (its players, points, dragon and backups on the server — the game stays on the
+  devices). Per game: see every player (figure, last seen, backup, points, online),
+  rename a player (their device takes the new name the next time it is online),
+  download a player's backup or all of them, delete a player (their points, backup
+  and unclaimed rewards on the server — the game on their device is untouched), wake
   the dragon with full HP / set its HP / put it to sleep (no rewards), and clear
   the week's points. Logging in gives a 12-hour session; wrong passwords are
-  counted like the family code (5 per 10 minutes per address). It goes through the
+  counted separately from the game keys (5 per 10 minutes per address). It goes through the
   same Nginx Proxy Manager host as the game — nothing else to set up.

@@ -22,7 +22,7 @@ const seat = (id, power = 150) => ({
 });
 
 async function join(id, pos) {
-  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn: id, avatarId: "a", farve: "#ff0000", familyCode: code, ...pos });
+  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn: id, avatarId: "a", farve: "#ff0000", gameId: "familien", familyCode: code, ...pos });
   const got = { hello: null, raid: null, battles: [], problems: [], scores: null, acks: [], rewards: [] };
   room.onMessage("hello", (m) => (got.hello = m));
   room.onMessage("raid", (m) => (got.raid = m));

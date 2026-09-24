@@ -3,13 +3,14 @@ import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { setState, persist } from "../save/game-state";
 import { t } from "../i18n/da";
-import { createButton } from "../ui/Button";
+import { addCloseButton, createButton } from "../ui/Button";
 import { C, CSS, FONT, KANAGAWA, PLAYER_COLOURS } from "../ui/theme";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { AVATARS } from "../ui/avatars";
 import { addAvatar } from "../gfx/avatar-sprites";
 import { multiplayerEnabled } from "../net/lobby";
+import { currentGame } from "../save/games";
 
 export interface SetupSceneData {
   content: GameContent;
@@ -17,7 +18,7 @@ export interface SetupSceneData {
 
 const COLOURS = PLAYER_COLOURS;
 
-/** "start" (only with a family server): new player, or fetch a backed-up one. */
+/** "start" (only in an online game): new player, or fetch a backed-up one. */
 type Step = "start" | "navn" | "figur" | "farve";
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -42,7 +43,7 @@ export class SetupScene extends Phaser.Scene {
 
   create(data: SetupSceneData): void {
     this.content = data.content;
-    this.step = multiplayerEnabled ? "start" : "navn";
+    this.step = currentGame()?.online ? "start" : "navn";
     this.navn = "";
     this.avatarId = "";
     this.farve = "";
@@ -69,9 +70,11 @@ export class SetupScene extends Phaser.Scene {
     const { width, height, safe } = layout;
     const title = { ...TITLE_STYLE, fontSize: layout.font(36) };
     const usableW = width - safe.left - safe.right - 32;
+    // Changed your mind about this game: back to the game list (builds with a server only).
+    if (multiplayerEnabled) this.stepChildren.push(addCloseButton(this, () => this.scene.start("Games", { content: this.content })).button);
 
     if (this.step === "start") {
-      // Played before (on this or another device)? Fetch your player from the family server.
+      // Played before (on this or another device)? Fetch your player from the game server.
       this.stepChildren.push(this.add.text(width / 2, height * 0.25, t("setup_title_start"), title).setOrigin(0.5));
       const buttonW = Math.min(300, usableW);
       const buttonH = layout.touch(96);

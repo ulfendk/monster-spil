@@ -8,7 +8,7 @@ import type { FoodItem, FoodKind } from "../recovery/recovery.js";
 import type { ScoreRow } from "../score/scoreboard.js";
 import type { TradeDelivery, TradeSession } from "./trade-session.js";
 
-/** Someone in the family lobby. No accounts — playerId is the id from their own save. */
+/** Someone in a game's lobby. No accounts — playerId is the id from their own save. */
 export interface LobbyPlayer extends WorldPosition {
   playerId: string;
   navn: string;
@@ -26,23 +26,31 @@ export interface LobbyJoinOptions extends Partial<WorldPosition> {
   navn: string;
   avatarId: string;
   farve: string;
-  /** The shared family code; the server refuses the join without the right one. */
+  /** Which game to join (one server hosts several; each is its own world). Protocol v8+. */
+  gameId?: string;
+  /** The game's spilnøgle; the server refuses the join without the right one. Protocol v8+. */
+  gameKey?: string;
+  /** The same key under its pre-v8 name, so an older (single-game) server still lets the client in. */
   familyCode?: string;
 }
 
-/** ServerError code for a missing/wrong family code, or too many wrong guesses. */
-export const FAMILY_CODE_REJECTED = 4401;
+/**
+ * ServerError code for a missing/wrong spilnøgle, or too many wrong guesses. Also the
+ * close code when a parent changes the key or deletes the game while players are online.
+ */
+export const GAME_KEY_REJECTED = 4401;
 
 /**
  * Bump when a message changes in a way older peers can't handle. v1 = trading
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
  * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,
- * v5 = teaming up against the dragon, v6 = food growing on the map, v7 = save backups. The server announces its version with the
+ * v5 = teaming up against the dragon, v6 = food growing on the map, v7 = save backups,
+ * v8 = several games per server (gameId + gameKey), game names and renames by a parent. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -130,4 +138,8 @@ export interface ServerMessages {
   foodTaken: { foodId: string; kind: FoodKind };
   /** My backup is stored (or why not). */
   backupAck: { savedAt: string } | { error: string };
+  /** The game I'm in, sent on join and when a parent renames it (v8+). */
+  game: { gameId: string; navn: string };
+  /** A parent renamed me in the admin portal: use this name from now on (v8+). */
+  renamed: { navn: string };
 }

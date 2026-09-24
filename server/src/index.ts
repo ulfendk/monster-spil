@@ -3,14 +3,12 @@ import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { LOBBY_ROOM } from "@monster-spil/shared";
 import { LobbyRoom } from "./LobbyRoom.js";
-import { FamilyGate } from "./family-gate.js";
-import { FamilyStore } from "./family-store.js";
+import { KeyGate } from "./key-gate.js";
+import { GameRegistry } from "./games.js";
 import { loadBosses } from "./bosses.js";
 import { loadFoodSpots } from "./areas.js";
-import { SaveBackups } from "./save-backups.js";
 import { handleBackupRequest } from "./backup-http.js";
 import { AdminPortal } from "./admin.js";
-import path from "node:path";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -45,41 +43,38 @@ const httpServer = http.createServer((req, res) => {
 });
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
-const gate = new FamilyGate(process.env.FAMILY_CODE?.trim() || undefined);
-if (gate.isOpen) {
-  // The Docker image sets NODE_ENV=production. A missing code there would silently leave the server open to anyone, so fail loudly instead.
-  if (process.env.NODE_ENV === "production") {
-    console.error("FAMILY_CODE is not set — refusing to start. Set it to the family code (see docs/self-hosting.md).");
+const production = process.env.NODE_ENV === "production";
+const adminPassword = process.env.ADMIN_PASSWORD?.trim() || undefined;
+// Every game (its players, scores, dragon and backups) lives under DATA_DIR (a volume in Docker).
+// FAMILY_CODE is only read once: to turn a pre-games server's family into the game "Familien".
+const dataDir = process.env.DATA_DIR ?? "data";
+const registry = await GameRegistry.open(dataDir, process.env.FAMILY_CODE);
+if (registry.list().length === 0) {
+  if (production && !adminPassword) {
+    // Nobody could ever join: say so loudly instead of running an empty server.
+    console.error("No games yet and ADMIN_PASSWORD is not set — refusing to start. Set ADMIN_PASSWORD and create a game at /admin (see docs/self-hosting.md).");
     process.exit(1);
   }
-  console.warn("WARNING: FAMILY_CODE is not set — anyone who can reach this server can join. Fine for local dev only.");
+  console.warn("No games yet: create one in the admin portal at /admin (or set FAMILY_CODE once to create \"Familien\").");
+} else if (process.env.FAMILY_CODE && registry.byKey(process.env.FAMILY_CODE) === undefined) {
+  console.warn("FAMILY_CODE is ignored now that games exist: keys are managed at /admin.");
 }
-// Scores, the dragon and unclaimed rewards are kept in DATA_DIR/family.json (a volume in Docker).
-const dataDir = process.env.DATA_DIR ?? "data";
-const store = await FamilyStore.open(dataDir);
+// One lockout counter for every key guess (joining, adding a game, restoring); the admin portal has its own.
+const gate = new KeyGate();
 const bosses = await loadBosses();
 // Food grows on open ground; never on a dragon's lair.
 const foodSpots = await loadFoodSpots(bosses.map((b) => b.lair));
-// A copy of every player's save, for restoring onto a new or reinstalled device.
-const backups = new SaveBackups(path.join(dataDir, "saves"));
-backupDeps = { gate, backups, allowedOrigins };
+backupDeps = { gate, registry, allowedOrigins };
 // The parent's admin portal at /admin — only with ADMIN_PASSWORD set.
-const adminPassword = process.env.ADMIN_PASSWORD?.trim() || undefined;
-admin = new AdminPortal({
-  password: adminPassword,
-  store,
-  backups,
-  bosses,
-  online: () => LobbyRoom.current?.onlineIds() ?? new Set(),
-  changed: () => LobbyRoom.current?.adminChanged(),
-});
-if (adminPassword && adminPassword === process.env.FAMILY_CODE?.trim()) {
-  console.warn("WARNING: ADMIN_PASSWORD is the same as FAMILY_CODE — anyone who can play can use the admin portal.");
+admin = new AdminPortal({ password: adminPassword, registry, bosses, room: (gameId) => LobbyRoom.byGame.get(gameId) });
+if (adminPassword && registry.byKey(adminPassword)) {
+  console.warn("WARNING: ADMIN_PASSWORD is also a game's spilnøgle — anyone who can play that game can use the admin portal.");
 }
-gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses, foodSpots, backups });
-gameServer.onShutdown(() => store.flush());
+// One room per game: a client joins with its gameId and must bring that game's key.
+gameServer.define(LOBBY_ROOM, LobbyRoom, { registry, gate, bosses, foodSpots }).filterBy(["gameId"]);
+gameServer.onShutdown(() => registry.flush());
 
 await gameServer.listen(port);
-console.log(`Monsterjagt server listening on :${port} (data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"})`);
+console.log(`Monsterjagt server listening on :${port} (${registry.list().length} games, data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"})`);
 
 // Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.

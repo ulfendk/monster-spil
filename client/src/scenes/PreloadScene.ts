@@ -8,7 +8,9 @@ import { bossSpecies } from "@shared";
 import { generatePlaceholderSprites } from "../gfx/placeholder-sprites";
 import { generateAvatarTextures } from "../gfx/avatar-sprites";
 import { generateIcons } from "../gfx/icon-art";
-import { loadInitialState } from "../save/game-state";
+import { addGame, loadGames } from "../save/games";
+import { multiplayerEnabled } from "../net/lobby";
+import { gameListRequested, startGame } from "./start-game";
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -41,12 +43,20 @@ export class PreloadScene extends Phaser.Scene {
     generateAvatarTextures(this);
     generateIcons(this);
 
-    loadInitialState().then((save) => {
-      if (save) {
-        this.scene.start("Overworld", { save, content });
-      } else {
-        this.scene.start("Setup", { content });
-      }
-    });
+    void this.openGame(content);
+  }
+
+  /**
+   * Solo builds have exactly one game. With a server: one game opens straight away; with
+   * several (or none yet, or when asked to switch) the game list comes first.
+   */
+  private async openGame(content: GameContent): Promise<void> {
+    let games = await loadGames(multiplayerEnabled);
+    if (!multiplayerEnabled) {
+      if (games.length === 0) games = [await addGame({ id: "solo", navn: "Monsterjagt", online: false })];
+      return startGame(this, games[0]!.id, content);
+    }
+    if (games.length === 1 && !gameListRequested()) return startGame(this, games[0]!.id, content);
+    this.scene.start("Games", { content });
   }
 }

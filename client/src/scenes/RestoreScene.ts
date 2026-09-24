@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { GameContent } from "../content/load-content";
 import { adoptSave } from "../save/game-state";
 import { fetchBackup, listBackups, type BackupSummary } from "../net/backup";
-import { getFamilyCode, setFamilyCode } from "../net/lobby";
+import { currentGame, updateGame } from "../save/games";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 import { addScreenBackdrop } from "../gfx/motifs";
@@ -18,9 +18,9 @@ export interface RestoreSceneData {
 type Step = { kind: "code"; notice?: string } | { kind: "busy" } | { kind: "pick"; code: string; players: BackupSummary[]; notice?: string };
 
 /**
- * Getting a player back onto a new or reinstalled device: type the family code (a
- * reinstalled app has forgotten it), pick yourself from the family's backed-up
- * players, and play on with your own monsters. Reached from the first setup screen.
+ * Getting a player back onto a new or reinstalled device: pick yourself from the game's
+ * backed-up players and play on with your own monsters. Reached from the first setup
+ * screen of an online game; the spilnøgle is asked for only if it turns out to be wrong.
  */
 export class RestoreScene extends Phaser.Scene {
   private content!: GameContent;
@@ -36,7 +36,9 @@ export class RestoreScene extends Phaser.Scene {
     this.content = data.content;
     this.step = { kind: "code" };
     onRelayout(this, () => this.draw());
-    this.draw();
+    const key = currentGame()?.key;
+    if (key) void this.submitCode(key);
+    else this.draw();
   }
 
   private clear(): void {
@@ -88,11 +90,11 @@ export class RestoreScene extends Phaser.Scene {
       `font-size:${layout.font(32)};width:${Math.min(360, width - 80)}px;padding:16px;border-radius:16px;border:none;text-align:center;`
     );
     const el = this.codeInput.node as HTMLInputElement;
-    el.type = "password";
     el.autocomplete = "off";
+    el.spellcheck = false;
     el.autocapitalize = "off";
     el.setAttribute("autocorrect", "off");
-    el.value = typed ?? getFamilyCode() ?? "";
+    el.value = typed ?? currentGame()?.key ?? "";
     this.ui.push(
       createButton(this, width / 2, height * 0.47 + layout.touch(72) + layout.px(30), "✓", () => void this.submitCode(el.value.trim()), {
         width: 140,
@@ -152,7 +154,8 @@ export class RestoreScene extends Phaser.Scene {
       this.step = { kind: "pick", code, players, notice: result.reason === "code" ? t("lobby_code_wrong") : t("lobby_offline") };
       return this.draw();
     }
-    setFamilyCode(code); // the device will connect on its own from now on
+    const game = currentGame();
+    if (game) await updateGame(game.id, { key: code }); // the device will connect on its own from now on
     const save = await adoptSave(result.value);
     // Backed up before picking a first monster: pick it now.
     if (save.creatures.length === 0) this.scene.start("Starter", { content: this.content });

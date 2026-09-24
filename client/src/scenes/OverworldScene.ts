@@ -36,7 +36,7 @@ interface TileCoord {
 }
 
 const TILE_SIZE = 64;
-const MOVE_DURATION_MS = 160;
+const MOVE_DURATION_MS = 200;
 /** The connection button shows the state: others online, connecting, offline, code needed. */
 const STATUS_ICON: Record<PresenceStatus, string> = { online: "team", connecting: "hourglass", offline: "offline", needCode: "key", off: "gear" };
 

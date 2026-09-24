@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
 import type {
+  PassOutKind,
   CreatureInstance,
   CreatureSpecies,
   BattleState,
@@ -10,7 +11,7 @@ import type {
   DuelView,
   TeamView,
 } from "@shared";
-import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromDamage, closenessFromFoe, passOutUntil } from "@shared";
+import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
 import { listen, say } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
@@ -257,7 +258,7 @@ export class BattleScene extends Phaser.Scene {
     this.updateHpBars();
     this.reactToEntries(next.log.slice(previousLogLength));
     // My monster fainted: my pass-out wait starts now, even if the team fights on.
-    if (this.meInTeam(view)?.status === "fainted") this.startPassOut(closenessFromDamage(this.dealtToDragon(), this.me().species.baseStats.hp));
+    if (this.meInTeam(view)?.status === "fainted") this.startPassOut(0, "dragon");
 
     if (view.phase === "done") {
       this.finished = true;
@@ -338,22 +339,15 @@ export class BattleScene extends Phaser.Scene {
       .reduce((sum, e) => sum + (e.amount ?? 0), 0);
     if (next.winnerId === this.myId) this.say(t("raid_won"), OUTCOME_ICONS.won);
     else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
-    if (next.outcome === "lost") this.startPassOut(closenessFromDamage(dealt, this.me().species.baseStats.hp));
+    if (next.outcome === "lost") this.startPassOut(0, "dragon");
     this.time.delayedCall(2200, () => this.endBattle());
   }
 
-  /** My monster fainted: start the pass-out wait (once), longer the less of a fight it was. */
-  private startPassOut(closeness: number): void {
+  /** My monster fainted: start the pass-out wait (once) — in a duel longer the less of a fight it was, against the dragon always 60 s. */
+  private startPassOut(closeness: number, kind: PassOutKind = "fight"): void {
     if (this.passedOut) return;
     this.passedOut = true;
-    void passOut(closeness);
-  }
-
-  /** Damage my monster dealt to the dragon in this fight. */
-  private dealtToDragon(): number {
-    return this.battleState.log
-      .filter((e) => e.kind === "damage" && e.targetPlayerId === BOSS_PLAYER_ID && (e.actorPlayerId ?? this.myId) === this.myId)
-      .reduce((sum, e) => sum + (e.amount ?? 0), 0);
+    void passOut(closeness, kind);
   }
 
   /** Shows a battle message with its icon. */

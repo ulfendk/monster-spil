@@ -11,8 +11,8 @@ export const PASS_OUT_MAX_S = 60;
 export const WILD_PASS_OUT_MIN_S = 10;
 export const WILD_PASS_OUT_MAX_S = 30;
 
-/** "fight": duels and the dragon (30–60 s). "wild": a lost wild battle (10–30 s). */
-export type PassOutKind = "fight" | "wild";
+/** "fight": duels (30–60 s). "wild": a lost wild battle (10–30 s). "dragon": always the full 60 s. */
+export type PassOutKind = "fight" | "wild" | "dragon";
 /** Seconds one piece of food takes off the wait. */
 export const FOOD_SECONDS = 15;
 export const BAG_MAX = 5;
@@ -22,10 +22,11 @@ export type FoodKind = (typeof FOOD_KINDS)[number];
 
 /**
  * How long you are out, from how close you came (0 = knocked out without a scratch
- * on the opponent, 1 = it was nearly over for them too): for duels and the dragon
- * 60 s down to 30 s, for wild battles 30 s down to 10 s.
+ * on the opponent, 1 = it was nearly over for them too): for duels 60 s down to 30 s,
+ * for wild battles 30 s down to 10 s. Losing to the dragon is always the full 60 s.
  */
 export function passOutSeconds(closeness: number, kind: PassOutKind = "fight"): number {
+  if (kind === "dragon") return PASS_OUT_MAX_S;
   const c = Math.min(1, Math.max(0, Number.isFinite(closeness) ? closeness : 0));
   const [min, max] = kind === "wild" ? [WILD_PASS_OUT_MIN_S, WILD_PASS_OUT_MAX_S] : [PASS_OUT_MIN_S, PASS_OUT_MAX_S];
   return Math.round(max - (max - min) * c);
@@ -34,14 +35,6 @@ export function passOutSeconds(closeness: number, kind: PassOutKind = "fight"): 
 /** Wild battles and duels: how much of the opponent's HP you took (0 if it was untouched). */
 export function closenessFromFoe(foeHp: number, foeMaxHp: number): number {
   return foeMaxHp > 0 ? 1 - Math.max(0, foeHp) / foeMaxHp : 0;
-}
-
-/**
- * The dragon never gets near zero in one fight, so there it's the damage you dealt
- * compared with your own monster's HP: dealing as much as you could take is a great fight.
- */
-export function closenessFromDamage(dealt: number, myMaxHp: number): number {
-  return myMaxHp > 0 ? Math.max(0, dealt) / myMaxHp : 0;
 }
 
 /** When the wait ends, as an ISO timestamp, for a faint at `now`. */

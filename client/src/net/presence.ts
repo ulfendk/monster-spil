@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import { BAG_MAX, FAMILY_CODE_REJECTED, applyDelivery } from "@shared";
+import { BAG_MAX, GAME_KEY_REJECTED, applyDelivery } from "@shared";
 import type {
   ClientMessages,
   CreatureInstance,
@@ -17,7 +17,8 @@ import type {
   WorldPosition,
 } from "@shared";
 import { getState, onPersist, persist } from "../save/game-state";
-import { getFamilyCode, joinLobby, listen, multiplayerEnabled, say } from "./lobby";
+import { joinLobby, listen, multiplayerEnabled, say } from "./lobby";
+import { currentGame, updateGame } from "../save/games";
 import { t } from "../i18n/da";
 import { loadContent } from "../content/load-content";
 
@@ -26,7 +27,8 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
 /**
  * Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction",
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
- * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind).
+ * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind),
+ * "renamed" (navn).
  */
 const HELLO_TIMEOUT_MS = 3000;
 /** Saves come in bursts (a battle's end, a trade); back up once things settle. */
@@ -35,7 +37,7 @@ const RETRY_MIN_MS = 3000;
 const RETRY_MAX_MS = 30000;
 
 /**
- * The one connection to the family server, alive for the whole play session (not
+ * The one connection to the current game on the server, alive for the whole play session (not
  * just while a menu is open). It keeps the list of other players and where they
  * stand, the current trade/duel invite, and applies finished trades to the save
  * wherever the player happens to be. Scenes only read its state and listen to
@@ -66,7 +68,7 @@ class Presence {
   team?: TeamView;
   /** The team whose start we already announced, so per-turn updates don't re-announce it. */
   private startedTeamId?: string;
-  /** One-shot message for the settings screen, e.g. a wrong family code. */
+  /** One-shot message for the settings screen, e.g. a wrong spilnøgle. */
   notice?: string;
   /** One-shot message for the interaction screen, e.g. "the trade was cancelled" by the other player. */
   interactNotice?: string;
@@ -127,10 +129,10 @@ class Presence {
     return this.status === "online" ? this.room : undefined;
   }
 
-  /** Call once the game has a save; safe to call again on every Overworld start. */
+  /** Call once the game has a save; safe to call again on every Overworld start. A game played alone never connects. */
   start(position: WorldPosition): void {
     this.position = position;
-    if (!multiplayerEnabled) return;
+    if (!multiplayerEnabled || !currentGame()?.online) return;
     if (this.started) return;
     this.started = true;
     void this.connect();
@@ -152,7 +154,7 @@ class Presence {
     if (this.status === "online" && this.room) say(this.room, type, payload);
   }
 
-  /** Called by the settings screen after a new family code has been stored. */
+  /** Called by the settings screen after a new spilnøgle has been stored. */
   reconnect(): void {
     this.dropRoom();
     this.notice = undefined;
@@ -180,8 +182,9 @@ class Presence {
   private async connect(): Promise<void> {
     const save = getState();
     if (!save || this.connecting) return;
-    const familyCode = getFamilyCode();
-    if (!familyCode) return this.setStatus("needCode");
+    const game = currentGame();
+    if (!game?.online) return;
+    if (!game.key) return this.setStatus("needCode");
     this.connecting = true;
     this.setStatus("connecting");
     try {
@@ -190,7 +193,9 @@ class Presence {
         navn: save.player.navn,
         avatarId: save.player.avatarId,
         farve: save.player.farve,
-        familyCode,
+        gameId: game.id,
+        gameKey: game.key,
+        familyCode: game.key, // for a server from before games
         ...this.position,
       });
       this.room = room;
@@ -199,7 +204,7 @@ class Presence {
       this.setStatus("online");
       if (this.away) this.send("away", { away: true });
     } catch (error) {
-      if ((error as { code?: number }).code === FAMILY_CODE_REJECTED) {
+      if ((error as { code?: number }).code === GAME_KEY_REJECTED) {
         this.notice = t("lobby_code_wrong");
         this.setStatus("needCode");
       } else {
@@ -224,6 +229,10 @@ class Presence {
       this.flushScore();
       this.scheduleBackup(1000); // back up once right after connecting
     });
+    listen(room, "game", ({ gameId, navn }) => {
+      if (gameId === currentGame()?.id && navn) void updateGame(gameId, { navn });
+    });
+    listen(room, "renamed", ({ navn }) => void this.rename(navn));
     listen(room, "raid", (view) => {
       this.raid = view;
       this.events.emit("raid", view);
@@ -317,7 +326,7 @@ class Presence {
     });
     listen(room, "problem", ({ reason }) => this.events.emit("problem", reason));
 
-    room.onLeave(() => {
+    room.onLeave((code) => {
       if (this.room !== room) return; // we dropped it ourselves
       this.room = undefined;
       this.players.clear();
@@ -330,6 +339,12 @@ class Presence {
       this.events.emit("food");
       this.events.emit("players");
       this.events.emit("raid", undefined);
+      // A parent changed the key or deleted the game: ask for the (new) key instead of retrying.
+      if (code === GAME_KEY_REJECTED) {
+        this.notice = t("game_key_changed");
+        this.setStatus("needCode");
+        return;
+      }
       this.setStatus("offline");
       this.scheduleRetry();
     });
@@ -354,6 +369,15 @@ class Presence {
     this.received = delivery.receive;
     this.receivedReason = "trade";
     this.events.emit("interaction");
+  }
+
+  /** A parent gave me a new name in the admin portal. */
+  private async rename(navn: string): Promise<void> {
+    const save = getState();
+    if (!save || !navn || save.player.navn === navn) return;
+    save.player.navn = navn.slice(0, 30);
+    await persist();
+    this.events.emit("renamed", navn);
   }
 
   private async putInBag(kind: FoodItem["kind"]): Promise<void> {
@@ -398,5 +422,5 @@ export type RaidBattleUpdate = { battle: BattleState; over?: "defeated"; restUnt
 export type { RaidView, ScoreRow, TeamView };
 
 export const presence = new Presence();
-// Every save is backed up to the family server a few seconds later (when connected).
+// Every save is backed up to the game server a few seconds later (when connected).
 onPersist(() => presence.scheduleBackup());

@@ -15,8 +15,8 @@ hobby project: optimise for easy extension by non-programmers, not feature count
 - **UI language is Danish**, kept minimal (the 6-year-old reads little) — icons,
   colour and sound carry the core actions. Touch targets are ≥64px.
 - **No third-party services.** The only network calls (Milestone 2+) go to our own
-  self-hosted family game server. No ads, no tracking, no accounts. (A single
-  shared family code gates the server; there are no per-person passwords.)
+  self-hosted family game server. No ads, no tracking, no accounts. (Each game on
+  the server has one shared spilnøgle; there are no per-person passwords.)
 - **Each device's IndexedDB save is that player's source of truth.**
 
 ## Milestone status
@@ -33,8 +33,9 @@ Milestone 3 (PvP duels) is built and tested against a local server with scripted
 clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
 Since then: a shared 64×48 world where players see each other, a weekly family
-dragon raid, a weekly scoreboard and an overview map (sections below). Ideas not
-yet scheduled live in `docs/backlog.md`.
+dragon raid, a weekly scoreboard, an overview map, save backups, a parent's admin
+portal and several games per server (sections below). Ideas not yet scheduled live
+in `docs/backlog.md`.
 
 ## Monorepo layout
 
@@ -169,8 +170,9 @@ the player stopping after a walk) — not on every tile step, to avoid IndexedDB
 
 `server/` is a Colyseus 0.16 server (pinned to 0.16 because `colyseus.js` — the
 client SDK — tops out at 0.16; server and client must stay on the same line).
-One room, `lobby` (`server/src/LobbyRoom.ts`), no schema state — plain messages
-typed in `shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
+One room type, `lobby` (`server/src/LobbyRoom.ts`) — one room per game, see "Several
+games" — with no schema state: plain messages typed in
+`shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
 
 - **Trading** is a pure state machine in `shared/src/trade/trade-session.ts`
   (invite → accept → each offers one creature → both confirm; changing an offer
@@ -180,15 +182,12 @@ typed in `shared/src/trade/protocol.ts` (`ClientMessages` / `ServerMessages`).
   `ownerId` rewritten), keeps it until the client `ack`s (after persisting), and
   re-sends on rejoin. `applyDelivery` is idempotent, so re-sends are harmless.
   Keep new trade logic pure and in `shared`.
-- **Access = family code.** `FAMILY_CODE` env on the server; checked in
-  `LobbyRoom.onAuth` via `FamilyGate` (constant-time compare, 5 wrong guesses per
-  address per 10 min locks that address out). Rejection is `ServerError` code
-  `FAMILY_CODE_REJECTED` (4401). The client asks for the code once (canvas
-  screen with a DOM input; a 🔑 button in the lobby re-opens it) and keeps it in
-  `localStorage` — not in the save. No
-  accounts; the server does not verify creature contents (family-trust design).
-  With `NODE_ENV=production` (the Docker image) it exits at startup if
-  `FAMILY_CODE` is unset; only local dev may run open.
+- **Access = the game's spilnøgle** (see "Several games"). Checked in
+  `LobbyRoom.onAuth` through one shared `KeyGate` (`server/src/key-gate.ts`:
+  constant-time compare, 5 wrong guesses per address per 10 min lock that address
+  out — across all games). Rejection is `ServerError` code `GAME_KEY_REJECTED`
+  (4401). No accounts; the server does not verify creature contents (family-trust
+  design).
 - **Client** (`client/src/net/presence.ts`, `client/src/net/lobby.ts`): multiplayer
   only exists when the build has `VITE_SERVER_URL` (unset = solo-only build, so
   GitHub Pages stays fully offline-capable). See "Shared world" below for how
@@ -246,7 +245,7 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   objects with `setScrollFactor(0)` — never nest interactive children in a
   scroll-factor-0 container, taps hit-test wrongly while the camera is scrolled.
 - **`client/src/net/presence.ts` owns the server connection for the whole session**
-  (connects on its own when a family code is stored, reconnects quietly, works
+  (connects to the current game when its key is stored, reconnects quietly, works
   offline). It holds the other players and their positions, the current
   trade/duel invite, and applies finished trades to the save wherever the player
   is. Scenes listen to `presence.events`; nothing there draws.
@@ -260,7 +259,7 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   diagonals count), same area, and neither is busy or away. Tapping a player next
   to you shows the 🤝/⚔️ popup; tapping one further away walks you next to them
   first. Incoming invites open `InteractScene` over the map; ⚙ (`SettingsScene`)
-  shows the connection and holds the 🔑 family-code entry.
+  shows the game, the connection, the 🔑 spilnøgle entry and the button to switch games.
 - **Testing without a second device:** `scripts/e2e-lobby.mjs` drives scripted
   players against a running server. For real rendering, two headless Chromium
   instances with separate profiles (remote debugging) give genuinely separate
@@ -277,10 +276,11 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   rotation. The client globs the same files for sprites, cries and the map marker.
   The reward species (`drageunge`) is an ordinary creature file, never in any
   encounter table; the monster book shows 🐉 for it instead of a distance hint.
-- **Persistence:** `server/src/family-store.ts` keeps `DATA_DIR/family.json`
-  (`/data` in Docker — mount a volume): known players, score events (pruned after
-  8 days), the raid, and rewards until the device sends `rewardAck`. Writes are
-  debounced and atomic; an unwritable directory is logged, not fatal.
+- **Persistence:** `server/src/game-store.ts` keeps each game's
+  `DATA_DIR/games/<gameId>/game.json` (`/data` in Docker — mount a volume): known
+  players, score events (pruned after 8 days), the raid, rewards until the device
+  sends `rewardAck`, and pending renames. Writes are debounced and atomic; an
+  unwritable directory is logged, not fatal.
 - **Catches are reported by the device**: a wild catch is queued in
   `SaveData.pendingScore` (so offline catches count later) and sent as
   `scoreReport`; the server dedupes by event id and acks every well-formed id.
@@ -313,9 +313,8 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 
 - **Pure rules in `shared/src/recovery/recovery.ts`** (tested): when a monster
   faints the player passes out — `passOutSeconds(closeness, kind)`: 30–60 s after a
-  duel or the dragon, 10–30 s after a lost wild battle, where
-  closeness is how much of the opponent's HP they took (wild battles, duels) or,
-  against the dragon, damage dealt ÷ their own monster's HP. Each piece of food
+  duel, 10–30 s after a lost wild battle (closeness = how much of the opponent's HP
+  they took), and always 60 s after fainting against the dragon. Each piece of food
   eaten takes `FOOD_SECONDS` (15) off; the bag holds `BAG_MAX` (5).
 - **Only fainting counts**, not fleeing: a lost wild battle, a duel lost by fainting,
   and fainting against the dragon (solo or in a team — the server then skips its
@@ -331,18 +330,19 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 
 ## Save backups (protocol v7)
 
-- **The device's save stays the source of truth**, but a copy lives on the family
+- **The device's save stays the source of truth**, but a copy lives on the game
   server so a reinstalled or new device can get its player back. `persist()` notifies
   `onPersist` listeners; `presence` backs up 5 s after the last save (and once after
   connecting) with the `backup` message. The server (`server/src/save-backups.ts`)
-  keeps one file per player in `DATA_DIR/saves/<playerId>.json` (atomic writes; ids
+  keeps one file per player in `DATA_DIR/games/<gameId>/saves/<playerId>.json` (atomic writes; ids
   must match `[A-Za-z0-9-]`, max 256 KB; you can only back up your own save).
 - **Restore** happens before the device has a player, so it is plain HTTP on the same
   server (`server/src/backup-http.ts`): `GET /backups` and `GET /backups/<id>`, with
-  the family code in `X-Family-Code`, counted by the same `FamilyGate`, CORS for the
-  Pages origin. In the client: the first setup screen offers ✨ new / 🔄 fetch;
-  `RestoreScene` asks for the family code, lists the players (figure, name, monster
-  count), and `adoptSave` makes the chosen save this device's. ⚙ shows when the
+  the spilnøgle in `X-Game-Key` (older clients: `X-Family-Code`) choosing the game,
+  counted by the same `KeyGate`, CORS for the Pages origin. In the client: the first
+  setup screen of an online game offers ✨ new / 🔄 fetch; `RestoreScene` lists that
+  game's players (figure, name, monster count; it asks for the key only if the stored
+  one is refused), and `adoptSave` makes the chosen save this game's save on the device. ⚙ shows when the
   device was last backed up. `scripts/e2e-backup.mjs` covers the server side.
 - **Player figures** are six animal faces (fox, frog, panda, calico cat, moon rabbit,
   bear) drawn in code in `client/src/gfx/avatar-sprites.ts`, shown on the player's
@@ -351,19 +351,58 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 
 ## Admin portal
 
-- **`/admin` on the game server**, off unless `ADMIN_PASSWORD` is set (never the
-  family code; the server warns if they match). `server/src/admin.ts` handles it;
+- **`/admin` on the game server**, off unless `ADMIN_PASSWORD` is set (never a
+  spilnøgle; the server warns if it matches one). `server/src/admin.ts` handles it;
   the page is one self-contained HTML string in `server/src/admin-page.ts` (Danish,
   Kanagawa colours, no external files; player names only ever via `textContent`).
-- **Auth:** POST `/admin/login` checks the password through its own `FamilyGate`
-  (same lockout) and sets a 12-hour `HttpOnly; SameSite=Strict` session cookie
+- **Auth:** POST `/admin/login` checks the password through its own `KeyGate`
+  (same lockout rules, separate counter, so a child mistyping a key can't lock the
+  parent out) and sets a 12-hour `HttpOnly; SameSite=Strict` session cookie
   (`Secure` behind https). State-changing calls also need an `x-admin: 1` header.
   Strict CSP, `no-store`.
-- **Actions:** list players (store + backups + online + points), download one/all
-  backups, delete a player (store entry, score events, rewards, backup file), dragon
-  reset / set HP (0 = asleep, never rewards), clear score events. Changes reach
-  connected players through `LobbyRoom.current.adminChanged()`.
-  `scripts/e2e-admin.mjs` covers it.
+- **Games:** list (name, key, players, online), create (name + key; the page can
+  suggest a key like `modig-ugle-472`), rename, change the key, delete. Per game
+  (`/admin/api/games/<gameId>/…`): list players (store + backups + online + points),
+  rename a player, download one/all backups, delete a player (store entry, score
+  events, rewards, renames, backup file), dragon reset / set HP (0 = asleep, never
+  rewards), clear score events. Changes reach connected players through the game's
+  room (`LobbyRoom.byGame`): `adminChanged`, `adminRenamedGame`,
+  `adminRenamedPlayer`, and `adminKickAll` (new key or deleted game: everyone is sent
+  away with 4401, so their device asks for the key). `scripts/e2e-admin.mjs` and
+  `scripts/e2e-games.mjs` cover it.
+
+## Several games (protocol v8)
+
+- **One server, several games** — e.g. the family and a school class. Each game is
+  its own world: players, scoreboard, dragon, food, backups. `server/src/games.ts`
+  (`GameRegistry`, tested) keeps the list in `DATA_DIR/games.json` (id, name,
+  spilnøgle, created) and each game's data in `DATA_DIR/games/<gameId>/`. Keys are
+  compared normalised (NFC, trimmed, lower case), are 6–40 characters and unique per
+  server. Games are created by a parent in the admin portal.
+- **Migration:** a server from before games (`DATA_DIR/family.json` + `saves/`)
+  turns its family into the game "Familien" (id `familien`) with `FAMILY_CODE` as its
+  key on first start. After that `FAMILY_CODE` is ignored. In production the server
+  refuses to start if there are no games and no `ADMIN_PASSWORD` (nobody could join).
+- **Rooms:** `gameServer.define("lobby", …).filterBy(["gameId"])` — a client joins
+  with `{gameId, gameKey}` (plus `familyCode` = the same key, for an older server).
+  `onCreate` refuses unknown games and a second room for the same game; `onAuth`
+  only lets in that game's key. Server-side deps come from the define options, which
+  Colyseus lets win over client options. The server sends `game {gameId, navn}` on
+  join and on rename, and `renamed {navn}` when a parent renamed the player (kept in
+  the store's `renames` until the device joins with the new name).
+- **Plain HTTP before joining:** `GET /game` with `X-Game-Key` → `{gameId, navn}`
+  (adding a game on a device). A v7 server has no `/game`; the client then tries
+  `/backups` and, if the key opens it, treats it as the one game `familien`.
+- **Client:** separate progress per game. `client/src/save/games.ts` keeps the
+  device's game list in IndexedDB (record `games`: id, name, online, key,
+  lastPlayedAt) and one save per game (`save:<gameId>`); `game-state.ts` persists to
+  the current game. The old single save (record `player`) and the localStorage
+  family code become the game "Familien" on first start (solo builds: one game alone,
+  `solo`). `GamesScene` is the game list (shown at start when there are 0 or 2+
+  games, and from the ⚙ button): a card per game with your figure, ＋ to add one
+  with a spilnøgle or to play alone (never connects), 🗑 to take a game off the
+  device (asks first). Switching games reloads the app (`reloadToGameList`), so
+  nothing from the old game lingers.
 
 ## Overview map
 

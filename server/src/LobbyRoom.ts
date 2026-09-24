@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { Room, ServerError, type AuthContext, type Client } from "@colyseus/core";
 import {
-  FAMILY_CODE_REJECTED,
+  GAME_KEY_REJECTED,
   PROTOCOL_VERSION,
   acceptDuel,
   acceptInvite,
@@ -39,8 +39,9 @@ import {
   submitAction,
   timeoutTurn,
 } from "@monster-spil/shared";
-import { clientAddress, type FamilyGate } from "./family-gate.js";
-import type { FamilyStore } from "./family-store.js";
+import { clientAddress, type KeyGate } from "./key-gate.js";
+import type { GameStore } from "./game-store.js";
+import type { GameRegistry } from "./games.js";
 import { bossForWeek } from "./bosses.js";
 import type { AreaSpots } from "./areas.js";
 import type { SaveBackups } from "./save-backups.js";
@@ -63,6 +64,14 @@ import type {
   TradeSession,
   WorldPosition,
 } from "@monster-spil/shared";
+
+/** What every game's room gets from the server (see index.ts). */
+export interface LobbyDeps {
+  registry: GameRegistry;
+  gate: KeyGate;
+  bosses: BossDefinition[];
+  foodSpots?: AreaSpots[];
+}
 
 interface Online {
   client: Client;
@@ -105,7 +114,7 @@ function cleanCreature(raw: unknown): CreatureInstance | undefined {
 }
 
 /**
- * The single family lobby: who is online, plus one-to-one creature trades and
+ * One game's lobby (there is one room per game, matched by `gameId`): who is online, plus one-to-one creature trades and
  * duels. A duel is server-authoritative: clients only send a move choice, the
  * server calls the shared `resolveTurn` and pushes the result to both.
  *
@@ -116,25 +125,29 @@ function cleanCreature(raw: unknown): CreatureInstance | undefined {
  * open trades and duels, which is fine because nothing has moved until
  * "tradeComplete", and a duel changes nobody's save.
  *
- * The family dragon, the weekly scoreboard and unclaimed rewards are the
- * exception: they live in the FamilyStore (a JSON file on a volume) so they
+ * The game's dragon, its weekly scoreboard and unclaimed rewards are the
+ * exception: they live in the game's GameStore (a JSON file on a volume) so they
  * survive restarts. Each player fights the dragon in their own server-run battle;
  * the damage comes off one shared HP pool (see shared/src/raid/raid.ts).
  */
 export class LobbyRoom extends Room {
-  maxClients = 30;
+  // High enough that a game never spills into a second room (onCreate refuses a second one anyway).
+  maxClients = 100;
   autoDispose = false;
 
-  /** The one lobby (there is exactly one room), so the admin portal can reach it. */
-  static current?: LobbyRoom;
+  /** Each game's room, by gameId, so the admin portal can reach it. */
+  static readonly byGame = new Map<string, LobbyRoom>();
+
+  gameId = "";
+  private registry!: GameRegistry;
 
   private online = new Map<string, Online>();
   private trades = new Map<string, TradeSession>();
   private pending = new Map<string, TradeDelivery[]>();
   private duels = new Map<string, DuelSession>();
   private duelTimers = new Map<string, { clear(): void }>();
-  private gate!: FamilyGate;
-  private store!: FamilyStore;
+  private gate!: KeyGate;
+  private store!: GameStore;
   private bosses!: BossDefinition[];
   /** Each player's current attempt on the dragon. */
   private raidBattles = new Map<string, BattleState>();
@@ -149,19 +162,29 @@ export class LobbyRoom extends Room {
   private foodSpots: AreaSpots[] = [];
   private backups?: SaveBackups;
 
-  /** Runs before a seat is reserved, so outsiders never become part of the room. */
+  /** Runs before a seat is reserved, so outsiders never become part of the room. Only this game's key lets you in. */
   onAuth(_client: Client, options: LobbyJoinOptions, context: AuthContext): boolean {
-    if (!this.gate.check(clientAddress(context.headers, context.ip), options?.familyCode)) {
-      throw new ServerError(FAMILY_CODE_REJECTED, "familiekode");
-    }
+    const given = options?.gameKey ?? options?.familyCode;
+    const ok = this.gate.attempt(clientAddress(context.headers, context.ip), () => (this.registry.byKey(given)?.id === this.gameId ? true : undefined));
+    if (!ok) throw new ServerError(GAME_KEY_REJECTED, "spilnøgle");
     return true;
   }
 
-  onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[]; foodSpots?: AreaSpots[]; backups?: SaveBackups }): void {
-    this.backups = options.backups;
-    LobbyRoom.current = this;
+  /**
+   * `gameId` comes from the joining client; everything else from the server (Colyseus lets
+   * the server's options win). A game that doesn't exist gets no room — the same answer as a
+   * wrong key, so ids can't be probed.
+   */
+  async onCreate(options: LobbyDeps & { gameId?: unknown }): Promise<void> {
+    this.registry = options.registry;
+    const game = this.registry.get(options.gameId);
+    if (!game) throw new ServerError(GAME_KEY_REJECTED, "spilnøgle");
+    if (LobbyRoom.byGame.has(game.id)) throw new ServerError(GAME_KEY_REJECTED, "game already has a room");
+    this.gameId = game.id;
+    LobbyRoom.byGame.set(game.id, this);
+    this.store = await this.registry.store(game.id);
+    this.backups = this.registry.backups(game.id);
     this.gate = options.gate;
-    this.store = options.store;
     this.bosses = options.bosses;
     this.foodSpots = options.foodSpots ?? [];
     for (const area of this.foodSpots) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
@@ -428,6 +451,10 @@ export class LobbyRoom extends Room {
     });
   }
 
+  onDispose(): void {
+    if (LobbyRoom.byGame.get(this.gameId) === this) LobbyRoom.byGame.delete(this.gameId);
+  }
+
   onJoin(client: Client, options: LobbyJoinOptions): void {
     if (!isText(options?.playerId, 80) || !isText(options.navn, 30) || !isText(options.avatarId) || !isText(options.farve)) {
       throw new Error("invalid player");
@@ -437,9 +464,12 @@ export class LobbyRoom extends Room {
     if (previous) previous.client.leave(4000);
 
     client.userData = { playerId: options.playerId };
+    // A parent renamed this player: the device takes the new name (and joins with it next time).
+    const renamed = this.store.data.renames[options.playerId];
+    if (renamed && renamed === options.navn) delete this.store.data.renames[options.playerId];
     const info: LobbyPlayer = {
       playerId: options.playerId,
-      navn: options.navn,
+      navn: renamed ?? options.navn,
       avatarId: options.avatarId,
       farve: options.farve,
       busy: false,
@@ -449,11 +479,13 @@ export class LobbyRoom extends Room {
     };
     this.online.set(info.playerId, { client, info });
 
-    // Remember every family member, so the scoreboard lists them even while they are offline.
+    // Remember every player, so the scoreboard lists them even while they are offline.
     this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, avatarId: info.avatarId, lastSeen: new Date().toISOString() };
     this.store.changed();
 
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });
+    this.tell(client, "game", { gameId: this.gameId, navn: this.registry.get(this.gameId)?.navn ?? "" });
+    if (renamed && renamed !== options.navn) this.tell(client, "renamed", { navn: renamed });
     this.tell(client, "raid", this.raidViewNow());
     this.tell(client, "food", [...this.food.values()]);
     // Rejoining mid-team: show the team again (e.g. after a short drop-out).
@@ -521,6 +553,32 @@ export class LobbyRoom extends Room {
   adminChanged(): void {
     this.broadcastRaid();
     this.broadcastPlayers();
+  }
+
+  /** The admin portal renamed the game: connected devices update their game list. */
+  adminRenamedGame(navn: string): void {
+    for (const entry of this.online.values()) this.tell(entry.client, "game", { gameId: this.gameId, navn });
+  }
+
+  /** The admin portal renamed a player (the name is already stored): tell their device and everyone else. */
+  adminRenamedPlayer(playerId: string, navn: string): void {
+    const target = this.online.get(playerId);
+    if (!target) return;
+    target.info.navn = navn;
+    this.tell(target.client, "renamed", { navn });
+    this.broadcastPlayers();
+  }
+
+  /**
+   * The key was changed or the game deleted: everyone is sent away with the "wrong key"
+   * code, so their device asks for the new key. A deleted game's room is closed for good.
+   */
+  adminKickAll(closeRoom: boolean): void {
+    for (const entry of [...this.online.values()]) entry.client.leave(GAME_KEY_REJECTED);
+    if (closeRoom) {
+      LobbyRoom.byGame.delete(this.gameId);
+      void this.disconnect();
+    }
   }
 
   /** Why this player can't fight the dragon right now (solo or in a team), or undefined. */

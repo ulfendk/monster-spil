@@ -2,54 +2,66 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { RaidState, RewardDelivery, ScoreEvent, ScorePlayer } from "@monster-spil/shared";
 
-/** Everything the server must remember across restarts. Kept small: one JSON file. */
-export interface FamilyData {
+/** Everything the server must remember about one game across restarts. Kept small: one JSON file. */
+export interface GameData {
   version: 1;
-  /** Everyone who has ever joined, so the scoreboard also lists family members who are offline. */
+  /** Everyone who has ever joined, so the scoreboard also lists players who are offline. */
   players: Record<string, ScorePlayer & { lastSeen: string }>;
   /** Scoreboard events; older than the window + a day are pruned on save. */
   events: ScoreEvent[];
   raid?: RaidState;
   /** Rewards not yet acknowledged, per playerId (re-sent on join). */
   rewards: Record<string, RewardDelivery[]>;
+  /** Names a parent set in the admin portal, per playerId, until that device has taken the new name. */
+  renames: Record<string, string>;
 }
 
-const FILE = "family.json";
+export const GAME_FILE = "game.json";
+const FILE = GAME_FILE;
 const KEEP_MS = 8 * 24 * 60 * 60 * 1000;
 const WRITE_DELAY_MS = 500;
 
-const empty = (): FamilyData => ({ version: 1, players: {}, events: [], rewards: {} });
+const empty = (): GameData => ({ version: 1, players: {}, events: [], rewards: {}, renames: {} });
 
 /**
- * The server's only persistent state, in `<dir>/family.json` (a Docker volume in
- * production). Writes are debounced and atomic (temp file + rename), so a crash
+ * One game's persistent state, in `<dir>/game.json` (under a Docker volume in
+ * production; see GameRegistry for the layout). Writes are debounced and atomic (temp file + rename), so a crash
  * mid-write never leaves a half-written file. If the directory can't be written,
  * the server keeps running from memory and logs why.
  */
-export class FamilyStore {
+export class GameStore {
   private timer?: ReturnType<typeof setTimeout>;
   private writing = Promise.resolve();
+  private closed = false;
 
-  private constructor(readonly data: FamilyData, private readonly dir: string) {}
+  private constructor(readonly data: GameData, private readonly dir: string) {}
 
-  static async open(dir: string): Promise<FamilyStore> {
+  static async open(dir: string): Promise<GameStore> {
     try {
-      const raw = JSON.parse(await readFile(path.join(dir, FILE), "utf-8")) as Partial<FamilyData>;
-      return new FamilyStore({ ...empty(), ...raw, version: 1 }, dir);
+      const raw = JSON.parse(await readFile(path.join(dir, FILE), "utf-8")) as Partial<GameData>;
+      return new GameStore({ ...empty(), ...raw, version: 1 }, dir);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") console.error(`Could not read ${path.join(dir, FILE)}, starting empty:`, error);
-      return new FamilyStore(empty(), dir);
+      return new GameStore(empty(), dir);
     }
   }
 
   /** Call after changing `data`; the file is written shortly after. */
   changed(): void {
+    if (this.closed) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), WRITE_DELAY_MS);
   }
 
+  /** The game was deleted: never write again (the folder is being removed). */
+  close(): void {
+    this.closed = true;
+    clearTimeout(this.timer);
+  }
+
   async flush(): Promise<void> {
     clearTimeout(this.timer);
+    if (this.closed) return this.writing;
     const cutoff = Date.now() - KEEP_MS;
     this.data.events = this.data.events.filter((e) => Date.parse(e.at) > cutoff);
     const json = JSON.stringify(this.data);

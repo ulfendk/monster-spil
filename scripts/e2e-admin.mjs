@@ -12,7 +12,7 @@ const check = (name, ok) => { console.log(ok ? "PASS" : "FAIL", name); if (!ok) 
 
 // Two players: Anna (with a backup, some points) stays online; Bo leaves.
 const join = async (id, navn) => {
-  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn, avatarId: "figur2", farve: "#e46876", familyCode: code, areaId: "startskoven", x: 32, y: 24 });
+  const room = await new Client(url).joinOrCreate("lobby", { playerId: id, navn, avatarId: "figur2", farve: "#e46876", gameId: "familien", familyCode: code, areaId: "startskoven", x: 32, y: 24 });
   const got = { raid: null, acks: 0 };
   room.onMessage("raid", (m) => (got.raid = m));
   room.onMessage("backupAck", () => got.acks++);
@@ -42,47 +42,47 @@ const call = async (path, { method = "GET", body, admin = true } = {}) => {
 };
 
 check("the page is served", (await call("/admin")).headers.get("content-type")?.includes("text/html"));
-check("the API needs a login", (await call("/admin/api/state")).status === 401);
+check("the API needs a login", (await call("/admin/api/games/familien/state")).status === 401);
 check("a wrong password is refused", (await call("/admin/login", { method: "POST", body: { password: "nope" } })).status === 401);
 check("the family code is not the admin password", (await call("/admin/login", { method: "POST", body: { password: code } })).status === 401);
 const login = await call("/admin/login", { method: "POST", body: { password } });
 check("the right password logs in with an HttpOnly, SameSite=Strict cookie", login.status === 200 && cookie.startsWith("mj_admin="));
 
-const state = await (await call("/admin/api/state")).json();
+const state = await (await call("/admin/api/games/familien/state")).json();
 const annaRow = state.players.find((p) => p.playerId === "anna-a");
 const boRow = state.players.find((p) => p.playerId === "bo-b");
 check("the state lists players with backups, points and who is online", annaRow?.online === true && boRow?.online === false && boRow.points === 1 && annaRow.backup?.creatures === 2);
 check("the state shows the dragon", state.dragon.hp === state.dragon.maxHp && typeof state.dragon.navn === "string");
 
-check("changes need the page's x-admin header", (await call("/admin/api/scores/clear", { method: "POST", admin: false })).status === 403);
+check("changes need the page's x-admin header", (await call("/admin/api/games/familien/scores/clear", { method: "POST", admin: false })).status === 403);
 
-const one = await call("/admin/api/backups/anna-a");
+const one = await call("/admin/api/games/familien/backups/anna-a");
 check("one backup downloads as a file", one.headers.get("content-disposition")?.includes("attachment") && (await one.json()).save.player.navn === "Anna");
-const all = await (await call("/admin/api/backups")).json();
+const all = await (await call("/admin/api/games/familien/backups")).json();
 check("all backups download as one file", all.backups.length === 2);
 
-const del = await (await call("/admin/api/players/bo-b/delete", { method: "POST" })).json();
-const after = await (await call("/admin/api/state")).json();
+const del = await (await call("/admin/api/games/familien/players/bo-b/delete", { method: "POST" })).json();
+const after = await (await call("/admin/api/games/familien/state")).json();
 check("deleting a player removes their scores and backup", del.backupRemoved === true && !after.players.some((p) => p.playerId === "bo-b"));
 const restoreList = await (await fetch(`${http}/backups`, { headers: { "x-family-code": code } })).json();
 check("a deleted player is gone from the restore list too", !restoreList.some((b) => b.playerId === "bo-b"));
 
-await call("/admin/api/dragon", { method: "POST", body: { action: "hp", hp: 123 } });
+await call("/admin/api/games/familien/dragon", { method: "POST", body: { action: "hp", hp: 123 } });
 await until(() => anna.got.raid?.hp === 123);
 check("setting the dragon's HP reaches players online", anna.got.raid?.hp === 123);
-await call("/admin/api/dragon", { method: "POST", body: { action: "hp", hp: 0 } });
+await call("/admin/api/games/familien/dragon", { method: "POST", body: { action: "hp", hp: 0 } });
 await until(() => anna.got.raid?.defeated === true);
 check("HP 0 puts the dragon to sleep", anna.got.raid?.defeated === true);
-await call("/admin/api/dragon", { method: "POST", body: { action: "reset" } });
+await call("/admin/api/games/familien/dragon", { method: "POST", body: { action: "reset" } });
 await until(() => anna.got.raid?.hp === anna.got.raid?.maxHp && !anna.got.raid?.defeated);
 check("reset wakes it with full HP", anna.got.raid?.hp === anna.got.raid?.maxHp && anna.got.raid?.defeated === false);
-check("an unknown dragon action is refused", (await call("/admin/api/dragon", { method: "POST", body: { action: "explode" } })).status === 400);
+check("an unknown dragon action is refused", (await call("/admin/api/games/familien/dragon", { method: "POST", body: { action: "explode" } })).status === 400);
 
-const cleared = await (await call("/admin/api/scores/clear", { method: "POST" })).json();
-check("clearing the week removes the points", cleared.ok === true && (await (await call("/admin/api/state")).json()).scoreEvents === 0);
+const cleared = await (await call("/admin/api/games/familien/scores/clear", { method: "POST" })).json();
+check("clearing the week removes the points", cleared.ok === true && (await (await call("/admin/api/games/familien/state")).json()).scoreEvents === 0);
 
 await call("/admin/logout", { method: "POST" });
-check("after logging out the API is closed again", (await call("/admin/api/state")).status === 401);
+check("after logging out the API is closed again", (await call("/admin/api/games/familien/state")).status === 401);
 
 await anna.room.leave();
 console.log(failed ? `${failed} FAILED` : "all passed");

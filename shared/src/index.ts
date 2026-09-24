@@ -20,7 +20,7 @@ export {
 } from "./trade/trade-session.js";
 export type { TradePhase, TradeSide, TradeSession, TradeResult, TradeDelivery } from "./trade/trade-session.js";
 export { applyDelivery } from "./trade/apply-trade.js";
-export { LOBBY_ROOM, FAMILY_CODE_REJECTED, PROTOCOL_VERSION } from "./trade/protocol.js";
+export { LOBBY_ROOM, GAME_KEY_REJECTED, PROTOCOL_VERSION } from "./trade/protocol.js";
 export type { LobbyPlayer, LobbyJoinOptions, ClientMessages, ServerMessages, RewardDelivery } from "./trade/protocol.js";
 export {
   createDuel,
@@ -79,7 +79,6 @@ export {
   PASS_OUT_MIN_S,
   WILD_PASS_OUT_MAX_S,
   WILD_PASS_OUT_MIN_S,
-  closenessFromDamage,
   closenessFromFoe,
   eatFood,
   passOutSeconds,

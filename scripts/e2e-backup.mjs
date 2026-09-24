@@ -10,7 +10,7 @@ const until = async (cond, ms = 2000) => { for (let t = 0; t < ms && !cond(); t 
 let failed = 0;
 const check = (name, ok) => { console.log(ok ? "PASS" : "FAIL", name); if (!ok) failed++; };
 
-const room = await new Client(url).joinOrCreate("lobby", { playerId: "anna-1", navn: "Anna", avatarId: "figur2", farve: "#e46876", familyCode: code, areaId: "startskoven", x: 32, y: 24 });
+const room = await new Client(url).joinOrCreate("lobby", { playerId: "anna-1", navn: "Anna", avatarId: "figur2", farve: "#e46876", gameId: "familien", familyCode: code, areaId: "startskoven", x: 32, y: 24 });
 const acks = [];
 room.onMessage("backupAck", (m) => acks.push(m));
 for (const t of ["hello", "players", "playerMoved", "raid", "food"]) room.onMessage(t, () => {});

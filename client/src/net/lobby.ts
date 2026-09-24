@@ -8,25 +8,6 @@ const serverUrl = import.meta.env.VITE_SERVER_URL;
 export const multiplayerEnabled = Boolean(serverUrl);
 
 const CONNECT_TIMEOUT_MS = 8000;
-const CODE_KEY = "monsterjagt-familiekode";
-
-/** The family code lives on the device (not in the save), entered once by a parent. */
-export function getFamilyCode(): string | undefined {
-  try {
-    return localStorage.getItem(CODE_KEY) || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function setFamilyCode(code: string | undefined): void {
-  try {
-    if (code) localStorage.setItem(CODE_KEY, code);
-    else localStorage.removeItem(CODE_KEY);
-  } catch {
-    // Storage unavailable (private mode): the code just has to be entered again next time.
-  }
-}
 
 export async function joinLobby(options: LobbyJoinOptions): Promise<Room> {
   if (!serverUrl) throw new Error("no server configured");

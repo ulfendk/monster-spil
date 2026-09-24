@@ -45,6 +45,13 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   .note { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
   #login { max-width: 380px; margin: 60px auto; }
   #login input { width: 100%; margin: 12px 0; }
+  .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .game { text-align: left; background: var(--ink); border: 1px solid var(--panel2); border-radius: 12px; padding: 12px 14px; }
+  .game.chosen { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow) inset; }
+  .game strong { display: block; font-size: 17px; }
+  code { font: 15px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ink0); border: 1px solid var(--panel2); border-radius: 6px; padding: 2px 6px; color: var(--yellow); }
+  h2.game-title { font-size: 22px; color: var(--text); margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--panel2); }
+  .pending { color: var(--yellow); font-size: 13px; margin-left: 6px; }
   @media (max-width: 700px) { .hide-sm { display: none; } }
 </style>
 </head>
@@ -61,13 +68,40 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   </section>
 
   <div id="app" hidden>
+    <h2>Spil</h2>
+    <div id="games" class="games"></div>
+    <section class="card" style="margin-top:12px">
+      <form id="newGame" class="row">
+        <strong>Nyt spil</strong>
+        <input id="newName" placeholder="Navn, fx Klassen" maxlength="30" required>
+        <input id="newKey" placeholder="Spilnøgle" minlength="6" maxlength="40" required>
+        <button type="button" id="newKeyMake" class="quiet">Lav en nøgle</button>
+        <button type="submit">Opret</button>
+      </form>
+      <p class="note">Hvert spil er sin egen verden med egne spillere, monstre, pointtavle og drage. Giv spilnøglen til dem, der skal være med — de trykker ＋ <em>Nyt spil</em> → <em>Med spilnøgle</em> i spillet og skriver den.</p>
+    </section>
+
+    <div id="gameView" hidden>
+    <h2 class="game-title" id="gameTitle"></h2>
+    <section class="card">
+      <div class="row"><span class="muted">Spilnøgle:</span> <code id="gameKey"></code></div>
+      <div class="row" style="margin-top:12px">
+        <input id="renameGame" maxlength="30" aria-label="Spillets navn"><button id="renameGameBtn" class="quiet">Omdøb spillet</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <input id="changeKey" minlength="6" maxlength="40" placeholder="Ny spilnøgle" aria-label="Ny spilnøgle"><button type="button" id="changeKeyMake" class="quiet">Lav en nøgle</button><button id="changeKeyBtn">Skift nøgle</button>
+      </div>
+      <div class="row" style="margin-top:12px"><button id="deleteGame" class="danger">Slet spillet</button></div>
+      <p class="note">Skifter du nøglen, bliver alle der spiller lige nu sendt ud og skal skrive den nye nøgle. Sletter du spillet, forsvinder dets spillere, point, drage og backups fra serveren (spillet på den enkelte iPad/iPhone bliver liggende).</p>
+    </section>
+
     <h2>Spillere</h2>
     <section class="card">
       <table>
         <thead><tr><th>Spiller</th><th class="hide-sm">Sidst set</th><th>Backup</th><th class="hide-sm">Point</th><th></th></tr></thead>
         <tbody id="players"></tbody>
       </table>
-      <p class="note">At slette en spiller fjerner deres point, backup og uafhentede belønninger på serveren. Selve spillet på deres iPad/iPhone røres ikke — spiller de videre, dukker de op igen.</p>
+      <p class="note">Et nyt navn slår igennem på deres iPad/iPhone, næste gang de er online. At slette en spiller fjerner deres point, backup og uafhentede belønninger på serveren. Selve spillet på deres iPad/iPhone røres ikke — spiller de videre, dukker de op igen.</p>
     </section>
 
     <h2>Dragen</h2>
@@ -90,8 +124,9 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
 
     <h2>Backups</h2>
     <section class="card">
-      <div class="row"><a class="button" href="/admin/api/backups">Hent alle backups</a><span class="muted">En fil med alle spilleres gemte spil, til at gemme et andet sted.</span></div>
+      <div class="row"><a class="button" id="allBackups" href="#">Hent alle backups</a><span class="muted">En fil med alle spilleres gemte spil i dette spil, til at gemme et andet sted.</span></div>
     </section>
+    </div>
     <p class="error" id="appError"></p>
   </div>
 </main>
@@ -101,6 +136,17 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   const FIGURES = { figur1: "ræv", figur2: "frø", figur3: "panda", figur4: "kat", figur5: "kanin", figur6: "bjørn" };
   const when = (iso) => iso ? new Date(iso).toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
   const el = (tag, props = {}, children = []) => { const e = Object.assign(document.createElement(tag), props); for (const c of children) e.append(c); return e; };
+  const LAST = "mj-admin-game";
+  let chosen = (() => { try { return localStorage.getItem(LAST) || ""; } catch { return ""; } })();
+  const g = (path) => "/admin/api/games/" + encodeURIComponent(chosen) + path;
+
+  // Easy to read aloud and type on an iPad: "modig-ugle-472".
+  const WORDS1 = ["glad", "modig", "stille", "hurtig", "vild", "klog", "lille", "stor", "rød", "blå", "grøn", "gul", "sjov", "blød", "stærk", "søvnig"];
+  const WORDS2 = ["ræv", "frø", "panda", "kat", "kanin", "bjørn", "drage", "ugle", "hval", "tiger", "odder", "ørn", "mus", "hest", "gris", "sæl"];
+  function makeKey() {
+    const r = crypto.getRandomValues(new Uint32Array(3));
+    return WORDS1[r[0] % WORDS1.length] + "-" + WORDS2[r[1] % WORDS2.length] + "-" + (100 + (r[2] % 900));
+  }
 
   async function api(path, options = {}) {
     const res = await fetch(path, { ...options, headers: { "content-type": "application/json", "x-admin": "1", ...(options.headers || {}) }, credentials: "same-origin" });
@@ -109,17 +155,48 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     if (!res.ok) throw new Error(body.error || res.statusText);
     return body;
   }
+  const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body || {}) });
   function show(which) {
     $("login").hidden = which !== "login";
     $("app").hidden = which !== "app";
     $("logout").hidden = which !== "app";
   }
   function fail(e) { if (e.message !== "login") $("appError").textContent = "Noget gik galt: " + e.message; }
+  function choose(id) {
+    chosen = id;
+    try { localStorage.setItem(LAST, id); } catch {}
+  }
 
   async function load() {
-    const s = await api("/admin/api/state");
+    const { games } = await api("/admin/api/games");
     show("app");
     $("appError").textContent = "";
+    if (!games.some((x) => x.id === chosen)) choose(games[0] ? games[0].id : "");
+    const list = $("games");
+    list.replaceChildren();
+    if (games.length === 0) list.append(el("p", { className: "muted", textContent: "Ingen spil endnu — opret det første herunder." }));
+    for (const game of games) {
+      const card = el("button", { className: "game" + (game.id === chosen ? " chosen" : "") }, [
+        el("strong", { textContent: game.navn }),
+        el("span", { className: "muted", textContent: game.players + (game.players === 1 ? " spiller" : " spillere") + (game.online ? " · " : "") }),
+      ]);
+      if (game.online) card.append(el("span", { className: "online", textContent: "● " + game.online + " online" }));
+      card.append(el("div", {}, [el("code", { textContent: game.key })]));
+      card.onclick = () => { choose(game.id); load().catch(fail); };
+      list.append(card);
+    }
+    const game = games.find((x) => x.id === chosen);
+    $("gameView").hidden = !game;
+    if (!game) return;
+    $("gameTitle").textContent = game.navn;
+    $("gameKey").textContent = game.key;
+    if (document.activeElement !== $("renameGame")) $("renameGame").value = game.navn;
+    $("allBackups").href = g("/backups");
+    await loadGame();
+  }
+
+  async function loadGame() {
+    const s = await api(g("/state"));
     const tbody = $("players");
     tbody.replaceChildren();
     if (s.players.length === 0) tbody.append(el("tr", {}, [el("td", { colSpan: 5, className: "muted", textContent: "Ingen spillere endnu." })]));
@@ -128,22 +205,29 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
       name.firstChild.style.background = p.farve;
       name.append(el("span", { className: "muted", textContent: " · " + (FIGURES[p.avatarId] || "figur") }));
       if (p.online) name.append(el("span", { className: "online", textContent: "● online" }));
+      if (p.renamePending) name.append(el("span", { className: "pending", title: "Deres iPad/iPhone får det nye navn, næste gang de er online", textContent: "nyt navn på vej" }));
       const backup = el("td");
       if (p.backup) {
-        backup.append(el("a", { href: "/admin/api/backups/" + encodeURIComponent(p.playerId), textContent: p.backup.creatures + " monstre", title: "Hent backup" }));
+        backup.append(el("a", { href: g("/backups/" + encodeURIComponent(p.playerId)), textContent: p.backup.creatures + " monstre", title: "Hent backup" }));
         backup.append(el("div", { className: "muted", textContent: when(p.backup.savedAt) }));
       } else backup.append(el("span", { className: "muted", textContent: "ingen" }));
+      const ren = el("button", { className: "quiet", textContent: "Omdøb" });
+      ren.onclick = async () => {
+        const navn = prompt("Nyt navn til " + p.navn + " (højst 12 tegn):", p.navn);
+        if (!navn || navn.trim() === p.navn) return;
+        try { await post(g("/players/" + encodeURIComponent(p.playerId) + "/rename"), { navn }); await loadGame(); } catch (e) { fail(e); }
+      };
       const del = el("button", { className: "danger", textContent: "Slet" });
       del.onclick = async () => {
         if (!confirm("Slet " + p.navn + "? Deres point, backup og belønninger på serveren forsvinder.")) return;
-        try { await api("/admin/api/players/" + encodeURIComponent(p.playerId) + "/delete", { method: "POST" }); await load(); } catch (e) { fail(e); }
+        try { await post(g("/players/" + encodeURIComponent(p.playerId) + "/delete")); await loadGame(); } catch (e) { fail(e); }
       };
       tbody.append(el("tr", {}, [
         name,
         el("td", { className: "hide-sm muted", textContent: when(p.lastSeen) }),
         backup,
         el("td", { className: "hide-sm", textContent: String(p.points) }),
-        el("td", {}, [del]),
+        el("td", {}, [el("div", { className: "row" }, [ren, del])]),
       ]));
     }
     const d = s.dragon;
@@ -164,13 +248,41 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     load().catch(fail);
   };
   $("logout").onclick = async () => { await fetch("/admin/logout", { method: "POST", credentials: "same-origin" }); show("login"); };
-  const dragon = (body) => api("/admin/api/dragon", { method: "POST", body: JSON.stringify(body) }).then(load).catch(fail);
+
+  $("newKeyMake").onclick = () => { $("newKey").value = makeKey(); };
+  $("changeKeyMake").onclick = () => { $("changeKey").value = makeKey(); };
+  $("newGame").onsubmit = async (ev) => {
+    ev.preventDefault();
+    try {
+      const made = await post("/admin/api/games", { navn: $("newName").value, key: $("newKey").value });
+      $("newName").value = ""; $("newKey").value = "";
+      choose(made.gameId);
+      await load();
+    } catch (e) { fail(e); }
+  };
+  $("renameGameBtn").onclick = async () => {
+    try { await post(g("/rename"), { navn: $("renameGame").value }); await load(); } catch (e) { fail(e); }
+  };
+  $("changeKeyBtn").onclick = async () => {
+    const key = $("changeKey").value.trim();
+    if (!key) return;
+    if (!confirm("Skift spilnøglen til \u201d" + key + "\u201d? Alle der spiller lige nu bliver sendt ud og skal skrive den nye nøgle.")) return;
+    try { await post(g("/key"), { key }); $("changeKey").value = ""; await load(); } catch (e) { fail(e); }
+  };
+  $("deleteGame").onclick = async () => {
+    const navn = $("gameTitle").textContent;
+    const typed = prompt("Slet spillet \u201d" + navn + "\u201d med alle dets spillere, point, drage og backups? Det kan ikke fortrydes.\\n\\nSkriv spillets navn for at slette det:");
+    if (typed === null) return;
+    if (typed.trim() !== navn) { $("appError").textContent = "Navnet passede ikke — intet blev slettet."; return; }
+    try { await post(g("/delete")); await load(); } catch (e) { fail(e); }
+  };
+  const dragon = (body) => post(g("/dragon"), body).then(loadGame).catch(fail);
   $("dragonReset").onclick = () => confirm("Væk dragen med fuld HP? Ugens skade på den nulstilles.") && dragon({ action: "reset" });
   $("dragonSetHp").onclick = () => dragon({ action: "hp", hp: Number($("dragonHpInput").value) });
   $("dragonSleep").onclick = () => confirm("Læg dragen til at sove til mandag (uden belønninger)?") && dragon({ action: "hp", hp: 0 });
   $("clearScores").onclick = async () => {
-    if (!confirm("Nulstil alle point for denne uge?")) return;
-    try { await api("/admin/api/scores/clear", { method: "POST" }); await load(); } catch (e) { fail(e); }
+    if (!confirm("Nulstil alle point for denne uge i dette spil?")) return;
+    try { await post(g("/scores/clear")); await loadGame(); } catch (e) { fail(e); }
   };
   load().catch(() => show("login"));
 })();

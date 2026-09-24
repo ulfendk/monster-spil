@@ -1,11 +1,12 @@
 import type { SaveData } from "./schema";
-import { loadSave, writeSave } from "./db";
-import { passOutUntil } from "@shared";
+import { writeRecords } from "./db";
+import { currentGame, enterGame, saveKey } from "./games";
+import { passOutUntil, type PassOutKind } from "@shared";
 
 let current: SaveData | undefined;
 const persistListeners: Array<(save: SaveData) => void> = [];
 
-/** Called after every successful save (e.g. to back the save up on the family server). */
+/** Called after every successful save (e.g. to back the save up on the game server). */
 export function onPersist(listener: (save: SaveData) => void): void {
   persistListeners.push(listener);
 }
@@ -23,22 +24,24 @@ export function setState(data: SaveData): void {
  * close they came to winning (see passOutSeconds). The wait is saved, so closing the
  * app doesn't skip it.
  */
-export async function passOut(closeness: number): Promise<void> {
+export async function passOut(closeness: number, kind: PassOutKind = "fight"): Promise<void> {
   if (!current) return;
-  current.passedOutUntil = passOutUntil(new Date(), closeness);
+  current.passedOutUntil = passOutUntil(new Date(), closeness, kind);
   await persist();
 }
 
-/** Explicit checkpoint save — call after setup/starter/catch/battle/area-transition events. */
+/** Explicit checkpoint save — call after setup/starter/catch/battle/area-transition events. Saves into the current game. */
 export async function persist(): Promise<void> {
-  if (!current) return;
+  const game = currentGame();
+  if (!current || !game) return;
   current.updatedAt = new Date().toISOString();
-  await writeSave(current);
+  await writeRecords({ [saveKey(game.id)]: current });
   for (const listener of persistListeners) listener(current);
 }
 
-export async function loadInitialState(): Promise<SaveData | undefined> {
-  current = normalise(await loadSave());
+/** Enters a game (see games.ts) and makes its save the one being played; undefined = not set up yet. */
+export async function loadGameState(gameId: string): Promise<SaveData | undefined> {
+  current = normalise(await enterGame(gameId));
   return current;
 }
 

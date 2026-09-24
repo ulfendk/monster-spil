@@ -423,6 +423,37 @@ const ART: Record<string, (g: G) => void> = {
     line(g, 64, 26, 70, 6, K.boatYellow1, 7);
     ellipse(g, 90, 14, 28, 14, K.springGreen, 5);
   },
+  plus: (g) => {
+    circle(g, 64, 64, 54, K.springGreen);
+    stroke(g, 64, 34, 64, 94, K.washi, 14);
+    stroke(g, 34, 64, 94, 64, K.washi, 14);
+  },
+  trash: (g) => {
+    // a lidded bin
+    shape(g, [{ x: 30, y: 40 }, { x: 98, y: 40 }, { x: 90, y: 118 }, { x: 38, y: 118 }], K.fujiGray);
+    for (const x of [52, 64, 76]) line(g, x, 54, x, 104, K.sumiInk4, 5);
+    rrect(g, 20, 24, 88, 16, 6, K.katanaGray);
+    rrect(g, 50, 10, 28, 14, 5, K.katanaGray, 5);
+  },
+  person: (g) => {
+    // one player on their own
+    g.fillStyle(K.springBlue, 1).fillRoundedRect(34, 70, 60, 50, { tl: 28, tr: 28, bl: 4, br: 4 });
+    outline(g).strokeRoundedRect(34, 70, 60, 50, { tl: 28, tr: 28, bl: 4, br: 4 });
+    circle(g, 64, 42, 24, K.springBlue);
+  },
+  games: (g) => {
+    // a stack of worlds: three cards fanned out, each with its own little landscape
+    const cards = [[-16, K.oniViolet, -0.18], [0, K.crystalBlue, 0], [16, K.springGreen, 0.18]] as const;
+    for (const [dx, c, a] of cards) {
+      const cx = 64 + dx;
+      const pts = [[-26, -40], [26, -40], [26, 40], [-26, 40]].map(([x, y]) => ({
+        x: cx + x * Math.cos(a) - y * Math.sin(a),
+        y: 66 + x * Math.sin(a) + y * Math.cos(a),
+      }));
+      shape(g, pts, K.washi, 5);
+      g.fillStyle(c, 1).fillCircle(cx + 2 * Math.sin(a) * -1, 72, 14);
+    }
+  },
 };
 
 function medal(g: G, colour: number, n: string): void {

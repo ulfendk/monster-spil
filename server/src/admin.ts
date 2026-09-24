@@ -1,48 +1,52 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { currentRaid, freshRaid, raidView, scoreboard, weekIdFor, type BossDefinition } from "@monster-spil/shared";
-import { clientAddress, FamilyGate } from "./family-gate.js";
-import type { FamilyStore } from "./family-store.js";
-import type { SaveBackups } from "./save-backups.js";
+import { clientAddress, KeyGate } from "./key-gate.js";
+import type { GameRegistry } from "./games.js";
+import type { LobbyRoom } from "./LobbyRoom.js";
 import { bossForWeek } from "./bosses.js";
 import { ADMIN_PAGE } from "./admin-page.js";
 
 /**
  * The parent's admin portal at /admin, served by the game server itself. Off unless
- * ADMIN_PASSWORD is set. Logging in (same wrong-guess lockout as the family code)
- * gives a 12-hour session cookie; the page then uses a small JSON API:
+ * ADMIN_PASSWORD is set. Logging in (with its own wrong-guess lockout) gives a 12-hour
+ * session cookie; the page then uses a small JSON API:
  *
- *   GET  /admin                          the page
- *   POST /admin/login  {password}        → session cookie
+ *   GET  /admin                                  the page
+ *   POST /admin/login  {password}                → session cookie
  *   POST /admin/logout
- *   GET  /admin/api/state                players, scores, backups, the dragon
- *   POST /admin/api/players/<id>/delete  forget a player (scores, backup, rewards)
- *   POST /admin/api/dragon  {action:"reset"} | {action:"hp", hp}
- *   POST /admin/api/scores/clear         remove this week's points
- *   GET  /admin/api/backups[/<id>]       download one backup, or all
+ *   GET  /admin/api/games                        every game, with its key and player counts
+ *   POST /admin/api/games  {navn, key}           create a game
+ *   and per game, under /admin/api/games/<gameId>:
+ *   GET  /state                                  players, scores, backups, the dragon
+ *   POST /rename  {navn}   /key  {key}   /delete  (changing the key or deleting sends everyone away)
+ *   POST /players/<id>/delete                    forget a player (scores, backup, rewards)
+ *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
+ *   POST /dragon  {action:"reset"} | {action:"hp", hp}
+ *   POST /scores/clear                           remove this week's points
+ *   GET  /backups[/<id>]                         download one backup, or all
  */
 export interface AdminDeps {
   password: string | undefined;
-  store: FamilyStore;
-  backups: SaveBackups;
+  registry: GameRegistry;
   bosses: BossDefinition[];
-  /** Who is connected right now (playerIds). */
-  online: () => Set<string>;
-  /** Tell connected players about changed state (the dragon, the player list). */
-  changed: () => void;
+  /** The game's room, if anyone has joined it since the server started. */
+  room: (gameId: string) => LobbyRoom | undefined;
 }
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
 const COOKIE = "mj_admin";
 const MAX_BODY = 10_000;
+/** Same limit as the name field when a player is set up on the device. */
+const PLAYER_NAME_MAX = 12;
+
+type Json = Record<string, unknown> | undefined;
 
 export class AdminPortal {
   private sessions = new Map<string, number>();
-  private gate: FamilyGate;
+  private gate = new KeyGate();
 
-  constructor(private readonly deps: AdminDeps) {
-    this.gate = new FamilyGate(deps.password);
-  }
+  constructor(private readonly deps: AdminDeps) {}
 
   /** Handles /admin requests; returns false for any other path. */
   handle(req: IncomingMessage, res: ServerResponse): boolean {
@@ -56,7 +60,8 @@ export class AdminPortal {
   }
 
   private async route(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
-    if (!this.deps.password) return json(res, 404, { error: "admin portal is off (set ADMIN_PASSWORD)" });
+    const password = this.deps.password;
+    if (!password) return json(res, 404, { error: "admin portal is off (set ADMIN_PASSWORD)" });
     const method = req.method ?? "GET";
 
     if (pathname === "/admin" && method === "GET") {
@@ -66,7 +71,7 @@ export class AdminPortal {
     if (pathname === "/admin/login" && method === "POST") {
       const body = await readJson(req);
       const address = clientAddress(req.headers, req.socket.remoteAddress ?? "unknown");
-      if (!this.gate.check(address, body?.password)) return json(res, 401, { error: "forkert adgangskode" });
+      if (!this.gate.check(address, body?.password, password)) return json(res, 401, { error: "forkert adgangskode" });
       const token = randomBytes(32).toString("base64url");
       this.sessions.set(token, Date.now() + SESSION_MS);
       res.setHeader("Set-Cookie", cookie(req, token, SESSION_MS / 1000));
@@ -84,33 +89,68 @@ export class AdminPortal {
     // State changes must come from the page itself (no cross-site form posts).
     if (method === "POST" && req.headers["x-admin"] !== "1") return json(res, 403, { error: "missing x-admin header" });
 
-    if (pathname === "/admin/api/state" && method === "GET") return json(res, 200, await this.state());
-
-    const del = /^\/admin\/api\/players\/([^/]+)\/delete$/.exec(pathname);
-    if (del && method === "POST") return json(res, 200, await this.deletePlayer(decodeURIComponent(del[1]!)));
-
-    if (pathname === "/admin/api/dragon" && method === "POST") {
+    const { registry } = this.deps;
+    if (pathname === "/admin/api/games" && method === "GET") return json(res, 200, { games: await this.games() });
+    if (pathname === "/admin/api/games" && method === "POST") {
       const body = await readJson(req);
-      const result = this.dragon(body);
+      const made = await registry.create(body?.navn, body?.key);
+      return json(res, made.ok ? 200 : 400, made.ok ? { ok: true, gameId: made.game.id } : made);
+    }
+
+    const scoped = /^\/admin\/api\/games\/([^/]+)(\/.*)$/.exec(pathname);
+    if (!scoped) return json(res, 404, { error: "not found" });
+    const gameId = decodeURIComponent(scoped[1]!);
+    const game = registry.get(gameId);
+    if (!game) return json(res, 404, { error: "intet spil" });
+    const sub = scoped[2]!;
+    const room = this.deps.room(gameId);
+
+    if (sub === "/state" && method === "GET") return json(res, 200, await this.state(gameId));
+    if (sub === "/rename" && method === "POST") {
+      const done = await registry.rename(gameId, (await readJson(req))?.navn);
+      if (done.ok) room?.adminRenamedGame(done.game.navn);
+      return json(res, done.ok ? 200 : 400, done.ok ? { ok: true } : done);
+    }
+    if (sub === "/key" && method === "POST") {
+      const done = await registry.setKey(gameId, (await readJson(req))?.key);
+      if (done.ok) room?.adminKickAll(false);
+      return json(res, done.ok ? 200 : 400, done.ok ? { ok: true, kicked: room?.onlineIds().size ?? 0 } : done);
+    }
+    if (sub === "/delete" && method === "POST") {
+      room?.adminKickAll(true);
+      return json(res, 200, { ok: await registry.remove(gameId) });
+    }
+
+    const player = /^\/players\/([^/]+)\/(delete|rename)$/.exec(sub);
+    if (player && method === "POST") {
+      const playerId = decodeURIComponent(player[1]!);
+      if (player[2] === "delete") return json(res, 200, await this.deletePlayer(gameId, playerId));
+      const result = await this.renamePlayer(gameId, playerId, (await readJson(req))?.navn);
       return json(res, result.ok ? 200 : 400, result);
     }
-    if (pathname === "/admin/api/scores/clear" && method === "POST") {
-      const before = this.deps.store.data.events.length;
-      this.deps.store.data.events = [];
-      this.deps.store.changed();
+
+    if (sub === "/dragon" && method === "POST") {
+      const result = await this.dragon(gameId, await readJson(req));
+      return json(res, result.ok ? 200 : 400, result);
+    }
+    if (sub === "/scores/clear" && method === "POST") {
+      const store = await registry.store(gameId);
+      const before = store.data.events.length;
+      store.data.events = [];
+      store.changed();
       return json(res, 200, { ok: true, removed: before });
     }
-    if (pathname === "/admin/api/backups" && method === "GET") {
-      const list = await this.deps.backups.list();
-      const all = await Promise.all(list.map(async (b) => ({ playerId: b.playerId, ...(await this.deps.backups.get(b.playerId)) })));
-      return download(res, `monsterjagt-backups-${today()}.json`, { exportedAt: new Date().toISOString(), backups: all });
+    const backups = registry.backups(gameId);
+    if (sub === "/backups" && method === "GET") {
+      const list = await backups.list();
+      const all = await Promise.all(list.map(async (b) => ({ playerId: b.playerId, ...(await backups.get(b.playerId)) })));
+      return download(res, `monsterjagt-${slug(game.navn)}-backups-${today()}.json`, { game: game.navn, exportedAt: new Date().toISOString(), backups: all });
     }
-    const one = /^\/admin\/api\/backups\/([^/]+)$/.exec(pathname);
+    const one = /^\/backups\/([^/]+)$/.exec(sub);
     if (one && method === "GET") {
-      const id = decodeURIComponent(one[1]!);
-      const backup = await this.deps.backups.get(id);
+      const backup = await backups.get(decodeURIComponent(one[1]!));
       if (!backup) return json(res, 404, { error: "ingen backup" });
-      return download(res, `monsterjagt-${slug(backup.save.player.navn)}-${today()}.json`, backup);
+      return download(res, `monsterjagt-${slug(game.navn)}-${slug(backup.save.player.navn)}-${today()}.json`, backup);
     }
     return json(res, 404, { error: "not found" });
   }
@@ -126,12 +166,24 @@ export class AdminPortal {
     return true;
   }
 
-  /** Everything the page shows. */
-  private async state() {
-    const { store } = this.deps;
+  /** The game list: name, key (for handing out) and how many play it. */
+  private async games() {
+    const { registry } = this.deps;
+    return Promise.all(
+      registry.list().map(async (g) => {
+        const store = await registry.store(g.id);
+        return { id: g.id, navn: g.navn, key: g.key, createdAt: g.createdAt, players: Object.keys(store.data.players).length, online: this.deps.room(g.id)?.onlineIds().size ?? 0 };
+      })
+    );
+  }
+
+  /** Everything the page shows for one game. */
+  private async state(gameId: string) {
+    const { registry } = this.deps;
+    const store = await registry.store(gameId);
     const now = new Date();
-    const online = this.deps.online();
-    const backups = new Map((await this.deps.backups.list()).map((b) => [b.playerId, b]));
+    const online = this.deps.room(gameId)?.onlineIds() ?? new Set<string>();
+    const backups = new Map((await registry.backups(gameId).list()).map((b) => [b.playerId, b]));
     const rows = new Map(scoreboard(store.data.events, store.data.players, now).map((r) => [r.playerId, r]));
     const ids = new Set([...Object.keys(store.data.players), ...backups.keys()]);
     const players = [...ids].map((playerId) => {
@@ -140,7 +192,8 @@ export class AdminPortal {
       const r = rows.get(playerId);
       return {
         playerId,
-        navn: p?.navn ?? b?.navn ?? "?",
+        navn: store.data.renames[playerId] ?? p?.navn ?? b?.navn ?? "?",
+        renamePending: playerId in store.data.renames,
         farve: p?.farve ?? b?.farve ?? "#727169",
         avatarId: p?.avatarId ?? b?.avatarId,
         lastSeen: p?.lastSeen,
@@ -157,20 +210,38 @@ export class AdminPortal {
   }
 
   /** Forgets a player: scoreboard entry and points, unclaimed rewards, and their backup. */
-  private async deletePlayer(playerId: string) {
-    const { store, backups } = this.deps;
+  private async deletePlayer(gameId: string, playerId: string) {
+    const { registry } = this.deps;
+    const store = await registry.store(gameId);
     const known = playerId in store.data.players;
     delete store.data.players[playerId];
     delete store.data.rewards[playerId];
+    delete store.data.renames[playerId];
     store.data.events = store.data.events.filter((e) => e.playerId !== playerId);
-    const backupRemoved = await backups.remove(playerId);
+    const backupRemoved = await registry.backups(gameId).remove(playerId);
     store.changed();
-    this.deps.changed();
-    return { ok: known || backupRemoved, backupRemoved, wasOnline: this.deps.online().has(playerId) };
+    const room = this.deps.room(gameId);
+    room?.adminChanged();
+    return { ok: known || backupRemoved, backupRemoved, wasOnline: room?.onlineIds().has(playerId) ?? false };
   }
 
-  private dragon(body: { action?: unknown; hp?: unknown } | undefined): { ok: boolean; error?: string } {
-    const { store } = this.deps;
+  /** A new name: shown on the scoreboard now, and taken by the device the next time it connects (at once if online). */
+  private async renamePlayer(gameId: string, playerId: string, raw: unknown): Promise<{ ok: boolean; error?: string }> {
+    const navn = typeof raw === "string" ? raw.normalize("NFC").trim().replace(/\s+/g, " ") : "";
+    if (!navn || navn.length > PLAYER_NAME_MAX) return { ok: false, error: `navnet skal have 1-${PLAYER_NAME_MAX} tegn` };
+    const { registry } = this.deps;
+    const store = await registry.store(gameId);
+    const known = store.data.players[playerId];
+    if (!known && !(await registry.backups(gameId).get(playerId))) return { ok: false, error: "ukendt spiller" };
+    if (known) known.navn = navn;
+    store.data.renames[playerId] = navn;
+    store.changed();
+    this.deps.room(gameId)?.adminRenamedPlayer(playerId, navn);
+    return { ok: true };
+  }
+
+  private async dragon(gameId: string, body: Json): Promise<{ ok: boolean; error?: string }> {
+    const store = await this.deps.registry.store(gameId);
     const now = new Date();
     const boss = bossForWeek(this.deps.bosses, weekIdFor(now));
     if (body?.action === "reset") {
@@ -184,7 +255,7 @@ export class AdminPortal {
       return { ok: false, error: "ukendt handling" };
     }
     store.changed();
-    this.deps.changed();
+    this.deps.room(gameId)?.adminChanged();
     return { ok: true };
   }
 }
