@@ -1,8 +1,9 @@
 # Self-hosting the family server
 
 The multiplayer server (lobby + trading + duels) is a small Node/Colyseus container.
-Solo play never needs it — the client only shows the 🤝 button when it was built
-with a server URL.
+Solo play never needs it — the client only connects (and shows the ⚙ button) when
+it was built with a server URL. Players on the same server see each other walking
+around the shared map and can trade or duel when they stand next to each other.
 
 ```
 iPad (GitHub Pages client) --wss--> Nginx Proxy Manager --ws--> monsterjagt-server container
@@ -38,11 +39,11 @@ can't get in even if they find the URL.
   **refuses to start** without it and logs `FAMILY_CODE is not set`, so a
   forgotten variable shows up as a crash-looping container instead of an open
   server. Outside production (local dev) it starts open and logs a warning.
-- The first time a device taps 🤝 it asks for the code (🔑). A parent types it
-  once; it is remembered on that device. If the code changes or is wrong, the
-  device asks again. To type a different code on purpose, tap the 🔑 button at
-  the bottom-left of the lobby (or of the "Ingen forbindelse" screen); the old
-  code stays until a new one is entered, so backing out with ✕ changes nothing.
+- The first time a device taps ⚙ (it shows 🔑 until a code is stored) it asks for
+  the code. A parent types it once; it is remembered on that device. If the code
+  changes or is wrong, the device asks again. To type a different code on
+  purpose, tap the 🔑 button at the bottom-left of the ⚙ screen; the old code
+  stays until a new one is entered, so backing out with ✕ changes nothing.
 - Wrong guesses are counted per client address: after 5 within 10 minutes that
   address is refused — even with the right code — until the window passes. (If
   you lock yourself out, wait 10 minutes or restart the container.)
@@ -114,7 +115,7 @@ The client reads the server address at **build time** from `VITE_SERVER_URL`.
 
 - **GitHub Pages:** repo Settings → Secrets and variables → Actions → *Variables* →
   add `VITE_SERVER_URL` = `wss://monster.example.com`. The deploy workflow passes
-  it to the build. Without the variable the build is solo-only (no 🤝 button).
+  it to the build. Without the variable the build is solo-only (no ⚙ button, no connection).
 - **Local dev:** `VITE_SERVER_URL=ws://localhost:2567 npm run dev`, and start the
   server with `npm run build:server && FAMILY_CODE=test npm start -w server`
   (or `npm run dev -w server`).
@@ -150,3 +151,10 @@ trusted dev certificate, or put the dev server behind NPM too.
   player's creature, species and moves from their device (it has no content
   files) and clamps the numbers, so it cannot check them against the real
   content; this fits the family-trust design.
+- **Upgrade order matters for protocol changes:** deploy the new server image
+  first, then the client. A device on an older client keeps working for solo
+  play, but its lobby-style invites are refused (it doesn't send positions); the
+  app reloads itself when it opens or returns to the foreground with an update
+  ready, so it catches up on its own.
+- Positions are held in server memory only: a restart empties the map until
+  clients reconnect (they do so automatically, retrying every 3–30 seconds).

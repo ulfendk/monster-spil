@@ -345,9 +345,9 @@ export class BattleScene extends Phaser.Scene {
 
   private endBattle(): void {
     if (this.duel) {
-      // A duel changes nobody's save. Hand control back to the lobby underneath.
+      // A duel changes nobody's save. Hand control back to the interaction screen underneath.
       this.finished = true;
-      this.scene.resume("Lobby");
+      this.scene.resume("Interact");
       this.scene.stop();
       return;
     }

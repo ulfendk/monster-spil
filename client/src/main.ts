@@ -6,7 +6,8 @@ import { StarterScene } from "./scenes/StarterScene";
 import { OverworldScene } from "./scenes/OverworldScene";
 import { BattleScene } from "./scenes/BattleScene";
 import { MonsterbogScene } from "./scenes/MonsterbogScene";
-import { LobbyScene } from "./scenes/LobbyScene";
+import { InteractScene } from "./scenes/InteractScene";
+import { SettingsScene } from "./scenes/SettingsScene";
 import { keepAppUpToDate } from "./pwa-update";
 
 keepAppUpToDate();
@@ -24,5 +25,5 @@ new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, LobbyScene],
+  scene: [BootScene, PreloadScene, SetupScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, InteractScene, SettingsScene],
 });
