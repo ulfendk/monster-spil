@@ -12,3 +12,22 @@ export const TYPE_ICONS: Record<TypeId, string> = {
 /** Battle actions that aren't moves. */
 export const FLEE_ICON = "🏃";
 export const CATCH_ICON = "🔴";
+
+/** Icon shown large above each battle message, chosen by the log entry's kind (never by parsing its text). */
+export const LOG_ICONS = {
+  damage: "💥",
+  miss: "💨",
+  faint: "😵",
+  "catch-success": "🎉",
+  "catch-fail": "😤",
+  flee: "🏃",
+} as const;
+
+/** Icons for how a battle ended, and for the states around it. */
+export const OUTCOME_ICONS = { won: "🏆", lost: "😵", fled: "🏃", caught: "🎉" } as const;
+export const WAITING_ICON = "⏳";
+export const OPPONENT_LEFT_ICON = "🚪";
+export const CONNECTION_LOST_ICON = "📵";
+export const CANCELLED_ICON = "✋";
+export const STRONG_ICON = "⭐";
+export const WEAK_ICON = "🛡️";

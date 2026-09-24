@@ -19,7 +19,19 @@ import { createButton } from "../ui/Button";
 import { createHpBar } from "../ui/HpBar";
 import type { HpBarHandle } from "../ui/HpBar";
 import { TYPE_COLOURS } from "../gfx/placeholder-sprites";
-import { TYPE_ICONS, FLEE_ICON, CATCH_ICON } from "../ui/icons";
+import {
+  TYPE_ICONS,
+  FLEE_ICON,
+  CATCH_ICON,
+  LOG_ICONS,
+  OUTCOME_ICONS,
+  WAITING_ICON,
+  OPPONENT_LEFT_ICON,
+  CONNECTION_LOST_ICON,
+  CANCELLED_ICON,
+  STRONG_ICON,
+  WEAK_ICON,
+} from "../ui/icons";
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 
@@ -56,6 +68,8 @@ export class BattleScene extends Phaser.Scene {
   private playerHpBar!: HpBarHandle;
   private wildHpBar!: HpBarHandle;
   private logText!: Phaser.GameObjects.Text;
+  /** A big emoji above the message, so the battle can be followed without reading. */
+  private logIcon!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private busy = false;
   /** "player" in wild battles, the real player id in duels. */
@@ -106,7 +120,9 @@ export class BattleScene extends Phaser.Scene {
     const stops = [
       listen(duel.room, "duel", (view) => this.onDuelUpdate(view)),
       listen(duel.room, "duelEnded", ({ reason }) =>
-        this.abortDuel(reason === "left" ? t("duel_opponent_left") : t("duel_cancelled"))
+        reason === "left"
+          ? this.abortDuel(t("duel_opponent_left"), OPPONENT_LEFT_ICON)
+          : this.abortDuel(t("duel_cancelled"), CANCELLED_ICON)
       ),
       // A rejected action must not leave us stuck on "waiting".
       listen(duel.room, "problem", () => {
@@ -116,7 +132,7 @@ export class BattleScene extends Phaser.Scene {
         }
       }),
     ];
-    duel.room.onLeave(() => this.abortDuel(t("duel_connection_lost")));
+    duel.room.onLeave(() => this.abortDuel(t("duel_connection_lost"), CONNECTION_LOST_ICON));
     this.events.once("shutdown", () => stops.forEach((stop) => stop()));
   }
 
@@ -143,11 +159,17 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private abortDuel(message: string): void {
+  /** Shows a battle message with its icon. */
+  private say(text: string, icon: string): void {
+    this.logText.setText(text);
+    this.logIcon.setText(icon);
+  }
+
+  private abortDuel(message: string, icon: string): void {
     if (this.finished) return;
     this.finished = true;
     this.clearActionButtons();
-    this.logText.setText(message);
+    this.say(message, icon);
     this.time.delayedCall(1400, () => this.endBattle());
   }
 
@@ -162,7 +184,8 @@ export class BattleScene extends Phaser.Scene {
     this.playerSprite = this.add.image(width * 0.28, height * 0.62, this.textureFor(player.species.spriteBack)).setScale(1.4);
     this.playerHpBar = createHpBar(this, width * 0.28, height * 0.46, player.species.navn);
 
-    this.logText = this.add.text(width / 2, height * 0.36, "", TITLE_STYLE).setOrigin(0.5);
+    this.logIcon = this.add.text(width / 2, height * 0.36 - 56, "", { fontFamily: "sans-serif", fontSize: "64px" }).setOrigin(0.5);
+    this.logText = this.add.text(width / 2, height * 0.36 + 10, "", TITLE_STYLE).setOrigin(0.5);
 
     this.updateHpBars();
     this.renderActions();
@@ -266,7 +289,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.duel) {
       if (playerAction.kind === "catch") return;
       this.clearActionButtons();
-      this.logText.setText(t("duel_waiting_move"));
+      this.say(t("duel_waiting_move"), WAITING_ICON);
       say(this.duel.room, "duelAction", { duelId: this.duel.view.id, action: playerAction });
       return;
     }
@@ -301,13 +324,13 @@ export class BattleScene extends Phaser.Scene {
 
   private reactToEntries(entries: BattleLogEntry[]): void {
     for (const entry of entries) {
-      this.logText.setText(entry.text);
+      this.say(entry.text, LOG_ICONS[entry.kind]);
 
       if (entry.kind === "damage") {
         playHitSound();
         this.shakeSprite(entry.targetPlayerId === this.myId ? this.playerSprite : this.wildSprite);
-        if (entry.effectiveness === "strong") this.flashFeedback(t("battle_effective_strong"));
-        else if (entry.effectiveness === "weak") this.flashFeedback(t("battle_effective_weak"));
+        if (entry.effectiveness === "strong") this.flashFeedback(`${STRONG_ICON} ${t("battle_effective_strong")}`);
+        else if (entry.effectiveness === "weak") this.flashFeedback(`${WEAK_ICON} ${t("battle_effective_weak")}`);
       } else if (entry.kind === "miss") {
         playMissSound();
       } else if (entry.kind === "faint") {
@@ -338,10 +361,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private showOutcomeMessage(outcome: BattleState["outcome"]): void {
-    if (outcome === "won") this.logText.setText(t("battle_won"));
-    else if (outcome === "lost") this.logText.setText(t("battle_lost"));
-    else if (outcome === "fled") this.logText.setText(t("battle_fled"));
-    else if (outcome === "caught") this.logText.setText(t("battle_caught"));
+    if (outcome === "won") this.say(t("battle_won"), OUTCOME_ICONS.won);
+    else if (outcome === "lost") this.say(t("battle_lost"), OUTCOME_ICONS.lost);
+    else if (outcome === "fled") this.say(t("battle_fled"), OUTCOME_ICONS.fled);
+    else if (outcome === "caught") this.say(t("battle_caught"), OUTCOME_ICONS.caught);
   }
 
   private endBattle(): void {
