@@ -23,6 +23,15 @@ test("a quick knock-out means 60 s, nearly winning 30 s, in between in between",
   assert.equal(passOutSeconds(Number.NaN), 60);
 });
 
+test("a lost wild battle is gentler: 30 s for a quick knock-out, down to 10 s when nearly won", () => {
+  assert.equal(passOutSeconds(0, "wild"), 30);
+  assert.equal(passOutSeconds(1, "wild"), 10);
+  assert.equal(passOutSeconds(0.5, "wild"), 20);
+  const now = new Date("2026-09-25T10:00:00Z");
+  assert.equal(secondsLeft(passOutUntil(now, 0, "wild"), now), 30);
+  assert.equal(passOutSeconds(0.5), 45, "duels and the dragon keep 30–60 s");
+});
+
 test("closeness in a wild battle or duel is how much of the opponent's HP you took", () => {
   assert.equal(closenessFromFoe(40, 40), 0);
   assert.equal(closenessFromFoe(10, 40), 0.75);

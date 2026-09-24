@@ -77,6 +77,8 @@ export {
   FOOD_SECONDS,
   PASS_OUT_MAX_S,
   PASS_OUT_MIN_S,
+  WILD_PASS_OUT_MAX_S,
+  WILD_PASS_OUT_MIN_S,
   closenessFromDamage,
   closenessFromFoe,
   eatFood,
@@ -86,4 +88,4 @@ export {
   pickFoodSpot,
   secondsLeft,
 } from "./recovery/recovery.js";
-export type { FoodItem, FoodKind } from "./recovery/recovery.js";
+export type { FoodItem, FoodKind, PassOutKind } from "./recovery/recovery.js";

@@ -7,6 +7,12 @@
 
 export const PASS_OUT_MIN_S = 30;
 export const PASS_OUT_MAX_S = 60;
+/** Wild battles are gentler: up to 30 s, down to 10 s when you nearly won. */
+export const WILD_PASS_OUT_MIN_S = 10;
+export const WILD_PASS_OUT_MAX_S = 30;
+
+/** "fight": duels and the dragon (30–60 s). "wild": a lost wild battle (10–30 s). */
+export type PassOutKind = "fight" | "wild";
 /** Seconds one piece of food takes off the wait. */
 export const FOOD_SECONDS = 15;
 export const BAG_MAX = 5;
@@ -16,11 +22,13 @@ export type FoodKind = (typeof FOOD_KINDS)[number];
 
 /**
  * How long you are out, from how close you came (0 = knocked out without a scratch
- * on the opponent, 1 = it was nearly over for them too): 60 s down to 30 s.
+ * on the opponent, 1 = it was nearly over for them too): for duels and the dragon
+ * 60 s down to 30 s, for wild battles 30 s down to 10 s.
  */
-export function passOutSeconds(closeness: number): number {
+export function passOutSeconds(closeness: number, kind: PassOutKind = "fight"): number {
   const c = Math.min(1, Math.max(0, Number.isFinite(closeness) ? closeness : 0));
-  return Math.round(PASS_OUT_MAX_S - (PASS_OUT_MAX_S - PASS_OUT_MIN_S) * c);
+  const [min, max] = kind === "wild" ? [WILD_PASS_OUT_MIN_S, WILD_PASS_OUT_MAX_S] : [PASS_OUT_MIN_S, PASS_OUT_MAX_S];
+  return Math.round(max - (max - min) * c);
 }
 
 /** Wild battles and duels: how much of the opponent's HP you took (0 if it was untouched). */
@@ -37,8 +45,8 @@ export function closenessFromDamage(dealt: number, myMaxHp: number): number {
 }
 
 /** When the wait ends, as an ISO timestamp, for a faint at `now`. */
-export function passOutUntil(now: Date, closeness: number): string {
-  return new Date(now.getTime() + passOutSeconds(closeness) * 1000).toISOString();
+export function passOutUntil(now: Date, closeness: number, kind: PassOutKind = "fight"): string {
+  return new Date(now.getTime() + passOutSeconds(closeness, kind) * 1000).toISOString();
 }
 
 /** Seconds still to wait (0 = free to move). */

@@ -312,7 +312,8 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 ## Passing out and food (protocol v6)
 
 - **Pure rules in `shared/src/recovery/recovery.ts`** (tested): when a monster
-  faints the player passes out for 30–60 s — `passOutSeconds(closeness)`, where
+  faints the player passes out — `passOutSeconds(closeness, kind)`: 30–60 s after a
+  duel or the dragon, 10–30 s after a lost wild battle, where
   closeness is how much of the opponent's HP they took (wild battles, duels) or,
   against the dragon, damage dealt ÷ their own monster's HP. Each piece of food
   eaten takes `FOOD_SECONDS` (15) off; the bag holds `BAG_MAX` (5).

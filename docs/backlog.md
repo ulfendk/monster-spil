@@ -19,7 +19,3 @@ Ideas agreed on but not scheduled yet. Newest at the bottom.
   code) or one server per group; whether a child's monsters and progress are shared
   across groups or kept separate per group (today each device has exactly one save);
   who creates groups and hands out codes (ties in with the admin portal).
-- **Shorter pass-out after wild battles.** Losing a wild battle should only make you
-  pass out for 30 seconds (today it is 30–60 s depending on how close the fight was,
-  like duels and the dragon). Duels and the dragon keep the 30–60 s range unless
-  decided otherwise.

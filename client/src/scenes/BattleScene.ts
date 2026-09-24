@@ -644,7 +644,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.battleState.outcome === "lost") {
       // Fainting in the wild: pass out for a while (the monster is healed meanwhile).
       const wild = this.battleState.participants[1];
-      this.battleData.save.passedOutUntil = passOutUntil(new Date(), closenessFromFoe(wild.active.currentHp, wild.species.baseStats.hp));
+      this.battleData.save.passedOutUntil = passOutUntil(new Date(), closenessFromFoe(wild.active.currentHp, wild.species.baseStats.hp), "wild");
     }
     const saved = this.battleData.save.creatures.find((c) => c.instanceId === player.active.instanceId);
     if (saved) {
