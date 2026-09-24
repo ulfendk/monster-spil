@@ -6,13 +6,10 @@ Ideas agreed on but not scheduled yet. Newest at the bottom.
   landscape (e.g. burn grass, open or block paths, leave craters) and can inflict
   damage on monsters. Open questions: shared for everyone on the server or per
   device; permanent or healing over time; how "damage" works outside battles.
-- **Admin portal.** A small web page for a parent to manage the family game: see
-  and remove players, reset or adjust the scoreboard and the dragon, manage maps and
-  monsters, and change settings like the family code. Could be served by the game
-  server itself (it already has an HTTP endpoint for `/health`), behind its own
-  admin password or the family code. Open questions: which actions are needed
-  first; whether content (maps, monsters) should be editable there or stay as files
-  in the repo; how it authenticates.
+- **More in the admin portal.** The first version (players, backups, dragon,
+  scores) is built. Still to decide: managing maps and monsters there (or keeping
+  them as files in the repo), changing the family code without redeploying,
+  renaming a player.
 - **Multiple game groups.** A child can play in more than one group — with the
   family, with classmates, etc. — each its own separate game (players, scoreboard,
   dragon). Open questions: one server hosting several groups (each with its own

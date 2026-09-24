@@ -349,6 +349,22 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   circle on the map, in setup, on the scoreboard and in the restore list. Saved as
   `figur1`–`figur6` (`client/src/ui/avatars.ts`).
 
+## Admin portal
+
+- **`/admin` on the game server**, off unless `ADMIN_PASSWORD` is set (never the
+  family code; the server warns if they match). `server/src/admin.ts` handles it;
+  the page is one self-contained HTML string in `server/src/admin-page.ts` (Danish,
+  Kanagawa colours, no external files; player names only ever via `textContent`).
+- **Auth:** POST `/admin/login` checks the password through its own `FamilyGate`
+  (same lockout) and sets a 12-hour `HttpOnly; SameSite=Strict` session cookie
+  (`Secure` behind https). State-changing calls also need an `x-admin: 1` header.
+  Strict CSP, `no-store`.
+- **Actions:** list players (store + backups + online + points), download one/all
+  backups, delete a player (store entry, score events, rewards, backup file), dragon
+  reset / set HP (0 = asleep, never rewards), clear score events. Changes reach
+  connected players through `LobbyRoom.current.adminChanged()`.
+  `scripts/e2e-admin.mjs` covers it.
+
 ## Overview map
 
 `client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture

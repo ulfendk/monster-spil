@@ -125,6 +125,9 @@ export class LobbyRoom extends Room {
   maxClients = 30;
   autoDispose = false;
 
+  /** The one lobby (there is exactly one room), so the admin portal can reach it. */
+  static current?: LobbyRoom;
+
   private online = new Map<string, Online>();
   private trades = new Map<string, TradeSession>();
   private pending = new Map<string, TradeDelivery[]>();
@@ -156,6 +159,7 @@ export class LobbyRoom extends Room {
 
   onCreate(options: { gate: FamilyGate; store: FamilyStore; bosses: BossDefinition[]; foodSpots?: AreaSpots[]; backups?: SaveBackups }): void {
     this.backups = options.backups;
+    LobbyRoom.current = this;
     this.gate = options.gate;
     this.store = options.store;
     this.bosses = options.bosses;
@@ -506,6 +510,17 @@ export class LobbyRoom extends Room {
   private broadcastFood(): void {
     const all = [...this.food.values()];
     for (const entry of this.online.values()) this.tell(entry.client, "food", all);
+  }
+
+  /** Players connected right now (for the admin portal). */
+  onlineIds(): Set<string> {
+    return new Set(this.online.keys());
+  }
+
+  /** The admin portal changed the dragon or removed a player: tell everyone connected. */
+  adminChanged(): void {
+    this.broadcastRaid();
+    this.broadcastPlayers();
   }
 
   /** Why this player can't fight the dragon right now (solo or in a team), or undefined. */

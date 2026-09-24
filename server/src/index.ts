@@ -9,6 +9,7 @@ import { loadBosses } from "./bosses.js";
 import { loadFoodSpots } from "./areas.js";
 import { SaveBackups } from "./save-backups.js";
 import { handleBackupRequest } from "./backup-http.js";
+import { AdminPortal } from "./admin.js";
 import path from "node:path";
 
 const port = Number(process.env.PORT ?? 2567);
@@ -30,7 +31,9 @@ if (allowedOrigins.length > 0) {
 
 // Colyseus adds its /matchmake routes in front of this handler; everything else lands here.
 let backupDeps: Parameters<typeof handleBackupRequest>[2] | undefined;
+let admin: AdminPortal | undefined;
 const httpServer = http.createServer((req, res) => {
+  if (admin?.handle(req, res)) return;
   if (backupDeps && handleBackupRequest(req, res, backupDeps)) return;
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "text/plain" });
@@ -60,10 +63,23 @@ const foodSpots = await loadFoodSpots(bosses.map((b) => b.lair));
 // A copy of every player's save, for restoring onto a new or reinstalled device.
 const backups = new SaveBackups(path.join(dataDir, "saves"));
 backupDeps = { gate, backups, allowedOrigins };
+// The parent's admin portal at /admin — only with ADMIN_PASSWORD set.
+const adminPassword = process.env.ADMIN_PASSWORD?.trim() || undefined;
+admin = new AdminPortal({
+  password: adminPassword,
+  store,
+  backups,
+  bosses,
+  online: () => LobbyRoom.current?.onlineIds() ?? new Set(),
+  changed: () => LobbyRoom.current?.adminChanged(),
+});
+if (adminPassword && adminPassword === process.env.FAMILY_CODE?.trim()) {
+  console.warn("WARNING: ADMIN_PASSWORD is the same as FAMILY_CODE — anyone who can play can use the admin portal.");
+}
 gameServer.define(LOBBY_ROOM, LobbyRoom, { gate, store, bosses, foodSpots, backups });
 gameServer.onShutdown(() => store.flush());
 
 await gameServer.listen(port);
-console.log(`Monsterjagt server listening on :${port} (data in ${dataDir})`);
+console.log(`Monsterjagt server listening on :${port} (data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"})`);
 
 // Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.

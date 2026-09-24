@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** What the restore list shows for each backed-up player. */
@@ -49,6 +49,17 @@ export class SaveBackups {
     await writeFile(`${file}.tmp`, json);
     await rename(`${file}.tmp`, file);
     return undefined;
+  }
+
+  /** Deletes a player's backup; true if there was one. */
+  async remove(playerId: string): Promise<boolean> {
+    if (!SaveBackups.validId(playerId)) return false;
+    try {
+      await unlink(path.join(this.dir, `${playerId}.json`));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async get(playerId: string): Promise<StoredBackup | undefined> {

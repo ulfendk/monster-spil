@@ -66,6 +66,9 @@ services:
     restart: unless-stopped
     environment:
       FAMILY_CODE: "<your family code>"
+      # Optional: turns on the parent's admin portal at https://<your server>/admin.
+      # Use a different password from the family code (the kids know that one).
+      # ADMIN_PASSWORD: "<a password only the parents know>"
       # Optional: only let browsers from the client's site call the matchmaking endpoint.
       # ALLOWED_ORIGINS: "https://ulfendk.github.io"
     volumes:
@@ -196,3 +199,11 @@ trusted dev certificate, or put the dev server behind NPM too.
 - If a restored player is still being played on the old device too, both devices
   back up to the same player and the most recent save wins. Restore onto a device
   that replaces the old one, not alongside it.
+- **Admin portal** (`https://<your server>/admin`, only when `ADMIN_PASSWORD` is
+  set): see every player (figure, last seen, backup, points, online), download a
+  player's backup or all of them, delete a player (their points, backup and
+  unclaimed rewards on the server — the game on their device is untouched), wake
+  the dragon with full HP / set its HP / put it to sleep (no rewards), and clear
+  the week's points. Logging in gives a 12-hour session; wrong passwords are
+  counted like the family code (5 per 10 minutes per address). It goes through the
+  same Nginx Proxy Manager host as the game — nothing else to set up.

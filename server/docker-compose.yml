@@ -14,6 +14,8 @@ services:
       PORT: "2567"
       # Required: the shared family code. Set it in the shell or a .env file next to this one.
       FAMILY_CODE: ${FAMILY_CODE:?set FAMILY_CODE to the family code}
+      # Optional: the parent's admin portal at /admin (use a different password from the family code).
+      # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       # Origin(s) of the client, comma-separated. Leave unset to allow any origin.
       # ALLOWED_ORIGINS: "https://<user>.github.io"
     volumes:
