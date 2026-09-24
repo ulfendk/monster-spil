@@ -52,6 +52,8 @@ export interface RaidView {
   defeated: boolean;
   /** How many players have hurt it this week. */
   contributors: number;
+  /** A team gathering at the lair that others can join (protocol v5; set by the server). */
+  gathering?: { teamId: string; leaderId: string; size: number };
 }
 
 /** The boss always fights under this id. */
@@ -105,7 +107,7 @@ export function bossSpecies(boss: BossDefinition): CreatureSpecies {
   };
 }
 
-function bossParticipant(boss: BossDefinition, hp: number): BattleParticipant {
+export function bossParticipant(boss: BossDefinition, hp: number): BattleParticipant {
   return {
     playerId: BOSS_PLAYER_ID,
     species: bossSpecies(boss),

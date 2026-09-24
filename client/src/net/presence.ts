@@ -10,6 +10,7 @@ import type {
   RaidView,
   RewardDelivery,
   ScoreRow,
+  TeamView,
   TradeDelivery,
   TradeSession,
   WorldPosition,
@@ -23,7 +24,8 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
 
 /**
  * Events emitted (see `presence.events`): "status", "players", "moved" (playerId), "interaction",
- * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]).
+ * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
+ * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason).
  */
 const HELLO_TIMEOUT_MS = 3000;
 const RETRY_MIN_MS = 3000;
@@ -52,6 +54,10 @@ class Presence {
   raid?: RaidView;
   /** When I may attack the dragon again (ms since epoch). */
   restUntil = 0;
+  /** My team at the dragon (gathering or fighting), if I'm in one (protocol v5+). */
+  team?: TeamView;
+  /** The team whose start we already announced, so per-turn updates don't re-announce it. */
+  private startedTeamId?: string;
   /** One-shot message for the settings screen, e.g. a wrong family code. */
   notice?: string;
   /** One-shot message for the interaction screen, e.g. "the trade was cancelled" by the other player. */
@@ -77,6 +83,11 @@ class Presence {
   /** True when the server runs the dragon raid and the scoreboard (protocol v4+). */
   get raidSupported(): boolean {
     return typeof this.serverVersion === "number" && this.serverVersion >= 4;
+  }
+
+  /** True when the server lets players team up against the dragon (protocol v5+). */
+  get teamSupported(): boolean {
+    return typeof this.serverVersion === "number" && this.serverVersion >= 5;
   }
 
   /** Sends catches the scoreboard hasn't counted yet (they wait in the save while offline). */
@@ -199,6 +210,22 @@ class Presence {
       this.events.emit("raidBattle", payload);
     });
     listen(room, "scores", ({ rows }) => this.events.emit("scores", rows));
+    listen(room, "team", (view) => {
+      this.team = view;
+      if (view.phase === "active" && this.startedTeamId !== view.id) {
+        this.startedTeamId = view.id;
+        this.events.emit("teamActive", view);
+      }
+      this.events.emit("team", view);
+      if (view.phase === "gathering") this.events.emit("interaction");
+    });
+    listen(room, "teamEnded", ({ reason }) => {
+      const wasGathering = this.team?.phase === "gathering";
+      this.team = undefined;
+      if (wasGathering && reason === "cancelled") this.interactNotice = t("team_cancelled");
+      this.events.emit("teamEnded", reason);
+      this.events.emit("interaction");
+    });
     listen(room, "scoreReportAck", ({ ids }) => void this.scoreAcked(ids));
     listen(room, "reward", (reward) => void this.receiveReward(reward));
     // An old server never says hello, so silence means it predates the shared map.
@@ -264,6 +291,7 @@ class Presence {
       this.duel = null;
       this.serverVersion = undefined;
       this.raid = undefined;
+      this.team = undefined;
       this.events.emit("players");
       this.events.emit("raid", undefined);
       this.setStatus("offline");
@@ -323,6 +351,6 @@ class Presence {
 }
 
 export type RaidBattleUpdate = { battle: BattleState; over?: "defeated"; restUntil?: string };
-export type { RaidView, ScoreRow };
+export type { RaidView, ScoreRow, TeamView };
 
 export const presence = new Presence();

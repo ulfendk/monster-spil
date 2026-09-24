@@ -291,6 +291,24 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 - **Testing:** `scripts/e2e-raid.mjs` (needs a server with a fresh `DATA_DIR`,
   since it beats the dragon) covers the whole raid, rewards, scores and a won duel.
 
+### Teaming up (protocol v5)
+
+- **Pure rules in `shared/src/raid/team.ts`** (tested): one team at a time gathers
+  at the lair (`RaidView.gathering` tells everyone), members join, the leader
+  starts. Every monster's HP × `teamHpFactor(size)` (+25% per extra player, max 2).
+  Each turn every member still standing picks a move; then all attack in speed
+  order and the dragon strikes one random member — each exchange is a normal
+  `resolveTurn` between that member and the dragon. Damage is credited per player
+  in the shared raid, exactly like solo attempts (same rewards, same final blow).
+  Silent for 2 turns (30 s each) or disconnected = out; the leader leaving while
+  gathering cancels the team. `teamViewFor` gives each member their own monster vs
+  the dragon plus the team list; it never reveals others' picks.
+- **Server:** `LobbyRoom` holds `team` and its turn timer; members are busy and rest
+  afterwards like solo attackers. **Client:** the dragon popup offers ⚔️ (alone) and
+  👥⚔️ (gather; not plain 👥, which is the connection button), or ✓ to join a
+  gathering team. `InteractScene` shows the waiting screen; `BattleScene` has a
+  `team` mode with an allies row. `scripts/e2e-team.mjs` covers it end to end.
+
 ## Overview map
 
 `client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture

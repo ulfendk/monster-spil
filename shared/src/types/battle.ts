@@ -48,4 +48,6 @@ export interface BattleLogEntry {
   effectiveness?: "strong" | "weak" | "neutral";
   /** Set on "damage" entries: how much HP it took. */
   amount?: number;
+  /** Set on "damage" and "miss" entries: who attacked (in a team fight, which member). */
+  actorPlayerId?: string;
 }

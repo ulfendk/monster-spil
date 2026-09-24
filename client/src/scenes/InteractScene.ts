@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { otherPlayerId } from "@shared";
-import type { CreatureInstance, CreatureSpecies, DuelView, TradeSession } from "@shared";
+import type { CreatureInstance, CreatureSpecies, DuelView, TeamView, TradeSession } from "@shared";
 import type { GameContent } from "../content/load-content";
 import type { SaveData } from "../save/schema";
 import { presence } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { t } from "../i18n/da";
+import { TEAM_ICON } from "../ui/icons";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 
@@ -46,15 +47,21 @@ export class InteractScene extends Phaser.Scene {
 
     const redraw = () => this.requestDraw();
     const onDuelActive = (view: DuelView) => this.launchDuel(view);
+    const onTeamActive = (view: TeamView) => this.launchTeam(view);
+    const onTeam = () => redraw();
     presence.events.on("interaction", redraw);
     presence.events.on("players", redraw);
     presence.events.on("status", redraw);
     presence.events.on("duelActive", onDuelActive);
+    presence.events.on("teamActive", onTeamActive);
+    presence.events.on("team", onTeam);
     this.unsubscribe = [
       () => presence.events.off("interaction", redraw),
       () => presence.events.off("players", redraw),
       () => presence.events.off("status", redraw),
       () => presence.events.off("duelActive", onDuelActive),
+      () => presence.events.off("teamActive", onTeamActive),
+      () => presence.events.off("team", onTeam),
     ];
     onRelayout(this, () => this.requestDraw());
     // The Battle scene resumes us when a duel is over.
@@ -85,10 +92,26 @@ export class InteractScene extends Phaser.Scene {
     this.scene.pause();
   }
 
+  /** The leader started the team fight: the battle runs on top, and resumes us when it is over. */
+  private launchTeam(view: TeamView): void {
+    if (this.closing || !view.battle) return;
+    this.scene.launch("Battle", {
+      save: this.sceneData.save,
+      content: this.sceneData.content,
+      team: { view, myId: this.myId },
+    });
+    this.scene.bringToTop("Battle");
+    this.scene.pause();
+  }
+
   /** Leaving with a trade or duel invite still open cancels it, so nobody stays stuck as busy. */
   private leave(): void {
     if (presence.trade) presence.send("cancel", { tradeId: presence.trade.id });
     if (presence.duel) presence.send("duelCancel", { duelId: presence.duel.id });
+    if (presence.team?.phase === "gathering") {
+      presence.send("teamLeave", { teamId: presence.team.id });
+      presence.team = undefined;
+    }
     presence.trade = null;
     presence.duel = null;
     presence.received = undefined;
@@ -138,6 +161,10 @@ export class InteractScene extends Phaser.Scene {
       close();
       return this.drawDuelInvite(presence.duel);
     }
+    if (presence.team?.phase === "gathering") {
+      close();
+      return this.drawTeam(presence.team);
+    }
     if (presence.interactNotice) return this.drawNotice(presence.interactNotice);
     this.close();
   }
@@ -149,6 +176,28 @@ export class InteractScene extends Phaser.Scene {
       presence.interactNotice = undefined;
       this.close();
     }, 160);
+  }
+
+  /** Waiting at the lair: who has joined, the HP bonus, and ⚔️ for the leader to start. */
+  private drawTeam(team: TeamView): void {
+    const layout = getLayout(this);
+    const { width, height } = layout;
+    const iLead = team.leaderId === this.myId;
+    const nameOf = (id: string) => (id === this.myId ? this.sceneData.save.player.navn : presence.players.get(id)?.navn ?? "?");
+    const top = layout.safe.top + layout.touch(64) + layout.px(30);
+    this.addText(width / 2, top, `${TEAM_ICON} ${t("team_title")}   ❤️ ×${team.hpFactor}`, 36);
+    const lineH = Math.max(34, layout.px(48));
+    team.members.forEach((m, i) => {
+      this.addText(width / 2, top + layout.px(70) + i * lineH, `${m.playerId === team.leaderId ? "⭐ " : ""}${nameOf(m.playerId)}`, 30);
+    });
+    const buttonsY = height - layout.safe.bottom - 24 - layout.touch(72) / 2;
+    if (iLead) {
+      this.addButton(width / 2 - 90, buttonsY, "⚔️", () => presence.send("teamStart", { teamId: team.id }), 120, 0xc62828);
+      this.addButton(width / 2 + 90, buttonsY, "✗", () => this.leave(), 120, RED);
+    } else {
+      this.addText(width / 2, buttonsY - layout.touch(72), `${t("team_waiting_leader")} ${nameOf(team.leaderId)} ⏳`, 28, "#cccccc");
+      this.addButton(width / 2, buttonsY, "✗", () => this.leave(), 120, RED);
+    }
   }
 
   private drawDuelInvite(duel: DuelView): void {

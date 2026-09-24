@@ -176,6 +176,9 @@ trusted dev certificate, or put the dev server behind NPM too.
   it that week gets a Drageunge (delivered on their next connect if offline). Its
   stats, HP, rest time and lair are in `shared/content/raid/kaempedragen.json`;
   another JSON file there adds a second boss, and the bosses take turns weekly.
+  Players can also **team up**: one gathers a team at the lair, others join, and
+  every monster gets +25% HP per extra player (at most double). Needs this server
+  version or newer (protocol v5); older servers just don't offer 👥⚔️.
 - **The scoreboard** (🏆) shows the last 7 days: catches (1 point, reported by the
   device — offline catches count once it reconnects), duels won (2), dragon
   victories (5, +3 for the final blow).

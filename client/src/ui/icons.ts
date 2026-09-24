@@ -48,3 +48,4 @@ export const SCORES_ICON = "🏆";
 export const DUEL_WIN_ICON = "⚔️";
 export const POINTS_ICON = "⭐";
 export const MEDALS = ["🥇", "🥈", "🥉"] as const;
+export const TEAM_ICON = "👥";

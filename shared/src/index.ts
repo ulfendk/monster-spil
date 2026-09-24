@@ -42,6 +42,7 @@ export { arrowFor, nearestSpot, paintedTiles } from "./world/hint.js";
 export type { SpotHint, Tile } from "./world/hint.js";
 export {
   BOSS_PLAYER_ID,
+  bossParticipant,
   bossSpecies,
   contributors,
   currentRaid,
@@ -56,3 +57,17 @@ export { SCORE_POINTS, SCOREBOARD_DAYS, inWindow, scoreboard } from "./score/sco
 export type { ScoreEvent, ScoreKind, ScorePlayer, ScoreRow } from "./score/scoreboard.js";
 export { DIAGONAL_TIME_FACTOR, chooseStep, dragDirection } from "./world/steps.js";
 export type { Step } from "./world/steps.js";
+export {
+  MAX_TEAM,
+  TEAM_MAX_MISSED,
+  createTeam,
+  joinTeam,
+  leaveTeam,
+  startTeam,
+  submitTeamAction,
+  teamHpFactor,
+  teamInvolves,
+  teamViewFor,
+  timeoutTeamTurn,
+} from "./raid/team.js";
+export type { TeamMember, TeamMemberView, TeamPhase, TeamResult, TeamSession, TeamTurnResult, TeamView } from "./raid/team.js";

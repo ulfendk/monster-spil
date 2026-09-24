@@ -14,7 +14,7 @@ import type { PresenceStatus } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
 import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
@@ -313,6 +313,7 @@ export class OverworldScene extends Phaser.Scene {
       else if (reason === "player is busy") this.showToast(t("meet_busy"));
       else if (reason === "dragon sleeping") this.showToast(`${SLEEP_ICON} ${t("raid_sleeping")}`);
       else if (reason === "resting") this.showToast(`${REST_ICON} ${t("raid_resting")}`);
+      else if (reason === "a team is already at the dragon" || reason === "team is full" || reason === "team has already started") this.showToast(`${TEAM_ICON} ${t("meet_busy")}`);
     };
     const onRaid = () => this.syncDragon();
     const onRaidBattle = (update: RaidBattleUpdate) => this.startRaidBattle(update);
@@ -386,11 +387,27 @@ export class OverworldScene extends Phaser.Scene {
     this.walkNextTo(boss.lair, DRAGON_MEET);
   }
 
+  /**
+   * At the dragon: ⚔️ fights alone, 👥 gathers a team others can join. If someone is
+   * already gathering one, ✓ joins it instead.
+   */
   private showDragonChoice(boss: BossDefinition): void {
-    this.showPopup(`${DRAGON_ICON} ${boss.navn}  ❤️ ${presence.raid?.hp ?? "?"}`, [
-      { label: "⚔️", colour: 0xc62828, onTap: () => presence.send("raidStart", { seat: seatFor(this.save, this.content) }) },
-      { label: "✗", colour: 0x555555, onTap: () => {} },
-    ]);
+    const raid = presence.raid;
+    const seat = () => seatFor(this.save, this.content);
+    const gathering = presence.teamSupported ? raid?.gathering : undefined;
+    if (gathering && gathering.leaderId !== this.save.player.id) {
+      const leader = presence.players.get(gathering.leaderId)?.navn ?? "?";
+      this.showPopup(`${TEAM_ICON} ${leader} +${gathering.size - 1}`, [
+        { label: "✓", colour: 0x2e7d32, onTap: () => presence.send("teamJoin", { teamId: gathering.teamId, seat: seat() }) },
+        { label: "✗", colour: 0x555555, onTap: () => {} },
+      ]);
+      return;
+    }
+    const buttons = [{ label: "⚔️", colour: 0xc62828, onTap: () => presence.send("raidStart", { seat: seat() }) }];
+    // "Fight together" — not just 👥, which is also the connection button in the top row.
+    if (presence.teamSupported && !gathering) buttons.push({ label: `${TEAM_ICON}⚔️`, colour: 0x1565c0, onTap: () => presence.send("teamCreate", { seat: seat() }) });
+    buttons.push({ label: "✗", colour: 0x555555, onTap: () => {} });
+    this.showPopup(`${DRAGON_ICON} ${boss.navn}  ❤️ ${raid?.hp ?? "?"}`, buttons);
   }
 
   /** The server accepted my attack: the battle takes over the screen until the attempt ends. */
@@ -557,7 +574,8 @@ export class OverworldScene extends Phaser.Scene {
   /** A trade or duel invite (or a just-finished trade) is waiting: show it over the map. */
   private openInteractIfNeeded(): void {
     if (!this.scene.isActive()) return; // a menu is open; we'll be asked again when it closes
-    if (!presence.trade && !presence.duel && !presence.received && !presence.interactNotice) return;
+    const gathering = presence.team?.phase === "gathering";
+    if (!presence.trade && !presence.duel && !presence.received && !presence.interactNotice && !gathering) return;
     this.closePopup();
     this.pendingPath = [];
     this.pendingMeet = undefined;

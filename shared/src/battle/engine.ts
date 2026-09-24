@@ -107,6 +107,7 @@ export function resolveTurn(
         kind: "miss",
         text: `${genitive(speciesName(attacker))} ${move.navn} ramte ikke!`,
         targetPlayerId: defender.playerId,
+        actorPlayerId: attacker.playerId,
       });
       continue;
     }
@@ -121,6 +122,7 @@ export function resolveTurn(
       targetPlayerId: defender.playerId,
       effectiveness: multiplier > 1 ? "strong" : multiplier < 1 ? "weak" : "neutral",
       amount: damage,
+      actorPlayerId: attacker.playerId,
     });
 
     if (defender.active.currentHp === 0) {

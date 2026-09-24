@@ -22,6 +22,14 @@ import {
   startAttempt,
   weekIdFor,
   SCOREBOARD_DAYS,
+  createTeam,
+  joinTeam,
+  leaveTeam,
+  startTeam,
+  submitTeamAction,
+  teamInvolves,
+  teamViewFor,
+  timeoutTeamTurn,
   involves,
   isAdjacent,
   sanitizeSeat,
@@ -39,6 +47,8 @@ import type {
   CreatureInstance,
   DuelResult,
   RaidState,
+  RaidView,
+  TeamSession,
   DuelSession,
   LobbyJoinOptions,
   LobbyPlayer,
@@ -119,6 +129,9 @@ export class LobbyRoom extends Room {
   /** When each player may attack the dragon again (ms since epoch). */
   private restUntil = new Map<string, number>();
   private announcedWeek = "";
+  /** The one team at the dragon: gathering at the lair or fighting. */
+  private team?: TeamSession;
+  private teamTimer?: { clear(): void };
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. */
   onAuth(_client: Client, options: LobbyJoinOptions, context: AuthContext): boolean {
@@ -233,10 +246,8 @@ export class LobbyRoom extends Room {
       const boss = this.boss();
       const raid = this.raid();
       if (this.raidBattles.has(id)) return this.tell(client, "raidBattle", { battle: this.raidBattles.get(id)! });
-      if (me.info.busy || me.info.away) return this.problem(client, "player is busy");
-      if (!isAdjacent(me.info, boss.lair)) return this.problem(client, "too far away");
-      if (raid.hp <= 0) return this.problem(client, "dragon sleeping");
-      if ((this.restUntil.get(id) ?? 0) > Date.now()) return this.problem(client, "resting");
+      const refusal = this.dragonRefusal(me);
+      if (refusal) return this.problem(client, refusal);
       const seat = sanitizeSeat(msg?.seat, id);
       if (!seat) return this.problem(client, "invalid creature");
       const battle = startAttempt(raid, boss, seat, randomInt(0, 2 ** 31));
@@ -270,6 +281,60 @@ export class LobbyRoom extends Room {
       }
       if (result.damage > 0) this.broadcastRaid();
       if (result.defeatedNow) this.dragonDefeated(result.raid);
+    });
+
+    // ---- teaming up against the dragon
+
+    this.onMessage("teamCreate", (client, msg: ClientMessages["teamCreate"]) => {
+      const me = this.playerOf(client);
+      if (!me) return;
+      if (this.team) return this.problem(client, "a team is already at the dragon");
+      const refusal = this.dragonRefusal(me);
+      if (refusal) return this.problem(client, refusal);
+      const seat = sanitizeSeat(msg?.seat, me.info.playerId);
+      if (!seat) return this.problem(client, "invalid creature");
+      const created = createTeam(randomUUID(), me.info.playerId, seat);
+      if (!created.ok) return this.problem(client, created.reason);
+      this.setTeam(created.session);
+    });
+
+    this.onMessage("teamJoin", (client, msg: ClientMessages["teamJoin"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.team || this.team.id !== msg?.teamId) return this.problem(client, "no such team");
+      const refusal = this.dragonRefusal(me);
+      if (refusal) return this.problem(client, refusal);
+      const seat = sanitizeSeat(msg.seat, me.info.playerId);
+      if (!seat) return this.problem(client, "invalid creature");
+      const joined = joinTeam(this.team, me.info.playerId, seat);
+      if (!joined.ok) return this.problem(client, joined.reason);
+      this.setTeam(joined.session);
+    });
+
+    this.onMessage("teamLeave", (client, msg: ClientMessages["teamLeave"]) => {
+      const me = this.playerOf(client);
+      if (me && this.team?.id === msg?.teamId) this.leaveTeamAs(me.info.playerId);
+    });
+
+    this.onMessage("teamStart", (client, msg: ClientMessages["teamStart"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.team || this.team.id !== msg?.teamId) return this.problem(client, "no such team");
+      if (this.raid().hp <= 0) return this.problem(client, "dragon sleeping");
+      const started = startTeam(this.team, me.info.playerId, randomInt(0, 2 ** 31));
+      if (!started.ok) return this.problem(client, started.reason);
+      this.setTeam(started.session);
+      this.armTeamTimer();
+    });
+
+    this.onMessage("teamAction", (client, msg: ClientMessages["teamAction"]) => {
+      const me = this.playerOf(client);
+      const team = this.team;
+      if (!me || !team || team.id !== msg?.teamId) return this.problem(client, "no such team");
+      const action = msg.action;
+      if (action?.kind !== "move" && action?.kind !== "flee") return this.problem(client, "unknown action");
+      const clean = action.kind === "move" ? { kind: "move" as const, moveId: String(action.moveId) } : { kind: "flee" as const };
+      const result = submitTeamAction(team, me.info.playerId, clean, this.raid(), this.boss(), new Date());
+      if (!result.ok) return this.problem(client, result.reason);
+      this.afterTeamTurn(team, result);
     });
 
     this.onMessage("scoreReport", (client, msg: ClientMessages["scoreReport"]) => {
@@ -339,7 +404,9 @@ export class LobbyRoom extends Room {
     this.store.changed();
 
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });
-    this.tell(client, "raid", raidView(this.raid()));
+    this.tell(client, "raid", this.raidViewNow());
+    // Rejoining mid-team: show the team again (e.g. after a short drop-out).
+    if (this.team && teamInvolves(this.team, info.playerId)) this.tell(client, "team", teamViewFor(this.team, info.playerId, this.raid(), this.boss()));
     for (const delivery of this.pending.get(info.playerId) ?? []) this.tell(client, "tradeComplete", delivery);
     for (const reward of this.store.data.rewards[info.playerId] ?? []) this.tell(client, "reward", reward);
     this.broadcastPlayers();
@@ -359,6 +426,7 @@ export class LobbyRoom extends Room {
     }
     // Leaving mid-attempt just ends it; damage already dealt stays on the dragon.
     if (this.raidBattles.has(me.info.playerId)) this.endAttempt(me.info.playerId);
+    if (this.team && teamInvolves(this.team, me.info.playerId)) this.leaveTeamAs(me.info.playerId);
     this.broadcastPlayers();
   }
 
@@ -379,8 +447,105 @@ export class LobbyRoom extends Room {
     return raid;
   }
 
-  private broadcastRaid(): void {
+  /** Why this player can't fight the dragon right now (solo or in a team), or undefined. */
+  private dragonRefusal(me: Online): string | undefined {
+    const id = me.info.playerId;
+    if (me.info.busy || me.info.away || this.raidBattles.has(id) || (this.team && teamInvolves(this.team, id))) return "player is busy";
+    if (!isAdjacent(me.info, this.boss().lair)) return "too far away";
+    if (this.raid().hp <= 0) return "dragon sleeping";
+    if ((this.restUntil.get(id) ?? 0) > Date.now()) return "resting";
+    return undefined;
+  }
+
+  /** The dragon as everyone sees it, including a team gathering at the lair that can be joined. */
+  private raidViewNow(): RaidView {
     const view = raidView(this.raid());
+    const team = this.team;
+    return team?.phase === "gathering" ? { ...view, gathering: { teamId: team.id, leaderId: team.leaderId, size: team.members.length } } : view;
+  }
+
+  /** Stores a team after any change and tells its members (and, while it gathers, everyone). */
+  private setTeam(team: TeamSession): void {
+    this.team = team;
+    this.pushTeam(team);
+    this.broadcastRaid();
+    this.broadcastPlayers();
+  }
+
+  private pushTeam(team: TeamSession): void {
+    const raid = this.raid();
+    const boss = this.boss();
+    for (const m of team.members) {
+      const target = this.online.get(m.playerId);
+      if (target) this.tell(target.client, "team", teamViewFor(team, m.playerId, raid, boss));
+    }
+  }
+
+  private leaveTeamAs(playerId: string): void {
+    const team = this.team;
+    if (!team) return;
+    const next = leaveTeam(team, playerId);
+    if (next.phase === "cancelled") return this.endTeam(team, "cancelled");
+    if (team.phase === "active") this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
+    if (next.phase === "done") return this.finishTeam(next);
+    // A member who dropped out of the gathering no longer sees the team.
+    if (next.phase === "gathering") {
+      const target = this.online.get(playerId);
+      if (target) this.tell(target.client, "teamEnded", { teamId: team.id, reason: "cancelled" });
+    }
+    this.setTeam(next);
+    // Everyone still fighting may now have answered: the turn can resolve.
+    if (next.phase === "active" && next.members.filter((m) => m.status === "in").every((m) => next.pending[m.playerId])) {
+      this.afterTeamTurn(next, timeoutTeamTurn(next, this.raid(), this.boss(), new Date()));
+    }
+  }
+
+  /** After a move (or a timeout): store the raid, tell everyone, and settle a finished fight. */
+  private afterTeamTurn(before: TeamSession, result: { session: TeamSession; raid: RaidState; defeatedNow: boolean }): void {
+    this.store.data.raid = result.raid;
+    this.store.changed();
+    if (result.session.turn !== before.turn) this.armTeamTimer();
+    if (result.session.phase === "done") this.finishTeam(result.session);
+    else this.setTeam(result.session);
+    if (result.defeatedNow) this.dragonDefeated(result.raid);
+  }
+
+  /** The fight is over: everyone sees the result, then rests like after a solo attempt. */
+  private finishTeam(team: TeamSession): void {
+    this.teamTimer?.clear();
+    this.teamTimer = undefined;
+    this.pushTeam(team);
+    const restUntil = Date.now() + this.boss().restSeconds * 1000;
+    for (const m of team.members) this.restUntil.set(m.playerId, Math.max(this.restUntil.get(m.playerId) ?? 0, restUntil));
+    this.team = undefined;
+    this.broadcastRaid();
+    this.broadcastPlayers();
+  }
+
+  private endTeam(team: TeamSession, reason: ServerMessages["teamEnded"]["reason"]): void {
+    this.teamTimer?.clear();
+    this.teamTimer = undefined;
+    this.team = undefined;
+    for (const m of team.members) {
+      const target = this.online.get(m.playerId);
+      if (target) this.tell(target.client, "teamEnded", { teamId: team.id, reason });
+    }
+    this.broadcastRaid();
+    this.broadcastPlayers();
+  }
+
+  /** The turn clock restarts after each resolved turn; silent members then skip. */
+  private armTeamTimer(): void {
+    this.teamTimer?.clear();
+    this.teamTimer = this.clock.setTimeout(() => {
+      this.teamTimer = undefined;
+      const team = this.team;
+      if (team?.phase === "active") this.afterTeamTurn(team, timeoutTeamTurn(team, this.raid(), this.boss(), new Date()));
+    }, TURN_MS);
+  }
+
+  private broadcastRaid(): void {
+    const view = this.raidViewNow();
     for (const entry of this.online.values()) this.tell(entry.client, "raid", view);
   }
 
@@ -411,6 +576,9 @@ export class LobbyRoom extends Room {
       const target = this.online.get(playerId);
       if (target) this.tell(target.client, "reward", reward);
     }
+    // A team still gathering (or fighting, if a solo attempt beat it) has nothing left to fight.
+    if (this.team?.phase === "gathering") this.endTeam(this.team, "defeated");
+    else if (this.team?.phase === "active") this.finishTeam({ ...this.team, phase: "done", outcome: "won" });
     // Anyone else mid-attempt: the dragon is gone, so their attempt ends too.
     for (const [playerId, battle] of [...this.raidBattles]) {
       this.raidBattles.delete(playerId);
@@ -569,6 +737,7 @@ export class LobbyRoom extends Room {
       busy.add(s.inviteeId);
     }
     for (const playerId of this.raidBattles.keys()) busy.add(playerId);
+    for (const m of this.team?.members ?? []) if (m.status === "in") busy.add(m.playerId);
     const players = [...this.online.values()].map(({ info }) => ({ ...info, busy: busy.has(info.playerId) }));
     for (const entry of this.online.values()) {
       entry.info.busy = busy.has(entry.info.playerId);

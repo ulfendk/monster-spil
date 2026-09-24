@@ -35,7 +35,7 @@ const at = (x, y) => ({ areaId: "startskoven", x, y });
 let a = await join("alice", at(32, 24));
 const b = await join("bob", at(6, 4));
 await wait(400);
-check("hello carries protocol version 4", a.got.hello?.protocolVersion === 4);
+check("hello carries protocol version 4 or newer", a.got.hello?.protocolVersion >= 4);
 check("the dragon is sent on join, awake with full HP", a.got.raid?.hp === 600 && a.got.raid?.defeated === false);
 
 a.room.send("raidStart", { seat: seat("alice") }); await wait(200);

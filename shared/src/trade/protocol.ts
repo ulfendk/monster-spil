@@ -3,6 +3,7 @@ import type { BattleParticipant, BattleState } from "../types/battle.js";
 import type { DuelAction, DuelView } from "../duel/duel-session.js";
 import type { WorldPosition } from "../world/adjacency.js";
 import type { RaidView } from "../raid/raid.js";
+import type { TeamView } from "../raid/team.js";
 import type { ScoreRow } from "../score/scoreboard.js";
 import type { TradeDelivery, TradeSession } from "./trade-session.js";
 
@@ -34,12 +35,13 @@ export const FAMILY_CODE_REJECTED = 4401;
 /**
  * Bump when a message changes in a way older peers can't handle. v1 = trading
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
- * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard. The server announces its version with the
+ * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,
+ * v5 = teaming up against the dragon. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -69,6 +71,14 @@ export interface ClientMessages {
   getScores: Record<string, never>;
   /** The reward has been added to my save and persisted; the server may forget it. */
   rewardAck: { rewardId: string };
+  /** Gather a team at the lair (I become its leader); others then see it and can join. */
+  teamCreate: { seat: BattleParticipant };
+  teamJoin: { teamId: string; seat: BattleParticipant };
+  /** Leave the team (the leader leaving before the start cancels it). */
+  teamLeave: { teamId: string };
+  /** Leader only: start the fight with whoever has joined. */
+  teamStart: { teamId: string };
+  teamAction: { teamId: string; action: DuelAction };
 }
 
 /** A creature the server hands out (e.g. for beating the dragon). Apply, persist, then send rewardAck. */
@@ -105,4 +115,8 @@ export interface ServerMessages {
   scoreReportAck: { ids: string[] };
   scores: { rows: ScoreRow[]; days: number };
   reward: RewardDelivery;
+  /** My team as I may see it, after every change. */
+  team: TeamView;
+  /** The team is gone: "cancelled" (the leader left while gathering) or "defeated" (someone else beat the dragon first). */
+  teamEnded: { teamId: string; reason: "cancelled" | "defeated" };
 }

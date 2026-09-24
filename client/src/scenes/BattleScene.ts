@@ -8,6 +8,7 @@ import type {
   BattleAction,
   BattleLogEntry,
   DuelView,
+  TeamView,
 } from "@shared";
 import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID } from "@shared";
 import { listen, say } from "../net/lobby";
@@ -23,6 +24,7 @@ import { createHpBar } from "../ui/HpBar";
 import type { HpBarHandle } from "../ui/HpBar";
 import { TYPE_COLOURS } from "../gfx/placeholder-sprites";
 import {
+  TEAM_ICON,
   TYPE_ICONS,
   FLEE_ICON,
   CATCH_ICON,
@@ -52,7 +54,13 @@ export interface RaidSceneData {
   myId: string;
 }
 
-/** Exactly one of: a wild encounter (wildInstance/wildSpecies), a duel, or a raid attempt. */
+/** A team fight against the dragon: the server resolves each turn once every member has picked. */
+export interface TeamSceneData {
+  view: TeamView;
+  myId: string;
+}
+
+/** Exactly one of: a wild encounter (wildInstance/wildSpecies), a duel, a raid attempt or a team fight. */
 export interface BattleSceneData {
   save: SaveData;
   content: GameContent;
@@ -60,6 +68,7 @@ export interface BattleSceneData {
   wildSpecies?: CreatureSpecies;
   duel?: DuelSceneData;
   raid?: RaidSceneData;
+  team?: TeamSceneData;
 }
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -90,6 +99,9 @@ export class BattleScene extends Phaser.Scene {
   private myId = "player";
   private duel?: DuelSceneData;
   private raid?: RaidSceneData;
+  private team?: TeamSceneData;
+  /** Teammates' HP, shown as a row of small labels at the top in a team fight. */
+  private allies?: Phaser.GameObjects.Text;
   private finished = false;
 
   constructor() {
@@ -102,8 +114,15 @@ export class BattleScene extends Phaser.Scene {
     this.finished = false;
     this.duel = data.duel;
     this.raid = data.raid;
+    this.team = data.team;
 
-    if (data.raid) {
+    if (data.team) {
+      this.myId = data.team.myId;
+      this.battleState = data.team.view.battle!;
+      // This scene runs on top of the paused interaction screen, so it needs its own background.
+      this.cameras.main.setBackgroundColor("#1b1f3b");
+      this.wireTeam();
+    } else if (data.raid) {
       this.myId = data.raid.myId;
       this.battleState = data.raid.battle;
       this.wireRaid();
@@ -182,6 +201,92 @@ export class BattleScene extends Phaser.Scene {
       this.busy = false;
       this.renderActions();
     }
+  }
+
+  private wireTeam(): void {
+    const onTeam = (view: TeamView) => this.onTeamUpdate(view);
+    const onEnded = () => this.abortDuel(t("raid_won"), OUTCOME_ICONS.won);
+    const onStatus = (status: string) => {
+      if (status !== "online") this.abortDuel(t("duel_connection_lost"), CONNECTION_LOST_ICON);
+    };
+    const onProblem = () => {
+      if (this.busy && !this.finished) {
+        this.busy = false;
+        this.renderActions();
+      }
+    };
+    presence.events.on("team", onTeam);
+    presence.events.on("teamEnded", onEnded);
+    presence.events.on("status", onStatus);
+    presence.events.on("problem", onProblem);
+    this.events.once("shutdown", () => {
+      presence.events.off("team", onTeam);
+      presence.events.off("teamEnded", onEnded);
+      presence.events.off("status", onStatus);
+      presence.events.off("problem", onProblem);
+    });
+  }
+
+  /** My own member entry in the team. */
+  private meInTeam(view = this.team?.view) {
+    return view?.members.find((m) => m.playerId === this.myId);
+  }
+
+  private onTeamUpdate(view: TeamView): void {
+    if (this.finished || !this.team || view.id !== this.team.view.id || !view.battle) return;
+    this.team.view = view;
+    this.drawAllies();
+    const next = view.battle;
+    // The server also pushes a view when only someone else has picked; nothing new to show yet.
+    if (next.turn === this.battleState.turn && view.phase === "active") return;
+    const previousLogLength = this.battleState.log.length;
+    this.battleState = next;
+    this.updateHpBars();
+    this.reactToEntries(next.log.slice(previousLogLength));
+
+    if (view.phase === "done") {
+      this.finished = true;
+      this.clearActionButtons();
+      const dealt = next.log
+        .filter((e) => e.kind === "damage" && e.actorPlayerId === this.myId && e.targetPlayerId === BOSS_PLAYER_ID)
+        .reduce((sum, e) => sum + (e.amount ?? 0), 0);
+      if (view.outcome === "won") this.say(t("raid_won"), OUTCOME_ICONS.won);
+      else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
+      this.time.delayedCall(2600, () => this.endBattle());
+      return;
+    }
+    if (this.meInTeam(view)?.status !== "in") {
+      // Out of the fight (fainted or fled): watch the team finish.
+      this.clearActionButtons();
+      this.busy = true;
+      this.time.delayedCall(900, () => {
+        if (!this.finished) this.say(t("team_fainted"), OUTCOME_ICONS.lost);
+      });
+      return;
+    }
+    this.busy = false;
+    this.renderActions();
+  }
+
+  /** The other members, with their monster's HP (😵 fainted, 🏃 out). */
+  private drawAllies(): void {
+    this.allies?.destroy();
+    const view = this.team?.view;
+    if (!view) return;
+    const layout = getLayout(this);
+    const others = view.members.filter((m) => m.playerId !== this.myId);
+    const nameOf = (id: string) => presence.players.get(id)?.navn ?? "?";
+    const line = others
+      .map((m) => `${nameOf(m.playerId)} ${m.status === "fainted" ? "😵" : m.status === "left" ? "🏃" : `❤️ ${m.hp}`}${view.answered.includes(m.playerId) ? " ✓" : ""}`)
+      .join("   ");
+    this.allies = this.add
+      .text(layout.safe.left + 12, layout.safe.top + 8, `${TEAM_ICON} ${line}`, {
+        fontFamily: "sans-serif",
+        fontSize: layout.font(20),
+        color: "#ffffff",
+        wordWrap: { width: layout.width * (layout.portrait ? 0.95 : 0.5) },
+      })
+      .setDepth(5);
   }
 
   private wireRaid(): void {
@@ -276,12 +381,13 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.updateHpBars();
+    this.drawAllies();
   }
 
   /** The area above the buttons, inside the safe area. */
   private arena(): { top: number; h: number } {
     const layout = getLayout(this);
-    const top = layout.safe.top + layout.px(12);
+    const top = layout.safe.top + layout.px(12) + (this.team ? Math.max(28, layout.px(36)) : 0);
     const grid = this.buttonGrid();
     return { top, h: grid.top - layout.px(12) - top };
   }
@@ -289,7 +395,7 @@ export class BattleScene extends Phaser.Scene {
   /** How many columns and rows the battle buttons need, and where the grid starts. */
   private buttonGrid() {
     const layout = getLayout(this);
-    const count = Object.keys(this.me().moves).length + (this.duel || this.raid ? 1 : 2);
+    const count = Object.keys(this.me().moves).length + (this.duel || this.raid || this.team ? 1 : 2);
     const gap = layout.px(14);
     const usable = layout.width - layout.safe.left - layout.safe.right - gap * 2;
     // As many per row as fit at a readable width (a label like "Varmebølge" needs ~110px).
@@ -321,7 +427,7 @@ export class BattleScene extends Phaser.Scene {
     const layout = getLayout(this);
     const player = this.me();
     const grid = this.buttonGrid();
-    const canCatch = !this.duel && !this.raid; // you can't catch another player's monster, or the dragon
+    const canCatch = !this.duel && !this.raid && !this.team; // you can't catch another player's monster, or the dragon
     const actions: Array<{ label: string; icon: string; colour: number; onTap: () => void }> = Object.keys(player.moves).map((moveId) => {
       const move = player.moves[moveId]!;
       return { label: move.navn, icon: TYPE_ICONS[move.type], colour: TYPE_COLOURS[move.type], onTap: () => this.performTurn({ kind: "move", moveId }) };
@@ -395,6 +501,14 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
+    if (this.team) {
+      if (playerAction.kind === "catch") return;
+      this.clearActionButtons();
+      this.say(t("team_waiting_move"), WAITING_ICON);
+      presence.send("teamAction", { teamId: this.team.view.id, action: playerAction });
+      return;
+    }
+
     if (this.duel) {
       if (playerAction.kind === "catch") return;
       this.clearActionButtons();
@@ -437,7 +551,9 @@ export class BattleScene extends Phaser.Scene {
 
       if (entry.kind === "damage") {
         playHitSound();
-        this.shakeSprite(entry.targetPlayerId === this.myId ? this.playerSprite : this.wildSprite);
+        // In a team fight a hit on a teammate shows in the allies row, not on either sprite.
+        if (entry.targetPlayerId === this.myId) this.shakeSprite(this.playerSprite);
+        else if (!this.team || entry.targetPlayerId === BOSS_PLAYER_ID) this.shakeSprite(this.wildSprite);
         if (entry.effectiveness === "strong") this.flashFeedback(`${STRONG_ICON} ${t("battle_effective_strong")}`);
         else if (entry.effectiveness === "weak") this.flashFeedback(`${WEAK_ICON} ${t("battle_effective_weak")}`);
       } else if (entry.kind === "miss") {
@@ -477,6 +593,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private endBattle(): void {
+    if (this.team) {
+      // A team fight changes nobody's save; the damage lives on the server.
+      this.finished = true;
+      this.scene.resume("Interact");
+      this.scene.stop();
+      return;
+    }
     if (this.raid) {
       // A raid attempt changes nobody's save; the damage lives on the server.
       this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
