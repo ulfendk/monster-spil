@@ -8,7 +8,8 @@
   "encounterTable": [
     { "speciesId": "gnistrot", "weight": 3 },
     { "speciesId": "stenbid", "weight": 2 },
-    { "speciesId": "boelgehale", "weight": 2 }
+    { "speciesId": "boelgehale", "weight": 2 },
+    { "speciesId": "ildflagrer", "weight": 2 }
   ],
   "encounterRate": 0.1,
   "playerStart": { "x": 32, "y": 24 },

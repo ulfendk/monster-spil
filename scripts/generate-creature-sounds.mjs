@@ -216,6 +216,28 @@ const sounds = {
       return env * (y * 2.4 + Math.sin(TAU * phase) * 0.25);
     });
   },
+  // Fire bat: two wing flaps, a screech that swoops down, and crackling embers.
+  "creatures/ildflagrer"() {
+    const r = rng(16);
+    const whoosh = lowpass(700);
+    let phase = 0;
+    return make(1.05, (t) => {
+      let flaps = 0;
+      for (const start of [0, 0.16]) {
+        const x = (t - start) / 0.13;
+        if (x > 0 && x < 1) flaps += Math.sin(Math.PI * x) ** 2;
+      }
+      const wind = whoosh(r() * 2 - 1) * flaps * 3;
+      const x = (t - 0.3) / 0.6;
+      let screech = 0;
+      if (x > 0 && x < 1) {
+        phase += (1900 - 1100 * x + 120 * Math.sin(TAU * 38 * t)) / SR;
+        screech = Math.tanh(2.5 * Math.sin(TAU * phase)) * Math.sin(Math.PI * Math.min(1, x * 4)) * (1 - smooth(x));
+      }
+      const crackle = t > 0.25 && r() < 0.005 ? (r() * 2 - 1) * 1.1 : 0;
+      return wind + screech * 0.5 + crackle;
+    });
+  },
 };
 
 

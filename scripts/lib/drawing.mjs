@@ -21,6 +21,8 @@ const THEME_PULL = 0.5;
 
 const WORK = 1400; // longest side while cleaning
 const TRACE = 480; // longest side of the monster when traced
+const WEAK_SHARE = 0.2; // a faint stroke joined to the drawing counts from this share of the ink threshold …
+const WEAK_MIN = 8; // … but never below this (paper grain)
 
 export class DrawingError extends Error {}
 
@@ -222,6 +224,28 @@ const invert = (m) => m.map((v) => 1 - v);
 const erode = (mask, w, h, r) => invert(dilate(invert(mask), w, h, r));
 const close = (mask, w, h, r) => erode(dilate(mask, w, h, r), w, h, r);
 
+/** Mean of a 0–255 image over a (2r+1)² square, via a summed-area table. */
+function boxMean(img, w, h, r) {
+  const sat = new Float64Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < w; x++) {
+      row += img[y * w + x];
+      sat[(y + 1) * (w + 1) + x + 1] = sat[y * (w + 1) + x + 1] + row;
+    }
+  }
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const ya = Math.max(0, y - r), yb = Math.min(h, y + r + 1);
+    for (let x = 0; x < w; x++) {
+      const xa = Math.max(0, x - r), xb = Math.min(w, x + r + 1);
+      const s = sat[yb * (w + 1) + xb] - sat[ya * (w + 1) + xb] - sat[yb * (w + 1) + xa] + sat[ya * (w + 1) + xa];
+      out[y * w + x] = s / ((yb - ya) * (xb - xa));
+    }
+  }
+  return out;
+}
+
 /** Connected pieces of a mask (4-neighbour), with their size and bounding box. */
 function components(mask, w, h) {
   const label = new Int32Array(mask.length).fill(-1);
@@ -312,6 +336,22 @@ export function findDrawing(img) {
   }
   const drawing = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) if (label[i] >= 0 && keep.has(label[i]) && ink[i]) drawing[i] = 1;
+  // Faint pencil and pale crayon often fall below the threshold, leaving gaps the fill leaks
+  // through. Hysteresis: fainter pixels count too where they connect to what's clearly drawn.
+  // Measured against the neighbourhood, so a soft shadow on the paper doesn't count, only a stroke.
+  const weak = Math.max(WEAK_MIN, Math.round(t * WEAK_SHARE));
+  const around = boxMean(score, w, h, Math.max(4, Math.round(10 * scale)));
+  const stack = [];
+  for (let i = 0; i < w * h; i++) if (drawing[i]) stack.push(i);
+  while (stack.length) {
+    const i = stack.pop();
+    const x = i % w;
+    for (const n of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+      if (n < 0 || n >= w * h || drawing[n] || score[n] - around[n] <= weak) continue;
+      drawing[n] = 1;
+      stack.push(n);
+    }
+  }
   // Lines: the drawing's dark, uncoloured pixels (marker, pen, pencil) — they become sumi ink.
   const line = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
