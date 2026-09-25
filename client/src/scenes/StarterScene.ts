@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { spriteFit } from "../gfx/creature-sprite";
 import type { CreatureInstance, CreatureSpecies } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { getState, persist } from "../save/game-state";
@@ -53,7 +54,7 @@ export class StarterScene extends Phaser.Scene {
       const species = this.content.speciesById[id];
       const { x, y } = spots[i]!;
 
-      const sprite = this.add.image(x, y - itemH * 0.08, species.spriteFront).setScale(scale);
+      const sprite = this.add.image(x, y - itemH * 0.08, species.spriteFront).setScale(scale * spriteFit(this, species.spriteFront));
       sprite.setInteractive({ useHandCursor: true });
       sprite.on("pointerdown", () => this.chooseStarter(species));
 

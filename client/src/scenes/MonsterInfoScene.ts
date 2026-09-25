@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { spriteFit } from "../gfx/creature-sprite";
 import type { CreatureSpecies } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -57,7 +58,7 @@ export class MonsterInfoScene extends Phaser.Scene {
     const hero = this.add.container(0, 0);
     const cx = HERO.w / 2;
     hero.add(this.add.circle(cx, 160, 150, C.panel).setStrokeStyle(4, C.border, 0.9));
-    const sprite = this.add.image(cx, 160, this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING").setScale(2.2);
+    const sprite = this.add.image(cx, 160, this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING").setScale(2.2 * spriteFit(this, species.spriteFront));
     if (!caught) sprite.setTint(C.overlay);
     hero.add(sprite);
     hero.add(this.add.text(cx, 355, species.navn, { fontFamily: FONT, fontSize: "40px", color: CSS.text }).setOrigin(0.5));

@@ -27,37 +27,38 @@ bruge din stemme eller noget, der larmer. Den må gerne være kort — 1 til 2 s
 
 Bed en voksen om at sætte dit monster ind i spillet.
 
-Her er et eksempel, som den voksne kan bruge som skabelon:
+**Til den voksne:** Tag et billede af tegningen med telefonen (lige ovenfra, i godt
+lys, hele papiret med). Læg billedet — og lyden, hvis der er en — over på computeren
+og kør:
 
-```json
-{
-  "id": "dit-monsters-navn",
-  "navn": "Dit monsters navn",
-  "type": "ild",
-  "baseStats": { "hp": 40, "angreb": 12, "forsvar": 10, "fart": 10 },
-  "moveIds": ["gloedslag", "kloer"],
-  "spriteFront": "creatures/dit-monsters-navn_front.png",
-  "spriteBack": "creatures/dit-monsters-navn_back.png",
-  "sound": "creatures/dit-monsters-navn.m4a",
-  "catchRate": 0.5
-}
+```
+npm run add-creature -- tegning.jpg --navn "Pusling" --type ild --lyd lyd.m4a --vild 2
 ```
 
-- `navn` er navnet på dit monster.
-- `type` er én af de fem typer ovenfor (skriv `ild`, `vand`, `graes`, `lyn` eller `sten`).
-- `spriteFront`, `spriteBack` og `sound` er filnavne. Læg billederne (.png) og lyden
-  (.wav, .mp3 eller .m4a) i mappen `shared/content/creatures/` med præcis de samme
-  navne. Mangler en fil, bruger spillet en simpel figur og en lille biplyd i stedet.
-- `hp`, `angreb`, `forsvar` og `fart` er tal — prøv omkring 30-50 for `hp` og
-  8-15 for de andre. Jo højere tal, jo bedre er monsteret til den ting.
-- For at monsteret kan dukke op ude i naturen, skal det også stå i `encounterTable`
-  i `shared/content/areas/startskoven.meta.json` (`weight` er, hvor ofte det dukker op).
+- `--navn` er monsterets navn, og `--type` er én af `ild`, `vand`, `graes`, `lyn`
+  eller `sten`.
+- `--lyd` er lyden fra Diktafon (.m4a, .wav eller .mp3). Uden den laver spillet en
+  lille lyd, der passer til typen.
+- `--vild 2` gør, at monsteret kan dukke op i naturen (tallet er hvor tit, fx 1–3).
+  Uden det findes monsteret kun i Monsterbogen og ved bytte.
+- Har barnet også tegnet monsteret bagfra, så tilføj `--ryg ryg.jpg`. Ellers bruges
+  forsiden spejlvendt.
+
+Scriptet renser papiret, finder tegningen, tegner den op med en tyk tuschkant og
+farver, der passer til spillet, og laver monsterets fil. Det gemmer også
+en forhåndsvisning ved siden af billedet (`pusling-forhåndsvisning.png`) — se den,
+før I spiller. Er I ikke tilfredse, så tag et nyt billede og kør det igen: billederne
+bliver skiftet ud, men monsterets tal bliver, som de er.
+
+iPhone-billeder i HEIC-format skal laves om til JPEG først (eller sæt kameraet til
+»Mest kompatibel« under Indstillinger → Kamera → Formater).
+
+Tallene står i `shared/content/creatures/pusling.json` og kan rettes bagefter:
+
+- `hp`, `angreb`, `forsvar` og `fart` — prøv omkring 30-50 for `hp` og 8-15 for de
+  andre. Jo højere tal, jo bedre er monsteret til den ting.
+- `moveIds` er monsterets 2 til 4 angreb (se `shared/content/moves.json`).
 
 ## Trin 4: Find dit monster i spillet!
 
 Genstart spillet, og gå ud i naturen — så kan dit monster dukke op!
-
----
-
-*Indtil vi kan tage et billede af din tegning automatisk, kan en voksen selv lægge
-en .png af den i mappen. Uden en .png tegner spillet dit monster som en simpel figur.*

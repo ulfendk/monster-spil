@@ -7,9 +7,10 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SAMPLE_RATE, encodeWav } from "./lib/wav.mjs";
 
 const CONTENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../shared/content");
-const SR = 22050;
+const SR = SAMPLE_RATE;
 const TAU = Math.PI * 2;
 
 function rng(seed) {
@@ -217,24 +218,6 @@ const sounds = {
   },
 };
 
-function encodeWav(samples) {
-  let peak = 0;
-  for (const s of samples) peak = Math.max(peak, Math.abs(s));
-  const gain = peak > 0 ? 0.7 / peak : 1;
-  // Short fade-out so nothing clicks at the end.
-  const fade = Math.round(0.02 * SR);
-  const data = Buffer.alloc(samples.length * 2);
-  samples.forEach((s, i) => {
-    const tail = Math.min(1, (samples.length - i) / fade);
-    data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, s * gain * tail)) * 32767), i * 2);
-  });
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0); header.writeUInt32LE(36 + data.length, 4); header.write("WAVE", 8);
-  header.write("fmt ", 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(SR, 24); header.writeUInt32LE(SR * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
-  header.write("data", 36); header.writeUInt32LE(data.length, 40);
-  return Buffer.concat([header, data]);
-}
 
 for (const [name, build] of Object.entries(sounds)) {
   const samples = build();

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { spriteFit } from "../gfx/creature-sprite";
 import type { Room } from "colyseus.js";
 import type {
   PassOutKind,
@@ -394,9 +395,9 @@ export class BattleScene extends Phaser.Scene {
     if (boss) (this.backdrop[1] as Phaser.GameObjects.Arc).setAlpha(0.55);
     // The dragon is drawn bigger than any monster.
     const foeScale = spriteScale * (this.raid ? 1.5 : 1);
-    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale);
+    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale * spriteFit(this, this.textureFor(wild.species.spriteFront)));
     this.wildHpBar = createHpBar(this, foe.x, foe.y - 64 * foeScale - layout.px(14), wild.species.navn, barSize);
-    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale);
+    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale * spriteFit(this, this.textureFor(player.species.spriteBack)));
     this.playerHpBar = createHpBar(this, me.x, me.y - 64 * spriteScale - layout.px(14), player.species.navn, barSize);
 
     const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;

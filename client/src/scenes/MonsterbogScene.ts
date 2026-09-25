@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { spriteFit } from "../gfx/creature-sprite";
 import { nearestSpot, paintedTiles } from "@shared";
 import type { CreatureSpecies, SpotHint, Tile } from "@shared";
 import type { GameContent } from "../content/load-content";
@@ -79,7 +80,7 @@ export class MonsterbogScene extends Phaser.Scene {
       const ring = this.add.circle(x, y, 58 * k, C.panel).setStrokeStyle(3, C.border, caught ? 1 : 0.4);
 
       if (caught || seen) {
-        const image = this.add.image(x, y, species.spriteFront).setScale(k);
+        const image = this.add.image(x, y, species.spriteFront).setScale(k * spriteFit(this, species.spriteFront));
         if (!caught) image.setTint(C.overlay);
         this.add.text(x, y + 72 * k, species.navn, { fontFamily: FONT, fontSize: label(18), color: caught ? CSS.text : CSS.muted }).setOrigin(0.5);
         if (caught) {

@@ -115,10 +115,21 @@ up via a small manual registry in `client/src/content/load-areas.ts` rather than
 a glob — switch that to glob-based auto-discovery once there are enough areas
 that a manual list becomes impractical.
 
-The image script mentioned in the original brief (`npm run add-creature <photo>` —
-turns a photo of a kid's drawing into a cropped, background-removed sprite JSON
-scaffold) is **not built yet**; the `add-creature` npm script is a documented stub.
-Until then, new creatures use the placeholder-sprite pipeline below.
+**Drawings → monsters:** `npm run add-creature -- <photo> --navn "…" --type ild
+[--ryg <photo>] [--lyd <sound>] [--vild N]` (`scripts/add-creature.mjs`, pipeline in
+`scripts/lib/drawing.mjs`). From a phone photo of a drawing on white paper it: evens out
+the paper (a smooth light model fitted to the paper blocks, tinted blocks ignored so pale
+crayon isn't taken for paper), finds the drawing (ink/colour threshold, pieces near the
+biggest one, nothing touching the photo's edge), fills its silhouette, turns dark
+uncoloured lines into sumi ink and paper inside the monster into washi, clusters the
+colours (from each cluster's most saturated pixels — crayon grain), makes them bolder and
+pulls them halfway to the nearest Kanagawa colour, traces it with imagetracerjs, adds a
+woodblock ink edge, and renders 384 px PNGs with sharp (the back: mirrored and darker,
+or `--ryg`). It writes `<id>_front/_back.png`, a JSON scaffold (type-based stats and
+moves; an existing JSON is kept), a stand-in cry (`scripts/lib/cry.mjs`) unless `--lyd`,
+the photo and SVG under `creatures/drawings/`, and a preview PNG next to the photo.
+Scenes size monster pictures with `spriteFit` (`client/src/gfx/creature-sprite.ts`), so
+any picture size shows like a 128 px placeholder.
 
 ## Placeholder sprites
 
@@ -537,9 +548,9 @@ BFS pathfinding if needed); on the ground it does nothing.
 ## Dependency policy
 
 Pre-approved: Phaser, Vite, TypeScript, Colyseus (server `@colyseus/core` +
-`@colyseus/ws-transport` + `@colyseus/schema`, client `colyseus.js`), the
-(not-yet-built) image script, and `vite-plugin-pwa` (added for PWA
-manifest/service-worker generation).
+`@colyseus/ws-transport` + `@colyseus/schema`, client `colyseus.js`), `vite-plugin-pwa`
+(added for PWA manifest/service-worker generation), and for the drawing import
+(dev-only, root `devDependencies`, never shipped to the game) `sharp` and `imagetracerjs`.
 **Ask before adding anything else.**
 
 ## Testing convention
