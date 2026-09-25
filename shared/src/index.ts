@@ -117,3 +117,12 @@ export {
   possibleKinds,
 } from "./world/disasters.js";
 export type { DisasterConfig, DisasterConfigs, DisasterKind, DisasterPlan, DisasterSettings, PlanOptions, TileChange } from "./world/disasters.js";
+export {
+  DEFAULT_ROAM_SETTINGS,
+  MAX_ROAM_GAP_MINUTES,
+  MIN_ROAM_GAP_MINUTES,
+  chooseLair,
+  cleanRoamSettings,
+  nextRoamAt,
+} from "./raid/roam.js";
+export type { LairOptions, RoamSettings } from "./raid/roam.js";

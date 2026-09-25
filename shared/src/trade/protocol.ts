@@ -48,12 +48,13 @@ export const GAME_KEY_REJECTED = 4401;
  * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,
  * v5 = teaming up against the dragon, v6 = food growing on the map, v7 = save backups,
  * v8 = several games per server (gameId + gameKey), game names and renames by a parent,
- * v9 = natural disasters: the map changes (terrain), warnings and strikes, the UFO's alien. The server announces its version with the
+ * v9 = natural disasters: the map changes (terrain), warnings and strikes, the UFO's alien,
+ * v10 = a roaming dragon: it flies to new perches (RaidView.lair, dragonFlight). The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -173,6 +174,8 @@ export interface ServerMessages {
   /** How an area looks now (all disaster changes, rare-monster zones, waiting monsters); on join and after every change (v9+). */
   terrain: { areaId: string; terrain: AreaTerrain; recent: DisasterNews[] };
   disaster: DisasterMessage;
+  /** The dragon takes off and lands on a new perch: animate the flight (the raid view already has the new lair; v10+). */
+  dragonFlight: { from: WorldPosition; to: WorldPosition; ms: number };
   /** My claim on a waiting monster was granted: battle it now. */
   spawnBattle: { spawnId: string; speciesId: string };
 }

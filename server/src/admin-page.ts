@@ -119,7 +119,22 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
         <button id="dragonSetHp" class="quiet">Sæt HP</button>
         <button id="dragonSleep" class="quiet">Læg den til at sove</button>
       </div>
-      <p class="note">At sætte HP giver ingen belønninger. En ny drage vågner af sig selv hver mandag.</p>
+      <p class="note">At sætte HP giver ingen belønninger. En ny drage vågner af sig selv hver mandag — i sin egen hule.</p>
+      <div class="row" style="margin-top:18px"><strong id="roamStatus"></strong><span id="roamWhere" class="muted"></span></div>
+      <div class="row" style="margin-top:10px">
+        <button id="roamToggle"></button>
+        <label>Flyver, i gennemsnit <select id="roamMean">
+          <option value="30">hver halve time</option><option value="60">hver time</option><option value="120">hver 2. time</option>
+          <option value="240">hver 4. time</option><option value="360">hver 6. time</option><option value="720">hver 12. time</option>
+          <option value="1440">en gang i døgnet</option><option value="2880">hvert 2. døgn</option>
+        </select></label>
+        <label>Tilfældighed <select id="roamRandom">
+          <option value="0">ingen (præcis)</option><option value="0.25">lidt</option><option value="0.5">noget</option><option value="0.75">meget</option><option value="1">helt vildt</option>
+        </select></label>
+        <button id="roamSave" class="quiet">Gem</button>
+        <button id="roamFly">Flyv nu</button>
+      </div>
+      <p class="note">Dragen flyver af sig selv til et nyt sted på kortet (aldrig mens nogen kæmper mod den, eller mens en katastrofe er på vej, og aldrig ovenpå en spiller). Når den er lettet, kan ingen udfordre den, før den har landet.</p>
     </section>
 
     <h2>Naturkatastrofer</h2>
@@ -271,8 +286,27 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     $("dragonHpInput").max = d.maxHp;
     $("dragonHpInput").value = d.hp;
     $("scoreInfo").textContent = s.scoreEvents + " pointhændelser gemt";
+    showRoam(d.roam, d);
     showDisasters(s.disasters);
   }
+
+  let roamSettings = null;
+  function showRoam(r, d) {
+    roamSettings = r.settings;
+    const moved = d.lair.x !== d.home.x || d.lair.y !== d.home.y;
+    $("roamStatus").textContent = r.flying ? "Dragen flyver!" : r.settings.enabled ? "Flyver rundt" : "Bliver hvor den er";
+    $("roamWhere").textContent = "sidder ved (" + d.lair.x + ", " + d.lair.y + ")" + (moved ? " · hulen er (" + d.home.x + ", " + d.home.y + ")" : "") + (r.settings.enabled && r.nextAt ? " · næste flyvetur omkring " + when(r.nextAt) : "");
+    $("roamToggle").textContent = r.settings.enabled ? "Stop flyvning" : "Start flyvning";
+    $("roamToggle").className = r.settings.enabled ? "danger" : "";
+    const mean = $("roamMean");
+    if (![...mean.options].some((o) => Number(o.value) === r.settings.meanMinutes)) mean.append(el("option", { value: String(r.settings.meanMinutes), textContent: "hvert " + r.settings.meanMinutes + ". minut" }));
+    mean.value = String(r.settings.meanMinutes);
+    const rnd = $("roamRandom");
+    rnd.value = [...rnd.options].reduce((best, o) => Math.abs(Number(o.value) - r.settings.randomness) < Math.abs(Number(best.value) - r.settings.randomness) ? o : best).value;
+  }
+  $("roamToggle").onclick = () => roamSettings && dragon({ action: "roam", enabled: !roamSettings.enabled });
+  $("roamSave").onclick = () => dragon({ action: "roam", meanMinutes: Number($("roamMean").value), randomness: Number($("roamRandom").value) });
+  $("roamFly").onclick = () => dragon({ action: "fly" });
 
   let disasterSettings = null;
   const kindName = {};

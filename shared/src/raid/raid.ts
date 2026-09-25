@@ -23,7 +23,7 @@ export interface BossDefinition {
   spriteFront: string;
   spriteBack: string;
   sound?: string;
-  /** Where the boss sits on the map; players must stand next to it to fight. */
+  /** Where the boss sits on the map when its week starts; players must stand next to it to fight. It may fly off later (see roam.ts). */
   lair: WorldPosition;
   /** The species every player who hurt it receives when it is beaten. */
   rewardSpeciesId: string;
@@ -41,6 +41,8 @@ export interface RaidState {
   damageBy: Record<string, number>;
   defeatedAt?: string;
   finalBlowBy?: string;
+  /** Where the dragon sits now, once it has flown off from its home lair (a new week's dragon starts at home). */
+  lair?: WorldPosition;
 }
 
 /** What every client may see about the dragon. */
@@ -52,6 +54,8 @@ export interface RaidView {
   defeated: boolean;
   /** How many players have hurt it this week. */
   contributors: number;
+  /** Where it sits right now (protocol v10; without it, at the boss's home lair). */
+  lair?: WorldPosition;
   /** A team gathering at the lair that others can join (protocol v5; set by the server). */
   gathering?: { teamId: string; leaderId: string; size: number };
 }

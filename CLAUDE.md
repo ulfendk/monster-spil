@@ -302,6 +302,32 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 - **Testing:** `scripts/e2e-raid.mjs` (needs a server with a fresh `DATA_DIR`,
   since it beats the dragon) covers the whole raid, rewards, scores and a won duel.
 
+### A roaming dragon (protocol v10)
+
+- **The dragon flies to new perches now and then.** `RaidState.lair` is where it sits
+  now (absent = the boss's home lair from its JSON; a new week's dragon wakes at home).
+  `RaidView.lair` tells clients; older servers have no `lair`, so clients fall back to the
+  boss's home lair. Everything that used `boss.lair` (walking blocked, meeting rule,
+  dragon fire, food) now uses the current perch.
+- **Pure rules** (tested) in `shared/src/raid/roam.ts`: `RoamSettings` (on/off, average
+  minutes 5 min–1 week, randomness), `nextRoamAt`, and `chooseLair`: plain open ground (no
+  path, tall grass, water or trees; disaster changes count), at least 7 free neighbours (room
+  for a team), away from the start and a good way from the old perch (a preference,
+  relaxed if nothing fits), never on a player or a waiting monster, and never one that
+  would cut the map in two.
+- **Server:** `server/src/dragon-roam.ts` (`DragonRoam`, one per game's room) keeps
+  the schedule in the game store (`roam`) and flies when due — but not while it sleeps,
+  while anyone fights it or a team gathers, or a disaster is on its way (then it
+  retries after 30 s). `LobbyRoom.dragonFlew` stores the perch, clears food from the
+  tile, sends `dragonFlight {from,to,ms}` then the new raid view, and for 5 s
+  (`FLIGHT_MS`) `dragonRefusal` says "dragon flying". The admin portal's dragon
+  actions: `roam` (settings) and `fly` (now); "reset HP" keeps the perch.
+  `scripts/e2e-roam.mjs` covers it.
+- **Client:** `OverworldScene.onDragonFlight` animates take-off, an arc with a growing
+  shadow and a landing shake; `syncDragon` places it without animation if the device
+  didn't see it fly, and a player who is under where it lands is moved to the nearest
+  free tile (`ensureFreeTile`).
+
 ### Teaming up (protocol v5)
 
 - **Pure rules in `shared/src/raid/team.ts`** (tested): one team at a time gathers

@@ -5,7 +5,7 @@ import { DISASTER_KINDS, type AreaMeta, type BaseArea, type DisasterConfigs } fr
 /** An area as the server needs it: its base map (for disasters) and where food may grow. */
 export interface ServerArea {
   areaId: string;
-  /** Open ground and paths on the base map (not blocked, not tall grass, not a lair). */
+  /** Open ground and paths on the base map (not blocked, not tall grass). The room keeps food off the dragon's perch. */
   spots: Array<{ x: number; y: number }>;
   /** The base map; undefined for an area whose meta has no `terrain` block (no disasters there). */
   base?: BaseArea;
@@ -23,8 +23,9 @@ const contentDir = (sub: string) => fileURLToPath(new URL(`../content/${sub}`, i
 /**
  * Reads every area from shared/content/areas/ (the same files the game uses: the Tiled
  * map plus its `.meta.json` sidecar). Like the bosses, this is read at runtime; the
- * Dockerfile copies the folder into the image. `fixed` are tiles to leave alone (a
- * dragon's lair): no food there, and disasters never change them.
+ * Dockerfile copies the folder into the image. `fixed` are the dragons' home lairs, the
+ * starting point for tiles disasters must leave alone (the room replaces it with where
+ * the dragon really sits now, since it flies about).
  */
 export async function loadAreas(fixed: Array<{ areaId: string; x: number; y: number }> = []): Promise<ServerArea[]> {
   const dir = contentDir("areas/");
@@ -36,12 +37,11 @@ export async function loadAreas(fixed: Array<{ areaId: string; x: number; y: num
     const ground = map.layers.find((l) => l.name === meta.collisionLayer)?.data ?? [];
     const grass = map.layers.find((l) => l.name === meta.encounterZoneLayer)?.data ?? [];
     const mine = fixed.filter((b) => b.areaId === meta.id).map(({ x, y }) => ({ x, y }));
-    const skip = new Set(mine.map((b) => `${b.x},${b.y}`));
     const spots: ServerArea["spots"] = [];
     ground.forEach((gid, i) => {
       const x = i % map.width;
       const y = Math.floor(i / map.width);
-      if (gid !== 0 && !meta.collisionGids.includes(gid) && !grass[i] && !skip.has(`${x},${y}`)) spots.push({ x, y });
+      if (gid !== 0 && !meta.collisionGids.includes(gid) && !grass[i]) spots.push({ x, y });
     });
     const base: BaseArea | undefined = meta.terrain
       ? { id: meta.id, width: map.width, height: map.height, ground, grass, blocking: meta.collisionGids, tiles: meta.terrain, start: meta.playerStart, fixed: mine }

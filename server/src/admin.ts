@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   DISASTER_KINDS,
   cleanDisasterSettings,
+  cleanRoamSettings,
   currentRaid,
   freshRaid,
   raidView,
@@ -33,7 +34,7 @@ import { ADMIN_PAGE } from "./admin-page.js";
  *   POST /rename  {navn}   /key  {key}   /delete  (changing the key or deleting sends everyone away)
  *   POST /players/<id>/delete                    forget a player (scores, backup, rewards)
  *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
- *   POST /dragon  {action:"reset"} | {action:"hp", hp}
+ *   POST /dragon  {action:"reset"} | {action:"hp", hp} | {action:"roam", enabled, meanMinutes, randomness} | {action:"fly"}
  *   POST /scores/clear                           remove this week's points
  *   POST /disasters/settings  {enabled, meanMinutes, randomness, kinds}
  *   POST /disasters/trigger  {kind?, target?}    one now (random kind and place when not given)
@@ -265,7 +266,12 @@ export class AdminPortal {
         spawns: areas.reduce((n, a) => n + a.spawns.length, 0),
       },
     };
-    return { players, dragon: { ...raidView(raid), navn: boss.navn }, scoreEvents: store.data.events.length, disasters };
+    const roam = {
+      settings: store.data.roam.settings,
+      nextAt: room?.roam?.nextAt,
+      flying: room?.roam?.isFlying() ?? false,
+    };
+    return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters };
   }
 
   /** Forgets a player: scoreboard entry and points, unclaimed rewards, and their backup. */
@@ -304,7 +310,19 @@ export class AdminPortal {
     const now = new Date();
     const boss = bossForWeek(this.deps.bosses, weekIdFor(now));
     if (body?.action === "reset") {
-      store.data.raid = freshRaid(boss, weekIdFor(now));
+      // Full HP again, but it stays where it is (a new week is what sends it home).
+      store.data.raid = { ...freshRaid(boss, weekIdFor(now)), ...(store.data.raid?.lair ? { lair: store.data.raid.lair } : {}) };
+    } else if (body?.action === "roam" || body?.action === "fly") {
+      const roam = this.deps.room(gameId)?.roam;
+      if (!roam) return { ok: false, error: "spillet kører ikke" };
+      if (body.action === "roam") {
+        store.data.roam.settings = cleanRoamSettings(body, store.data.roam.settings);
+        roam.settingsChanged();
+        store.changed();
+        return { ok: true };
+      }
+      const problem = roam.fly();
+      return problem ? { ok: false, error: problem === "busy" ? "nogen kæmper mod dragen eller en katastrofe er på vej — prøv igen om lidt" : problem } : { ok: true };
     } else if (body?.action === "hp" && typeof body.hp === "number" && Number.isFinite(body.hp)) {
       const raid = currentRaid(store.data.raid, boss, now);
       const hp = Math.round(Math.min(raid.maxHp, Math.max(0, body.hp)));

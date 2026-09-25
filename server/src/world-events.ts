@@ -151,7 +151,9 @@ export class WorldEvents {
     const config = this.host.configs[chosen];
     const here = players.filter((p) => p.areaId === area.areaId);
     if (target && !walkableNow(area.base, this.terrain(area.areaId), target.x, target.y)) target = undefined;
-    const plan = planDisaster(chosen, area.base, this.terrain(area.areaId), config, () => this.host.rand(), {
+    // The dragon flies about: what disasters must leave alone is wherever it sits now.
+    const base = { ...area.base, fixed: lair ? [lair] : [] };
+    const plan = planDisaster(chosen, base, this.terrain(area.areaId), config, () => this.host.rand(), {
       id: randomUUID(),
       target: target ?? this.aim(area, here),
       ...(lair ? { lair } : {}),

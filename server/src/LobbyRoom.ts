@@ -23,6 +23,7 @@ import {
   weekIdFor,
   SCOREBOARD_DAYS,
   createTeam,
+  emptyTerrain,
   joinTeam,
   leaveTeam,
   startTeam,
@@ -45,6 +46,7 @@ import type { GameRegistry } from "./games.js";
 import { bossForWeek } from "./bosses.js";
 import type { ServerArea } from "./areas.js";
 import { WorldEvents, type WorldPlayer } from "./world-events.js";
+import { DragonRoam, FLIGHT_MS } from "./dragon-roam.js";
 import type { SaveBackups } from "./save-backups.js";
 import type {
   ClientMessages,
@@ -168,6 +170,8 @@ export class LobbyRoom extends Room {
   private extraFood = new Set<string>();
   /** Natural disasters in this game (undefined without disaster config, e.g. in some tests). */
   world?: WorldEvents;
+  /** The dragon flying to new perches. */
+  roam?: DragonRoam;
   private backups?: SaveBackups;
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. Only this game's key lets you in. */
@@ -196,6 +200,7 @@ export class LobbyRoom extends Room {
     this.bosses = options.bosses;
     this.areas = options.areas ?? [];
     if (options.disasterConfigs) this.startWorld(options.disasterConfigs);
+    this.startRoam();
     for (const area of this.areas) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
@@ -545,7 +550,7 @@ export class LobbyRoom extends Room {
       store: this.store,
       areas: this.areas,
       configs,
-      lair: () => this.boss().lair,
+      lair: () => this.lairNow(),
       players: () => [...this.online.values()].map((o) => this.worldPlayer(o)),
       send: (playerId, type, payload) => {
         if (playerId === undefined) for (const o of this.online.values()) this.tell(o.client, type, payload);
@@ -580,6 +585,51 @@ export class LobbyRoom extends Room {
     this.clock.setInterval(() => this.world?.tick(), 5_000);
   }
 
+  // ------------------------------------------------------------ the roaming dragon
+
+  /** Where the dragon sits now: its perch after flying off, or its home lair. */
+  private lairNow(): WorldPosition {
+    return this.raid().lair ?? this.boss().lair;
+  }
+
+  private isLairTile(areaId: string, x: number, y: number): boolean {
+    const lair = this.lairNow();
+    return lair.areaId === areaId && lair.x === x && lair.y === y;
+  }
+
+  private startRoam(): void {
+    this.roam = new DragonRoam({
+      store: this.store,
+      areas: this.areas,
+      terrain: (areaId) => this.world?.terrain(areaId) ?? emptyTerrain(),
+      boss: () => this.boss(),
+      raid: () => this.raid(),
+      lair: () => this.lairNow(),
+      busy: () => this.raidBattles.size > 0 || Boolean(this.team) || Boolean(this.world?.activeView),
+      players: () => [...this.online.values()].map((o) => ({ areaId: o.info.areaId, x: o.info.x, y: o.info.y })),
+      flew: (from, to) => this.dragonFlew(from, to),
+      rand: Math.random,
+    });
+    this.clock.setInterval(() => this.roam?.tick(), 5_000);
+  }
+
+  /** The dragon takes off: everyone sees it fly, its new perch is stored, and food is cleared from where it lands. */
+  private dragonFlew(from: WorldPosition, to: WorldPosition): void {
+    this.store.data.raid = { ...this.raid(), lair: to };
+    this.store.changed();
+    let gone = false;
+    for (const f of [...this.food.values()]) {
+      if (f.areaId === to.areaId && f.x === to.x && f.y === to.y) {
+        this.food.delete(f.id);
+        this.extraFood.delete(f.id);
+        gone = true;
+      }
+    }
+    if (gone) this.broadcastFood();
+    for (const o of this.online.values()) this.tell(o.client, "dragonFlight", { from, to, ms: FLIGHT_MS });
+    this.broadcastRaid();
+  }
+
   private worldPlayer(o: Online): WorldPlayer {
     const id = o.info.playerId;
     const unavailable = o.info.busy || o.info.away || this.raidBattles.has(id) || Boolean(this.team && teamInvolves(this.team, id));
@@ -607,7 +657,7 @@ export class LobbyRoom extends Room {
   private growFood(area: ServerArea): void {
     const taken = [...this.food.values()].filter((f) => f.areaId === area.areaId);
     // Not where a disaster has blocked the ground or made tall grass grow.
-    const open = this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots;
+    const open = (this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots).filter((p) => !this.isLairTile(area.areaId, p.x, p.y));
     const spot = pickFoodSpot(open, taken, Math.random);
     if (!spot) return;
     const item: FoodItem = { id: randomUUID(), areaId: area.areaId, x: spot.x, y: spot.y, kind: pickFoodKind(Math.random) };
@@ -660,7 +710,8 @@ export class LobbyRoom extends Room {
   private dragonRefusal(me: Online): string | undefined {
     const id = me.info.playerId;
     if (me.info.busy || me.info.away || this.raidBattles.has(id) || (this.team && teamInvolves(this.team, id))) return "player is busy";
-    if (!isAdjacent(me.info, this.boss().lair)) return "too far away";
+    if (this.roam?.isFlying()) return "dragon flying";
+    if (!isAdjacent(me.info, this.lairNow())) return "too far away";
     if (this.raid().hp <= 0) return "dragon sleeping";
     if ((this.restUntil.get(id) ?? 0) > Date.now()) return "resting";
     return undefined;
@@ -668,7 +719,7 @@ export class LobbyRoom extends Room {
 
   /** The dragon as everyone sees it, including a team gathering at the lair that can be joined. */
   private raidViewNow(): RaidView {
-    const view = raidView(this.raid());
+    const view = { ...raidView(this.raid()), lair: this.lairNow() };
     const team = this.team;
     return team?.phase === "gathering" ? { ...view, gathering: { teamId: team.id, leaderId: team.leaderId, size: team.members.length } } : view;
   }

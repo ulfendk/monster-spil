@@ -95,7 +95,10 @@ export class OverworldScene extends Phaser.Scene {
   /** The "passed out" panel (dizzy face, countdown, food to eat) while the player can't move. */
   private passOutUi: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container | Phaser.GameObjects.Image> = [];
   private passOutTimer?: Phaser.Time.TimerEvent;
-  private dragon?: { sprite: Phaser.GameObjects.Image; label?: Phaser.GameObjects.Container };
+  private dragon?: { sprite: Phaser.GameObjects.Image; label?: Phaser.GameObjects.Container; tile: TileCoord };
+  /** The dragon is in the air (its flight animation is running). */
+  private dragonFlying = false;
+  private dragonShadow?: Phaser.GameObjects.Ellipse;
   /** My chosen animal, riding on my circle. */
   private playerFace?: Phaser.GameObjects.Image;
   private minimap?: Minimap;
@@ -486,6 +489,7 @@ export class OverworldScene extends Phaser.Scene {
       if (reason === "too far away") this.showToast(t("meet_far"));
       else if (reason === "player is busy") this.showToast(t("meet_busy"));
       else if (reason === "dragon sleeping") this.showToast(`${ic(SLEEP_ICON)} ${t("raid_sleeping")}`);
+      else if (reason === "dragon flying") this.showToast(`${ic(DRAGON_ICON)} ${t("raid_flies")}`);
       else if (reason === "resting") this.showToast(`${ic(REST_ICON)} ${t("raid_resting")}`);
       else if (reason === "a team is already at the dragon" || reason === "team is full" || reason === "team has already started") this.showToast(`${ic(TEAM_ICON)} ${t("meet_busy")}`);
     };
@@ -507,6 +511,8 @@ export class OverworldScene extends Phaser.Scene {
     presence.events.on("disaster", onDisaster);
     presence.events.on("struck", onStruck);
     presence.events.on("spawnBattle", onSpawnBattle);
+    const onDragonFlight = (flight: Parameters<OverworldScene["onDragonFlight"]>[0]) => this.onDragonFlight(flight);
+    presence.events.on("dragonFlight", onDragonFlight);
     const onFoodTaken = (kind: string) => {
       this.drawBag();
       this.showToast(`+ ${ic(foodIcon(kind))}`);
@@ -541,10 +547,13 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("disaster", onDisaster);
       presence.events.off("struck", onStruck);
       presence.events.off("spawnBattle", onSpawnBattle);
+      presence.events.off("dragonFlight", onDragonFlight);
     });
     if (presence.disaster) this.onDisaster(presence.disaster);
     this.showNews();
     this.dragon = undefined;
+    this.dragonFlying = false;
+    this.dragonShadow = undefined;
     this.syncDragon();
     this.syncFood();
     // Coming back from a menu or a battle (onResume): show anyone who moved meanwhile, and anything waiting for me.
@@ -556,14 +565,7 @@ export class OverworldScene extends Phaser.Scene {
   /** The server says the map changed: redraw it, and step off a tile that is now blocked. */
   private applyTerrain(): void {
     if (this.world.apply(presence.terrain.get(this.save.position.areaId))) this.minimap?.refresh();
-    if (!this.isMoving && !this.isWalkable(this.playerTile.x, this.playerTile.y)) {
-      this.playerTile = this.nearestFree(this.playerTile);
-      const c = this.tileCentre(this.playerTile);
-      this.player.setPosition(c.x, c.y);
-      this.positionDirty = true;
-      this.savePosition();
-      if (multiplayerEnabled) presence.moveTo(this.myPosition());
-    }
+    this.ensureFreeTile();
     this.showNews();
   }
 
@@ -638,11 +640,16 @@ export class OverworldScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ the family dragon
 
-  /** The boss whose lair is on this map, while the server runs the raid (protocol v4). */
+  /**
+   * The boss whose perch is on this map, while the server runs the raid (protocol v4). Its
+   * `lair` is where it sits right now: a v10 server moves it about, an older one never does.
+   */
   private visibleBoss(): BossDefinition | undefined {
     if (!presence.raidSupported || !presence.raid) return undefined;
     const boss = bossesById[presence.raid.bossId];
-    return boss && boss.lair.areaId === this.save.position.areaId ? boss : undefined;
+    if (!boss) return undefined;
+    const lair = presence.raid.lair ?? boss.lair;
+    return lair.areaId === this.save.position.areaId ? { ...boss, lair } : undefined;
   }
 
   /** Draws (or removes) the dragon at its lair, with its shared HP — or 💤 once the family has beaten it. */
@@ -657,17 +664,83 @@ export class OverworldScene extends Phaser.Scene {
     const raid = presence.raid!;
     const centre = this.tileCentre(boss.lair);
     if (!this.dragon) {
-      this.dragon = { sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5) };
+      this.dragon = { sprite: this.add.image(centre.x, centre.y - 8, boss.spriteFront).setScale(0.9).setDepth(5), tile: { x: boss.lair.x, y: boss.lair.y } };
+    } else if (!this.dragonFlying && (this.dragon.tile.x !== boss.lair.x || this.dragon.tile.y !== boss.lair.y)) {
+      // It sits somewhere else now and we didn't see it fly (we were in a menu, or just connected): it is simply there.
+      this.dragon.sprite.setPosition(centre.x, centre.y - 8);
+      this.dragon.tile = { x: boss.lair.x, y: boss.lair.y };
+      this.ensureFreeTile();
     }
     this.dragon.sprite.setAlpha(raid.defeated ? 0.45 : 1);
     this.dragon.label?.destroy();
+    this.dragon.label = undefined;
+    if (this.dragonFlying) return; // no HP label on something in the air
     const label = raid.defeated ? ic(SLEEP_ICON) : `${ic("heart")} ${raid.hp}/${raid.maxHp}`;
     this.dragon.label = richChip(this, centre.x, centre.y - TILE_SIZE * 0.98, label, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(7);
+  }
+
+  /**
+   * The dragon takes off and lands on a new perch: it rises with a shadow on the ground,
+   * flies over in an arc and lands with a small shake. (The raid view with the new lair
+   * follows at once; while flying, syncDragon leaves the sprite alone.)
+   */
+  private onDragonFlight({ from, to, ms }: { from: { areaId: string; x: number; y: number }; to: { areaId: string; x: number; y: number }; ms: number }): void {
+    const here = this.save.position.areaId;
+    if (from.areaId !== here && to.areaId !== here) return;
+    if (from.areaId === here && to.areaId === here) this.showToast(`${ic(DRAGON_ICON)} ${t("raid_flies")}`, 4000);
+    if (!this.dragon || from.areaId !== here || to.areaId !== here) return; // nothing to animate: syncDragon places it
+    const dragon = this.dragon;
+    const a = this.tileCentre(from);
+    const b = this.tileCentre(to);
+    this.dragonFlying = true;
+    dragon.label?.destroy();
+    dragon.label = undefined;
+    dragon.sprite.setDepth(9).setPosition(a.x, a.y - 8);
+    this.dragonShadow?.destroy();
+    const shadow = this.add.ellipse(a.x, a.y + 20, 74, 26, 0x000000, 0.35).setDepth(4);
+    this.dragonShadow = shadow;
+    const flight = { t: 0 };
+    this.tweens.add({
+      targets: flight,
+      t: 1,
+      duration: ms,
+      ease: "Sine.inOut",
+      onUpdate: () => {
+        const arc = Math.sin(Math.PI * flight.t);
+        const x = a.x + (b.x - a.x) * flight.t;
+        const y = a.y + (b.y - a.y) * flight.t;
+        dragon.sprite.setPosition(x, y - 8 - arc * TILE_SIZE * 2.4).setScale(0.9 * (1 + 0.4 * arc));
+        shadow.setPosition(x, y + 20).setScale(1 - 0.4 * arc).setAlpha(0.35 - 0.15 * arc);
+      },
+      onComplete: () => {
+        shadow.destroy();
+        if (this.dragonShadow === shadow) this.dragonShadow = undefined;
+        this.dragonFlying = false;
+        dragon.sprite.setDepth(5).setScale(0.9).setPosition(b.x, b.y - 8);
+        dragon.tile = { x: to.x, y: to.y };
+        // A shake if it lands close by.
+        if (Math.hypot(this.playerTile.x - to.x, this.playerTile.y - to.y) < 12) this.cameras.main.shake(350, 0.007);
+        this.syncDragon();
+        this.ensureFreeTile();
+      },
+    });
+  }
+
+  /** Steps off a tile that is blocked now (something landed on it) to the nearest free one. */
+  private ensureFreeTile(): void {
+    if (this.isMoving || this.isWalkable(this.playerTile.x, this.playerTile.y)) return;
+    this.playerTile = this.nearestFree(this.playerTile);
+    const c = this.tileCentre(this.playerTile);
+    this.player.setPosition(c.x, c.y);
+    this.positionDirty = true;
+    this.savePosition();
+    if (multiplayerEnabled) presence.moveTo(this.myPosition());
   }
 
   private onTapDragon(boss: BossDefinition): void {
     const raid = presence.raid;
     if (!raid) return;
+    if (this.dragonFlying) return this.showToast(`${ic(DRAGON_ICON)} ${t("raid_flies")}`);
     if (raid.defeated) return this.showToast(`${ic(SLEEP_ICON)} ${t("raid_sleeping")}`);
     if (presence.restUntil > Date.now()) return this.showToast(`${ic(REST_ICON)} ${t("raid_resting")}`);
     if (isAdjacent(this.myPosition(), boss.lair)) return this.showDragonChoice(boss);

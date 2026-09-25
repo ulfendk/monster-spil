@@ -33,7 +33,7 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
  * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind),
  * "renamed" (navn), "terrain" (areaId), "disaster" (DisasterMessage), "spawnBattle" ({spawnId, speciesId}),
- * "struck" (a disaster caught me: I'm passed out now).
+ * "struck" (a disaster caught me: I'm passed out now), "dragonFlight" ({from, to, ms}).
  */
 const HELLO_TIMEOUT_MS = 3000;
 /** Saves come in bursts (a battle's end, a trade); back up once things settle. */
@@ -257,6 +257,7 @@ class Presence {
       this.events.emit("disaster", message);
     });
     listen(room, "spawnBattle", (payload) => this.events.emit("spawnBattle", payload));
+    listen(room, "dragonFlight", (flight) => this.events.emit("dragonFlight", flight));
     listen(room, "raid", (view) => {
       this.raid = view;
       this.events.emit("raid", view);

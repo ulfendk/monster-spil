@@ -228,6 +228,11 @@ trusted dev certificate, or put the dev server behind NPM too.
   the dragon with full HP / set its HP / put it to sleep (no rewards), and clear
   the week's points. Logging in gives a 12-hour session; wrong passwords are
   counted separately from the game keys (5 per 10 minutes per address).
+- **The roaming dragon** (admin portal → *Dragen*, per game): it flies to a new place on
+  the map now and then (default every 6 hours on average, with some randomness; a
+  new week's dragon wakes in its own cave). Change the pace, stop the flying, or send it
+  flying now. It never takes off while someone is fighting it or a disaster is on its
+  way, and it can't be fought until it has landed. Resetting its HP leaves it where it is.
 - **Natural disasters** (admin portal → *Naturkatastrofer*, per game): meteors,
   earthquakes, floods, hurricanes, dragon fire and a very rare UFO change the map over
   time. Choose how often on average (from every 15 minutes to once a week) and how

@@ -29,6 +29,7 @@ const strings = {
   game_key_title: "Skriv spilnøglen",
   game_key_changed: "Spilnøglen er skiftet — skriv den nye",
   disaster_run: "Løb væk!",
+  raid_flies: "Dragen flyver!",
   games_title: "Vælg spil",
   games_add: "Nyt spil",
   games_new_player: "Ny spiller",
