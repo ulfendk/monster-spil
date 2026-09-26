@@ -11,7 +11,16 @@
     "monsters": [
       { "speciesId": "gravling", "weight": 3 },
       { "speciesId": "stenbid", "weight": 2 },
-      { "speciesId": "lovgro", "weight": 1 }
+      { "speciesId": "lovgro", "weight": 1 },
+      { "speciesId": "rodnisse", "weight": 2 },
+      { "speciesId": "muldmus", "weight": 1 }
+    ],
+    "sandMonsters": [
+      { "speciesId": "sandhvisker", "weight": 3 },
+      { "speciesId": "gloedskorpion", "weight": 2 },
+      { "speciesId": "stoevtrold", "weight": 2 },
+      { "speciesId": "oasepadde", "weight": 1 },
+      { "speciesId": "gravling", "weight": 1 }
     ]
   },
   "swim": { "maxTiles": 16 },

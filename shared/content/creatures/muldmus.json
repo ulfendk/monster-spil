@@ -1,0 +1,11 @@
+{
+  "id": "muldmus",
+  "navn": "Muldmus",
+  "type": "sten",
+  "baseStats": { "hp": 38, "angreb": 11, "forsvar": 11, "fart": 11 },
+  "moveIds": ["stenkast", "sandpisk", "bid"],
+  "spriteFront": "creatures/muldmus_front.png",
+  "spriteBack": "creatures/muldmus_back.png",
+  "sound": "creatures/muldmus.wav",
+  "catchRate": 0.5
+}

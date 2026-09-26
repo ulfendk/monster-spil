@@ -1,0 +1,11 @@
+{
+  "id": "dampskjold",
+  "navn": "Dampskjold",
+  "type": "ild",
+  "baseStats": { "hp": 46, "angreb": 11, "forsvar": 14, "fart": 7 },
+  "moveIds": ["gloedslag", "bobleskud", "varmeboelge"],
+  "spriteFront": "creatures/dampskjold_front.png",
+  "spriteBack": "creatures/dampskjold_back.png",
+  "sound": "creatures/dampskjold.wav",
+  "catchRate": 0.35
+}

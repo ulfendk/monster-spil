@@ -1,0 +1,11 @@
+{
+  "id": "gloedskorpion",
+  "navn": "Glødskorpion",
+  "type": "ild",
+  "baseStats": { "hp": 38, "angreb": 14, "forsvar": 10, "fart": 11 },
+  "moveIds": ["gloedslag", "sandpisk", "flammehvirvel"],
+  "spriteFront": "creatures/gloedskorpion_front.png",
+  "spriteBack": "creatures/gloedskorpion_back.png",
+  "sound": "creatures/gloedskorpion.wav",
+  "catchRate": 0.35
+}

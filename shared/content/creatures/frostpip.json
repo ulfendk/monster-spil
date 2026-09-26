@@ -1,0 +1,11 @@
+{
+  "id": "frostpip",
+  "navn": "Frostpip",
+  "type": "vand",
+  "baseStats": { "hp": 36, "angreb": 11, "forsvar": 10, "fart": 12 },
+  "moveIds": ["isnaale", "bobleskud", "haleslag"],
+  "spriteFront": "creatures/frostpip_front.png",
+  "spriteBack": "creatures/frostpip_back.png",
+  "sound": "creatures/frostpip.wav",
+  "catchRate": 0.45
+}

@@ -1,0 +1,11 @@
+{
+  "id": "gnistpindsvin",
+  "navn": "Gnistpindsvin",
+  "type": "lyn",
+  "baseStats": { "hp": 38, "angreb": 12, "forsvar": 11, "fart": 11 },
+  "moveIds": ["gnistestoed", "bid", "tordenbrag"],
+  "spriteFront": "creatures/gnistpindsvin_front.png",
+  "spriteBack": "creatures/gnistpindsvin_back.png",
+  "sound": "creatures/gnistpindsvin.wav",
+  "catchRate": 0.45
+}

@@ -1,0 +1,11 @@
+{
+  "id": "svampenisse",
+  "navn": "Svampenisse",
+  "type": "graes",
+  "baseStats": { "hp": 38, "angreb": 12, "forsvar": 10, "fart": 11 },
+  "moveIds": ["sporesky", "tornranke", "bid"],
+  "spriteFront": "creatures/svampenisse_front.png",
+  "spriteBack": "creatures/svampenisse_back.png",
+  "sound": "creatures/svampenisse.wav",
+  "catchRate": 0.4
+}

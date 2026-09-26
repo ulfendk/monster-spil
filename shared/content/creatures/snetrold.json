@@ -1,0 +1,11 @@
+{
+  "id": "snetrold",
+  "navn": "Snetrold",
+  "type": "vand",
+  "baseStats": { "hp": 48, "angreb": 13, "forsvar": 12, "fart": 7 },
+  "moveIds": ["isnaale", "stormflod", "hovedstoed"],
+  "spriteFront": "creatures/snetrold_front.png",
+  "spriteBack": "creatures/snetrold_back.png",
+  "sound": "creatures/snetrold.wav",
+  "catchRate": 0.35
+}

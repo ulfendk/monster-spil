@@ -109,7 +109,15 @@ UTF-8.
 
 Areas are Tiled JSON exports (`shared/content/areas/<id>.json`, untouched by hand
 after the initial export) plus a hand-written sidecar `<id>.meta.json` for game
-logic Tiled can't express (encounter table, collision GIDs, spawn point). Never
+logic Tiled can't express (encounter table, collision GIDs, spawn point). A big map has
+**regions**: `regions` in the sidecar lists parts of the map (rectangles of tiles) with
+their own encounter tables — Startskoven has Hjertelandet, Storsøen, Sandklitterne,
+Højfjeldet, Dybskoven and Nordengene; tall grass in none of them uses the area's own
+`encounterTable` (the meadows in the middle and south; `add-creature --vild` adds to that
+one). The first region a tile lies in wins (`shared/src/world/regions.ts`, tested); the
+monster book's hint points to the nearest tall grass where the monster lives. A test checks
+every region has tall grass and only known monsters, and another that every monster can be
+found somewhere (wild, caves, digging, disasters, or as a reward or starter). Never
 put game logic inside the Tiled export itself — re-exporting a map from Tiled
 must never clobber it. Milestone 1 ships exactly one area (`startskoven`), wired
 up via a small manual registry in `client/src/content/load-areas.ts` rather than
@@ -385,8 +393,8 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   The mouth stays a mountain tile, so walking and connectivity never change. Each player
   can go in **once per opening**.
 - **Inside**, the device runs the minigame: monsters peek out from behind boulders (at
-  most two at a time), sometimes scamper to another boulder, and you **flick** balls at
-  them — flick speed throws further, sideways aims. A hit rolls `caveCatchChance`
+  most two at a time), sometimes scamper to another boulder, and you shoot balls at them
+  with the **slingshot** (see "The slingshot" below). A hit rolls `caveCatchChance`
   (catchRate, better near the middle); a catch goes into the save exactly like a wild
   catch (caughtCounts, pendingScore → scoreboard). 10 balls, 5 monsters per visit.
 - **Kinds of caves:** each opening is one kind, picked by weight when it opens (stored as
@@ -408,15 +416,15 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   (`faceFrameKey(front, "blink" | "talk")`) only for monsters it draws itself — a real
   picture doesn't say where its eyes and mouth are, so it breathes and moves but doesn't blink.
 - **Pure rules** (tested): `shared/src/cave/caves.ts` (settings, schedule, `caveMouthTile`,
-  `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`flickToThrow`,
+  `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`slingshotToThrow`,
   `ballAt`, `landingTime`, hit precision, catch chance — a test checks every place a
-  monster can peek out can be hit with a reasonable flick).
+  monster can peek out can be hit with a reasonable pull).
 - **Server:** `server/src/cave-openings.ts` (`CaveOpenings`, one open cave at a time;
   state in the game store's `caves`). `caveEnter {caveId}` (must stand next to it) →
   `caveVisit {caveId, kind, seed, speciesIds, balls}`; `caves` goes to everyone on join and
   every change; problems `cave closed` / `cave visited`.
 - **Client:** `client/src/gfx/cave-layer.ts` draws the mouth (rocks tumble out as it
-  opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, flicks,
+  opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, the slingshot,
   catching, saving) over `client/src/cave/cave-stage.ts`, the **three.js** scene (rock
   dome, stalactites, glowing crystals, boulders, sprites made from the monsters' own
   textures, a temari ball). three.js is loaded with a dynamic import only when entering
@@ -425,16 +433,33 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   `index.html` layers `#game > canvas.cave-stage` below Phaser's canvas.
   `scripts/e2e-caves.mjs` covers the server side.
 - **Testing in Chrome:** step the 3D scene by hand like the game (`__cave.stage.tick(dt)`,
-  yielding between frames so the catch animation's awaits run); `__cave.flick(dx, dy, ms)`
+  yielding between frames so the catch animation's awaits run); `__cave.sling(dx, dy)`
   throws.
 
-### Catching in 3D (wild battles)
+### Wild battles and catching in 3D
 
-- Tapping catch in a wild battle opens `CatchScene` over the battle (the battle sleeps): the
-  monster stands in a sunny meadow (`client/src/cave/meadow-stage.ts`: sky, a red rising
-  sun, hills, pines, susuki in a breeze), alive and shifting from side to side, and you flick
-  **one** ball at it. A miss uses the turn ("Bolden ramte ikke!", log kind `catch-miss`); a
-  hit lets the engine roll the catch, and the ball glows or bursts open accordingly.
+- **A wild battle happens in a sunny meadow** (`client/src/cave/battle-stage.ts`, on
+  `meadow-stage.ts`: sky, a red rising sun, hills, pines, susuki in a breeze): the wild
+  monster stands in the grass, mine (its back picture) close in front. `BattleScene` loads
+  three.js when a wild battle opens and draws only its HUD on top: health bars on ink cards
+  in the free corners (the wild one's top left, mine bottom right), the message on an ink
+  card above the buttons. `BattleStage.resize(w, h, band)` picks the narrowest camera view
+  that fits both monsters in the strip above the message and centres them there, with the
+  monsters standing closer together on tall screens — so every screen shape works. Duels,
+  raids and teams stay 2D; so does everything when WebGL or the 3D chunk is missing (the
+  2D pictures wait while it loads, then show if it failed).
+- **A turn plays out one thing at a time** (`presentTurn3d`): each move's missile flies by
+  its type (fire: a fireball trailing embers, water: a string of droplets, grass: whirling
+  leaves, lightning: a bolt from the sky, stone: lobbed rocks); weak stone moves (power ≤ 30:
+  a claw, a bite, a tail, a headbutt — `BattleScene.isCloseMove`) dash in instead. The health
+  bar drops on impact, the one hit flashes red and shakes (a strong hit shakes the camera),
+  a miss flies past and the target jumps aside, one who faints sinks into the grass. The
+  engine's `damage`/`miss` log entries carry `moveId` for this.
+- **Catching happens in the same meadow**: `CatchScene` gets the battle's stage
+  (`CatchSceneData.stage`), my monster steps aside, the wild one starts shifting about and the
+  slingshot comes up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
+  kind `catch-miss`); a hit lets the engine roll the catch, and the ball glows or bursts
+  open accordingly. Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
 - **The engine decides** (`shared/src/battle/engine.ts`): the catch action carries
   `throw?: {hit:false} | {hit:true, precision}`; a hit's chance is the old one ×
   `catchBonus(precision)` (0.8 at the edge, 1.2 dead centre, exactly 1 at 0.5 — so a catch
@@ -442,9 +467,29 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   ball hits (`wildTurn`) so the animation knows the result, and shows it (`presentTurn`)
   when the battle wakes. Without WebGL the old 2D throw is used.
 - **The 3D code is shared:** `client/src/cave/throw-stage.ts` (`ThrowStage`: renderer,
-  camera, the temari ball, its flight and hit test, the catch animation, living monsters —
-  breathing, blinking, crying, startled jumps — and the tick loop); `CaveStage` and
-  `MeadowStage` add their scenery and say where monsters are and how they move.
+  camera and its framing (`resize` with an optional band, `project` to place the HUD over
+  the scene), the slingshot and the temari ball, its flight and hit test, the catch
+  animation, living monsters — breathing, blinking, crying, startled jumps — and the tick
+  loop); `CaveStage`, `MeadowStage` and `BattleStage` add their scenery and say where
+  monsters are and how they move. `destroy()` also gives the WebGL context back (iPad Safari
+  allows only a few).
+- **Testing in headless Chromium:** in dev builds `window.__battle` is the battle scene
+  (`performTurn({kind:"move", moveId})`, `performCatch()`) and `window.__catch` the catch
+  scene (`sling(dx, dy)`).
+
+### The slingshot
+
+- **Caves and catching throw with a slingshot**: touch anywhere, pull back (down, towards
+  yourself) and let go. The pouch with the ball follows the finger and white dots show the
+  first half of the throw; a longer pull throws further and higher, and the ball goes the
+  opposite way of the pull (pull down-right → aim left, at most ~35°). A pull shorter than
+  `MIN_PULL` just lets the band go. The longest pull that counts depends on the screen
+  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same.
+- **Pure rule** (tested): `slingshotToThrow(dx, dy, maxPull)` in `shared/src/cave/throw.ts`;
+  tests check that every place a cave monster can peek out, and every place the meadow
+  monster sways to, can be hit with some pull. `client/src/ui/slingshot-input.ts` turns
+  touches into pulls for any scene; `ThrowStage` draws the fork, the bands and the aim
+  (`setPull`).
 
 ### Minigames: working the land (protocol v14)
 
@@ -458,7 +503,8 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   give up, a result, back to the paused map); played by tapping only, restarting on rotation.
 - **What they do:** a felled tree leaves a walkable **stump** (tile 15) that grows back into a
   tree after `cut.regrowHours`; a **hole** (tile 16) fills in after `dig.healHours` and turns
-  up food (into the bag), a gem (XP), a monster (a wild battle — Gravling lives only here) or
+  up food (into the bag), a gem (XP), a monster (a wild battle — `dig.monsters`, or
+  `dig.sandMonsters` when dug in sand; Gravling, Rodnisse and the dune monsters live there) or
   nothing (`dig.rewards` by weight); swimming and climbing carry you straight across to the
   first walkable tile beyond (at most `swim.maxTiles` / `climb.maxTiles`). All numbers in
   `shared/content/minigames.json`. Each earns XP and counts for a badge (Skovhugger,

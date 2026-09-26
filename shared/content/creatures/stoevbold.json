@@ -1,0 +1,11 @@
+{
+  "id": "stoevbold",
+  "navn": "Støvbold",
+  "type": "graes",
+  "baseStats": { "hp": 40, "angreb": 10, "forsvar": 11, "fart": 9 },
+  "moveIds": ["sporesky", "bladsving", "hovedstoed"],
+  "spriteFront": "creatures/stoevbold_front.png",
+  "spriteBack": "creatures/stoevbold_back.png",
+  "sound": "creatures/stoevbold.wav",
+  "catchRate": 0.45
+}

@@ -1,0 +1,11 @@
+{
+  "id": "perlemusling",
+  "navn": "Perlemusling",
+  "type": "vand",
+  "baseStats": { "hp": 42, "angreb": 9, "forsvar": 15, "fart": 6 },
+  "moveIds": ["bobleskud", "isnaale", "kloer"],
+  "spriteFront": "creatures/perlemusling_front.png",
+  "spriteBack": "creatures/perlemusling_back.png",
+  "sound": "creatures/perlemusling.wav",
+  "catchRate": 0.4
+}

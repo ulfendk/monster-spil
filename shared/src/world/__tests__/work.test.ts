@@ -107,5 +107,18 @@ test("a hole turns up rewards by weight", () => {
   }
   const total = config.dig.rewards.reduce((s, r) => s + r.weight, 0);
   for (const r of config.dig.rewards) assert.ok(Math.abs(counts[r.kind]! / 4000 - r.weight / total) < 0.03, r.kind);
-  assert.ok(config.dig.monsters.some((m) => m.speciesId === pickDigMonster(config, rand)));
+  const dug = pickDigMonster(config, rand);
+  assert.ok(config.dig.monsters.some((m) => m.speciesId === dug));
+});
+
+test("sand has its own diggers, if the config lists them", () => {
+  let a = 7;
+  const rand = () => ((a = (a * 16807) % 2147483647) / 2147483647);
+  const sandy: MinigameConfig = { ...config, dig: { ...config.dig, sandMonsters: [{ speciesId: "sandhvisker", weight: 1 }] } };
+  for (let i = 0; i < 20; i++) assert.equal(pickDigMonster(sandy, rand, true), "sandhvisker");
+  const inGround = pickDigMonster(sandy, rand, false);
+  assert.ok(config.dig.monsters.some((m) => m.speciesId === inGround));
+  const plain: MinigameConfig = { ...config, dig: { ...config.dig, sandMonsters: undefined } };
+  const noList = pickDigMonster(plain, rand, true);
+  assert.ok(config.dig.monsters.some((m) => m.speciesId === noList), "no sand list: the usual ones");
 });

@@ -1,0 +1,11 @@
+{
+  "id": "krystalhjort",
+  "navn": "Krystalhjort",
+  "type": "lyn",
+  "baseStats": { "hp": 46, "angreb": 15, "forsvar": 12, "fart": 12 },
+  "moveIds": ["lynnedslag", "klippefald", "hovedstoed"],
+  "spriteFront": "creatures/krystalhjort_front.png",
+  "spriteBack": "creatures/krystalhjort_back.png",
+  "sound": "creatures/krystalhjort.wav",
+  "catchRate": 0.25
+}

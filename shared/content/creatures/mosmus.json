@@ -1,0 +1,11 @@
+{
+  "id": "mosmus",
+  "navn": "Mosmus",
+  "type": "graes",
+  "baseStats": { "hp": 34, "angreb": 10, "forsvar": 8, "fart": 14 },
+  "moveIds": ["bladsving", "rodslag", "bid"],
+  "spriteFront": "creatures/mosmus_front.png",
+  "spriteBack": "creatures/mosmus_back.png",
+  "sound": "creatures/mosmus.wav",
+  "catchRate": 0.55
+}

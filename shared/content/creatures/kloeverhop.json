@@ -1,0 +1,11 @@
+{
+  "id": "kloeverhop",
+  "navn": "Kløverhop",
+  "type": "graes",
+  "baseStats": { "hp": 38, "angreb": 11, "forsvar": 10, "fart": 12 },
+  "moveIds": ["bladsving", "rodslag", "haleslag"],
+  "spriteFront": "creatures/kloeverhop_front.png",
+  "spriteBack": "creatures/kloeverhop_back.png",
+  "sound": "creatures/kloeverhop.wav",
+  "catchRate": 0.5
+}

@@ -55,4 +55,6 @@ export interface BattleLogEntry {
   amount?: number;
   /** Set on "damage" and "miss" entries: who attacked (in a team fight, which member). */
   actorPlayerId?: string;
+  /** Set on "damage" and "miss" entries: which move, so a UI can show it (fire, water, …). */
+  moveId?: string;
 }

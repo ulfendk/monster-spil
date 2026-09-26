@@ -1,0 +1,11 @@
+{
+  "id": "ildflue",
+  "navn": "Ildflue",
+  "type": "lyn",
+  "baseStats": { "hp": 30, "angreb": 11, "forsvar": 7, "fart": 16 },
+  "moveIds": ["gnistestoed", "tordenbrag", "bid"],
+  "spriteFront": "creatures/ildflue_front.png",
+  "spriteBack": "creatures/ildflue_back.png",
+  "sound": "creatures/ildflue.wav",
+  "catchRate": 0.5
+}

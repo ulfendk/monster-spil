@@ -1,0 +1,11 @@
+{
+  "id": "mosbjoern",
+  "navn": "Mosbjørn",
+  "type": "graes",
+  "baseStats": { "hp": 50, "angreb": 13, "forsvar": 13, "fart": 7 },
+  "moveIds": ["rodslag", "tornranke", "hovedstoed"],
+  "spriteFront": "creatures/mosbjoern_front.png",
+  "spriteBack": "creatures/mosbjoern_back.png",
+  "sound": "creatures/mosbjoern.wav",
+  "catchRate": 0.3
+}

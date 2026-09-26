@@ -1,0 +1,11 @@
+{
+  "id": "svanefjer",
+  "navn": "Svanefjer",
+  "type": "vand",
+  "baseStats": { "hp": 40, "angreb": 12, "forsvar": 10, "fart": 12 },
+  "moveIds": ["vandpist", "isnaale", "haleslag"],
+  "spriteFront": "creatures/svanefjer_front.png",
+  "spriteBack": "creatures/svanefjer_back.png",
+  "sound": "creatures/svanefjer.wav",
+  "catchRate": 0.35
+}

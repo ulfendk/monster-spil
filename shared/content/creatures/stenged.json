@@ -1,0 +1,11 @@
+{
+  "id": "stenged",
+  "navn": "Stenged",
+  "type": "sten",
+  "baseStats": { "hp": 44, "angreb": 13, "forsvar": 12, "fart": 11 },
+  "moveIds": ["hovedstoed", "klippefald", "stenkast"],
+  "spriteFront": "creatures/stenged_front.png",
+  "spriteBack": "creatures/stenged_back.png",
+  "sound": "creatures/stenged.wav",
+  "catchRate": 0.4
+}

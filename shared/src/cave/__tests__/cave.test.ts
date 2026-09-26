@@ -17,7 +17,7 @@ import {
   type CaveConfig,
   type CaveKind,
 } from "../caves.js";
-import { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, hitPrecision, landingTime } from "../throw.js";
+import { BALL_START, ballAt, caveCatchChance, closestApproach, hitPrecision, landingTime, MIN_PULL, slingshotToThrow } from "../throw.js";
 import { emptyTerrain, tileKey, type BaseArea } from "../../world/terrain.js";
 
 const T = { ground: 1, tree: 2, grass: 3, water: 4, path: 5, mountain: 6, burnt: 7, crater: 8, flood: 9, log: 10, crack: 11, rubble: 12, wreck: 13 };
@@ -138,46 +138,55 @@ test("the boulders differ from cave to cave, spread out and within reach", () =>
   assert.ok(layouts.size === 60, "every cave is laid out differently");
 });
 
-test("a tap or a downward drag is no throw; a flick up throws forward and up", () => {
-  assert.equal(flickToThrow(0, -10, 100, 800), undefined, "too short");
-  assert.equal(flickToThrow(0, 200, 150, 800), undefined, "downwards");
-  const v = flickToThrow(0, -320, 250, 800)!;
+test("a short pull or one that doesn't pull back is no throw; a long pull throws forward and up", () => {
+  assert.equal(slingshotToThrow(0, 10, 300), undefined, "too short");
+  assert.equal(slingshotToThrow(0, 300 * MIN_PULL * 0.9, 300), undefined, "just too short");
+  assert.equal(slingshotToThrow(0, -200, 300), undefined, "pushed forwards, not pulled back");
+  assert.equal(slingshotToThrow(200, 0, 300), undefined, "straight sideways");
+  assert.equal(slingshotToThrow(0, 200, 0), undefined, "no room to pull");
+  const v = slingshotToThrow(0, 150, 300)!;
   assert.ok(v.z < 0 && v.y > 0 && v.x === 0);
-  const far = flickToThrow(0, -320, 120, 800)!;
-  assert.ok(far.z < v.z, "a faster flick throws further");
-  assert.ok(flickToThrow(160, -320, 250, 800)!.x > 0, "a flick to the right aims right");
+  const far = slingshotToThrow(0, 300, 300)!;
+  assert.ok(far.z < v.z && far.y > v.y, "a longer pull throws further and higher");
+  assert.deepEqual(slingshotToThrow(0, 900, 300), far, "pulling past the longest pull adds nothing");
+  assert.ok(slingshotToThrow(80, 200, 300)!.x < 0, "pulling to the right aims left");
+  assert.ok(slingshotToThrow(-80, 200, 300)!.x > 0, "pulling to the left aims right");
+  const wide = slingshotToThrow(290, 20, 300)!;
+  assert.ok(Math.abs(wide.x / wide.z) <= 0.7 + 1e-9, "never aims further to the side than about 35°");
 });
 
 test("the ball flies in an arc from the hand and comes down on the floor", () => {
-  const v = flickToThrow(0, -320, 250, 800)!;
+  const v = slingshotToThrow(0, 150, 300)!;
   assert.deepEqual(ballAt(v, 0), BALL_START);
   const t = landingTime(v);
   assert.ok(Math.abs(ballAt(v, t).y) < 1e-9);
   assert.ok(ballAt(v, t / 2).y > BALL_START.y, "it rises before it falls");
 });
 
-test("every place a monster can peek out can be hit with a reasonable flick", () => {
+/** Whether some pull of the slingshot sends the ball within `within` m of a point. */
+function reachable(target: { x: number; y: number; z: number }, within = 0.3): boolean {
+  for (let dy = 1; dy <= 300; dy += 3) {
+    for (let dx = -220; dx <= 220; dx += 4) {
+      const v = slingshotToThrow(dx, dy, 300);
+      if (v && closestApproach(v, target).distance < within) return true;
+    }
+  }
+  return false;
+}
+
+test("every place a monster can peek out in a cave can be hit with a reasonable pull", () => {
   // Where monsters show themselves in the cave scene: behind any boulder (0.9 m back), or
   // peeking round its side (1.1 m out), 0.6–2.1 m up.
   for (const z of [ROCK_AREA.maxZ - 0.9, (ROCK_AREA.maxZ + ROCK_AREA.minZ) / 2 - 0.9, ROCK_AREA.minZ - 0.9]) {
     for (const x of [ROCK_AREA.minX - 1.1, 0, ROCK_AREA.maxX + 1.1]) {
-      for (const y of [0.6, 2.1]) {
-        let hit = false;
-        search: for (let up = 0.1; up <= 0.8; up += 0.05) {
-          for (const ms of [120, 180, 250, 350, 500]) {
-            for (let side = -0.5; side <= 0.5; side += 0.05) {
-              const v = flickToThrow(side * 800, -up * 800, ms, 800);
-              if (v && closestApproach(v, { x, y, z }).distance < 0.3) {
-                hit = true;
-                break search;
-              }
-            }
-          }
-        }
-        assert.ok(hit, `reachable: (${x}, ${y}, ${z})`);
-      }
+      for (const y of [0.6, 2.1]) assert.ok(reachable({ x, y, z }), `reachable: (${x}, ${y}, ${z})`);
     }
   }
+});
+
+test("the monster in the meadow can be hit wherever it sways to", () => {
+  // meadow-stage.ts: it stands 7 m out, its middle 0.95 m up, swaying up to 1.4 m to either side.
+  for (const x of [-1.4, 0, 1.4]) assert.ok(reachable({ x, y: 0.95, z: -7 }), `reachable at x = ${x}`);
 });
 
 test("a hit near the middle catches more easily, but nothing is ever certain", () => {

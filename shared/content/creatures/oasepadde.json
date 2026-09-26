@@ -1,0 +1,11 @@
+{
+  "id": "oasepadde",
+  "navn": "Oasepadde",
+  "type": "vand",
+  "baseStats": { "hp": 40, "angreb": 10, "forsvar": 11, "fart": 10 },
+  "moveIds": ["vandpist", "sandpisk", "bobleskud"],
+  "spriteFront": "creatures/oasepadde_front.png",
+  "spriteBack": "creatures/oasepadde_back.png",
+  "sound": "creatures/oasepadde.wav",
+  "catchRate": 0.45
+}

@@ -18,7 +18,8 @@ export interface DigReward {
 
 export interface MinigameConfig {
   cut: { regrowHours: number };
-  dig: { healHours: number; rewards: DigReward[]; monsters: Array<{ speciesId: string; weight: number }> };
+  /** `sandMonsters` hide in sand instead of `monsters` (optional: without it, sand has the same ones). */
+  dig: { healHours: number; rewards: DigReward[]; monsters: Array<{ speciesId: string; weight: number }>; sandMonsters?: Array<{ speciesId: string; weight: number }> };
   swim: { maxTiles: number };
   climb: { maxTiles: number };
 }
@@ -95,9 +96,9 @@ export function pickDigReward(config: MinigameConfig, rand: () => number): DigRe
   return byWeight(config.dig.rewards, rand) ?? { kind: "nothing", weight: 1 };
 }
 
-/** Which monster was hiding in the hole, by weight. */
-export function pickDigMonster(config: MinigameConfig, rand: () => number): string | undefined {
-  return byWeight(config.dig.monsters, rand)?.speciesId;
+/** Which monster was hiding in the hole, by weight (sand has its own, if the config lists them). */
+export function pickDigMonster(config: MinigameConfig, rand: () => number, onSand = false): string | undefined {
+  return byWeight((onSand && config.dig.sandMonsters) || config.dig.monsters, rand)?.speciesId;
 }
 
 function byWeight<T extends { weight: number }>(items: readonly T[], rand: () => number): T | undefined {

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { spriteFit } from "../gfx/creature-sprite";
-import { nearestSpot, paintedTiles } from "@shared";
+import { livesAt, livesInArea, nearestSpot, paintedTiles } from "@shared";
 import type { CreatureSpecies, SpotHint, Tile } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
@@ -14,6 +14,7 @@ import { disasterForSpecies } from "../content/load-disasters";
 import { bossesById } from "../content/load-raid";
 import { beastForBaby } from "../content/load-beasts";
 import { livesInCaves } from "../content/load-caves";
+import { livesUnderground } from "../content/load-minigames";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
 import { ic, richText } from "../ui/rich-text";
@@ -117,6 +118,9 @@ export class MonsterbogScene extends Phaser.Scene {
         } else if (disasterForSpecies(species.id)) {
           // Only turns up where a natural disaster struck (a meteor crater, floodwater, …).
           addIcon(this, x, y + 76 * k, DISASTER_ICONS[disasterForSpecies(species.id)!], Math.max(26, 34 * k));
+        } else if (livesUnderground(species.id)) {
+          // Dug up with the shovel (some only out of the sand).
+          addIcon(this, x, y + 76 * k, "shovel", Math.max(26, 34 * k));
         }
       }
     });
@@ -130,19 +134,19 @@ export class MonsterbogScene extends Phaser.Scene {
   }
 
   /**
-   * How far, and which way, the nearest place is where this monster can turn up: the wild
-   * encounter zone of the area the player is in, if the area's encounter table lists it.
+   * How far, and which way, the nearest place is where this monster can turn up: the tall
+   * grass of the area the player is in, in the parts of the map (regions) where it lives.
    * Monsters that live nowhere here (the starters) get no hint.
    */
   private hintFor(species: CreatureSpecies): SpotHint | undefined {
     const { save, position } = this.bookData;
     const meta = getAreaAssets(save.position.areaId).meta;
-    if (!meta.encounterTable.some((e) => e.speciesId === species.id && e.weight > 0)) return undefined;
+    if (!livesInArea(meta, species.id)) return undefined;
 
     const map = this.cache.tilemap.get("area-map")?.data as { width: number; layers: Array<{ name: string; data?: number[] }> } | undefined;
     const zone = map?.layers.find((l) => l.name === meta.encounterZoneLayer)?.data;
     if (!map || !zone) return undefined;
-    return nearestSpot(position, paintedTiles(zone, map.width));
+    return nearestSpot(position, paintedTiles(zone, map.width).filter((tile) => livesAt(meta, species.id, tile.x, tile.y)));
   }
 
   private openInfo(species: CreatureSpecies, caught: boolean, owned: number, caughtCount: number): void {

@@ -3,38 +3,68 @@ import { KANAGAWA } from "../ui/theme";
 import { MONSTER_SIZE, ThrowStage, type LivingMonster, type StageMonster } from "./throw-stage";
 
 /**
- * Catching in a wild battle, in 3D: the monster stands in a sunny meadow (a clear sky, a big
- * red rising sun, green hills, pines and susuki grass), shifting from side to side, and you
- * flick the ball at it. The ball, its flight, the catch animation and the monster's faces
- * are ThrowStage's; the battle engine decides whether a hit catches it.
+ * The wild monster's sunny meadow, in 3D (a clear sky, a big red rising sun, green hills,
+ * pines and susuki grass). Catching: the monster shifts from side to side and you shoot the
+ * ball at it with the slingshot. The ball, its flight, the catch animation and the monster's
+ * faces are ThrowStage's; the battle engine decides whether a hit catches it. In a battle
+ * (battle-stage.ts) it stands its ground instead: that's the "battle" phase.
  */
 
-/** Where it stands, and how far it shifts to either side. */
+/** Where it stands while being caught, and how far it shifts to either side. */
 const HOME = { x: 0, z: -7 };
 const SWAY_X = 1.4;
-const STAND_Y = MONSTER_SIZE / 2;
+export const STAND_Y = MONSTER_SIZE / 2;
 
-type Phase = "standing" | "returning" | "caught";
+type Phase = "standing" | "returning" | "caught" | "battle";
 
-interface Monster extends LivingMonster {
+export interface MeadowMonster extends LivingMonster {
   phase: Phase;
   timer: number;
   /** Seconds until it hops or cries on its own. */
   nextAct: number;
   returnFrom?: THREE.Vector3;
+  /** In a battle: where it stands (easing back to its battle spot), and how far an attack or a hit moves it from there. */
+  home: THREE.Vector3;
+  offset: THREE.Vector3;
 }
 
-export class MeadowStage extends ThrowStage<Monster> {
-  constructor(canvas: HTMLCanvasElement, monster: StageMonster, seed: number) {
+export class MeadowStage extends ThrowStage<MeadowMonster> {
+  /** Where it stands during a battle: a little to the right, facing my monster (battle-stage.ts moves it for tall screens). */
+  protected readonly battleSpot = new THREE.Vector3(1.3, STAND_Y, -7);
+
+  constructor(canvas: HTMLCanvasElement, monster: StageMonster, seed: number, battle = false) {
     super(canvas, seed);
     this.scene.background = new THREE.Color(KANAGAWA.springBlue);
     this.scene.fog = new THREE.Fog(KANAGAWA.springBlue, 18, 60);
     this.buildMeadow();
     const living = this.makeLiving(monster);
     living.sprite.visible = true;
-    living.sprite.position.set(HOME.x, STAND_Y, HOME.z);
-    this.monsters.push({ ...living, phase: "standing", timer: 0, nextAct: 2 + this.rng.next() * 2 });
+    const at = battle ? this.battleSpot.clone() : new THREE.Vector3(HOME.x, STAND_Y, HOME.z);
+    living.sprite.position.copy(at);
+    this.monsters.push({ ...living, phase: battle ? "battle" : "standing", timer: 0, nextAct: 2 + this.rng.next() * 2, home: at.clone(), offset: new THREE.Vector3() });
     this.start();
+  }
+
+  /** The wild monster (there's only ever one in the meadow). */
+  protected get wild(): MeadowMonster {
+    return this.monsters[0]!;
+  }
+
+  /** From the battle to being caught: it hops over and starts shifting about. */
+  protected startSwaying(): void {
+    const m = this.wild;
+    if (m.phase !== "battle") return;
+    m.offset.set(0, 0, 0);
+    this.breakFree(m, m.sprite.position.clone());
+  }
+
+  /** Back to the battle (unless it was caught): it eases back to its battle spot. */
+  protected stopSwaying(): void {
+    const m = this.wild;
+    if (m.phase === "caught") return;
+    m.home.copy(m.sprite.position).setY(STAND_Y);
+    m.offset.set(0, 0, 0);
+    m.phase = "battle";
   }
 
   /** The monster says hello with its cry (when the scene opens). */
@@ -107,6 +137,7 @@ export class MeadowStage extends ThrowStage<Monster> {
       const x = (rand() - 0.5) * 22;
       const z = -3 - rand() * 14;
       if (Math.abs(x - HOME.x) < 2.2 && Math.abs(z - HOME.z) < 1.6) continue; // keep its spot clear
+      if (Math.abs(x) < 2.4 && z > -8.2) continue; // and the view of it (and of the battle) from the front
       for (let b = 0; b < 3; b++) {
         const h = 0.6 + rand() * 0.6;
         const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, h, 4), stem);
@@ -130,6 +161,12 @@ export class MeadowStage extends ThrowStage<Monster> {
   protected updateMonsters(dt: number, time: number): void {
     const m = this.monsters[0];
     if (!m || m.phase === "caught") return;
+    if (m.phase === "battle") {
+      m.home.lerp(this.battleSpot, Math.min(1, dt * 4));
+      m.sprite.position.copy(m.home).add(m.offset);
+      this.animateMonster(m, dt, time);
+      return;
+    }
     const spot = new THREE.Vector3(HOME.x + Math.sin(time * 0.55 + m.wobble) * SWAY_X, STAND_Y, HOME.z);
     if (m.phase === "returning") {
       m.timer -= dt;
@@ -150,12 +187,12 @@ export class MeadowStage extends ThrowStage<Monster> {
     this.animateMonster(m, dt, time);
   }
 
-  protected canBeHit(m: Monster): boolean {
+  protected canBeHit(m: MeadowMonster): boolean {
     return m.phase === "standing" || m.phase === "returning";
   }
 
   /** Out of the ball: it hops back to where it stood. */
-  protected breakFree(m: Monster, from: THREE.Vector3): void {
+  protected breakFree(m: MeadowMonster, from: THREE.Vector3): void {
     m.phase = "returning";
     m.returnFrom = from.clone().setY(STAND_Y);
     m.timer = 0.7;

@@ -1,0 +1,11 @@
+{
+  "id": "lavasnegl",
+  "navn": "Lavasnegl",
+  "type": "ild",
+  "baseStats": { "hp": 44, "angreb": 11, "forsvar": 14, "fart": 6 },
+  "moveIds": ["gloedslag", "varmeboelge", "klippefald"],
+  "spriteFront": "creatures/lavasnegl_front.png",
+  "spriteBack": "creatures/lavasnegl_back.png",
+  "sound": "creatures/lavasnegl.wav",
+  "catchRate": 0.4
+}

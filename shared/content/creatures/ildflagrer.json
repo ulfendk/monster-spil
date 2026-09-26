@@ -1,6 +1,6 @@
 {
   "id": "ildflagrer",
-  "navn": "Ildflagrer",
+  "navn": "Flammetand",
   "type": "ild",
   "baseStats": { "hp": 38, "angreb": 14, "forsvar": 9, "fart": 11 },
   "moveIds": ["gloedslag", "varmeboelge", "kloer"],

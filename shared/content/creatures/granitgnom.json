@@ -1,0 +1,11 @@
+{
+  "id": "granitgnom",
+  "navn": "Granitgnom",
+  "type": "sten",
+  "baseStats": { "hp": 48, "angreb": 11, "forsvar": 15, "fart": 6 },
+  "moveIds": ["stenkast", "klippefald", "kloer"],
+  "spriteFront": "creatures/granitgnom_front.png",
+  "spriteBack": "creatures/granitgnom_back.png",
+  "sound": "creatures/granitgnom.wav",
+  "catchRate": 0.35
+}

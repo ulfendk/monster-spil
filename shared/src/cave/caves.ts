@@ -4,7 +4,7 @@ import { inside, tileKey, tileNow, walkableNow, type AreaTerrain, type BaseArea 
 /**
  * Caves that open in the mountains now and then and close again. A player standing next
  * to an open cave can go in once: a minigame where monsters peek out from behind rocks
- * and you flick balls at them to catch them (the device runs it; see throw.ts).
+ * and you shoot balls at them with a slingshot to catch them (the device runs it; see throw.ts).
  *
  * Pure rules with an injected random source; the server keeps time and state
  * (server/src/cave-openings.ts), the parent sets the pace in the admin portal, and what
@@ -208,7 +208,7 @@ const ROCK_SPACING = 2.3;
 
 /**
  * Lays out 4–6 boulders from a seed (the visit's): spread over the part of the cave every
- * flick can reach (see throw.ts), never on top of each other, and at least one close by.
+ * slingshot can reach (see throw.ts), never on top of each other, and at least one close by.
  */
 export function caveRocks(seed: number): Array<{ x: number; z: number }> {
   let a = seed >>> 0;

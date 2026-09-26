@@ -1,0 +1,11 @@
+{
+  "id": "lygtemand",
+  "navn": "Lygtemand",
+  "type": "ild",
+  "baseStats": { "hp": 32, "angreb": 12, "forsvar": 7, "fart": 15 },
+  "moveIds": ["flammehvirvel", "gloedslag", "haleslag"],
+  "spriteFront": "creatures/lygtemand_front.png",
+  "spriteBack": "creatures/lygtemand_back.png",
+  "sound": "creatures/lygtemand.wav",
+  "catchRate": 0.4
+}

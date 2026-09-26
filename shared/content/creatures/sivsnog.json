@@ -1,0 +1,11 @@
+{
+  "id": "sivsnog",
+  "navn": "Sivsnog",
+  "type": "vand",
+  "baseStats": { "hp": 38, "angreb": 13, "forsvar": 9, "fart": 12 },
+  "moveIds": ["vandpist", "bid", "stormflod"],
+  "spriteFront": "creatures/sivsnog_front.png",
+  "spriteBack": "creatures/sivsnog_back.png",
+  "sound": "creatures/sivsnog.wav",
+  "catchRate": 0.4
+}

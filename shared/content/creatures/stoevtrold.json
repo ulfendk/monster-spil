@@ -1,0 +1,11 @@
+{
+  "id": "stoevtrold",
+  "navn": "Støvtrold",
+  "type": "sten",
+  "baseStats": { "hp": 44, "angreb": 12, "forsvar": 12, "fart": 8 },
+  "moveIds": ["sandpisk", "klippefald", "hovedstoed"],
+  "spriteFront": "creatures/stoevtrold_front.png",
+  "spriteBack": "creatures/stoevtrold_back.png",
+  "sound": "creatures/stoevtrold.wav",
+  "catchRate": 0.35
+}

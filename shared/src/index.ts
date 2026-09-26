@@ -1,7 +1,7 @@
 export type { TypeId, StatBlock, CreatureSpecies, CreatureInstance } from "./types/creature.js";
 export type { Move } from "./types/move.js";
 export { TYPE_ADVANTAGE, getMultiplier } from "./types/type-chart.js";
-export type { EncounterTableEntry, AreaMeta } from "./types/area.js";
+export type { EncounterTableEntry, EncounterRegion, AreaMeta } from "./types/area.js";
 export type { BattleMode, BattleParticipant, BattleState, BattleAction, BattleLogEntry } from "./types/battle.js";
 export { indexCreatures, indexMoves, validateContent } from "./content/content-loader.js";
 export type { Rng } from "./battle/rng.js";
@@ -40,6 +40,7 @@ export { isAdjacent } from "./world/adjacency.js";
 export type { WorldPosition } from "./world/adjacency.js";
 export { arrowFor, nearestSpot, paintedTiles } from "./world/hint.js";
 export type { SpotHint, Tile } from "./world/hint.js";
+export { encounterTableAt, livesAt, livesInArea, regionAt } from "./world/regions.js";
 export {
   BOSS_PLAYER_ID,
   bossParticipant,
@@ -162,7 +163,7 @@ export {
   ROCK_AREA,
 } from "./cave/caves.js";
 export type { CaveConfig, CaveDecor, CaveKind, CaveLook, CaveParticles, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
-export { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, GRAVITY, HIT_RADIUS, hitPrecision, landingTime } from "./cave/throw.js";
+export { BALL_START, ballAt, caveCatchChance, closestApproach, GRAVITY, HIT_RADIUS, hitPrecision, landingTime, MIN_PULL, slingshotToThrow } from "./cave/throw.js";
 export type { Vec3 } from "./cave/throw.js";
 export {
   award,

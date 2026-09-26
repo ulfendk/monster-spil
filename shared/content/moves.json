@@ -10,5 +10,16 @@
   { "id": "lynnedslag", "navn": "Lynnedslag", "type": "lyn", "power": 55, "accuracy": 0.8 },
   { "id": "stenkast", "navn": "Stenkast", "type": "sten", "power": 35, "accuracy": 0.95 },
   { "id": "jordrystelse", "navn": "Jordrystelse", "type": "sten", "power": 55, "accuracy": 0.85 },
-  { "id": "kloer", "navn": "Kløer", "type": "sten", "power": 20, "accuracy": 1.0 }
+  { "id": "kloer", "navn": "Kløer", "type": "sten", "power": 20, "accuracy": 1.0 },
+  { "id": "flammehvirvel", "navn": "Flammehvirvel", "type": "ild", "power": 45, "accuracy": 0.9 },
+  { "id": "bobleskud", "navn": "Bobleskud", "type": "vand", "power": 30, "accuracy": 1 },
+  { "id": "isnaale", "navn": "Isnåle", "type": "vand", "power": 45, "accuracy": 0.9 },
+  { "id": "rodslag", "navn": "Rodslag", "type": "graes", "power": 40, "accuracy": 0.95 },
+  { "id": "sporesky", "navn": "Sporesky", "type": "graes", "power": 45, "accuracy": 0.9 },
+  { "id": "tordenbrag", "navn": "Tordenbrag", "type": "lyn", "power": 45, "accuracy": 0.9 },
+  { "id": "klippefald", "navn": "Klippefald", "type": "sten", "power": 45, "accuracy": 0.9 },
+  { "id": "sandpisk", "navn": "Sandpisk", "type": "sten", "power": 40, "accuracy": 0.95 },
+  { "id": "bid", "navn": "Bid", "type": "sten", "power": 25, "accuracy": 1 },
+  { "id": "haleslag", "navn": "Haleslag", "type": "sten", "power": 25, "accuracy": 1 },
+  { "id": "hovedstoed", "navn": "Hovedstød", "type": "sten", "power": 30, "accuracy": 0.95 }
 ]

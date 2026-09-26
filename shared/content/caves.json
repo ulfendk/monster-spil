@@ -10,7 +10,9 @@
         { "speciesId": "glimtorm", "weight": 3 },
         { "speciesId": "dryppesten", "weight": 2 },
         { "speciesId": "hulepadde", "weight": 2 },
-        { "speciesId": "stenbid", "weight": 1 }
+        { "speciesId": "stenbid", "weight": 1 },
+        { "speciesId": "krystaltusse", "weight": 2 },
+        { "speciesId": "ekkoflagre", "weight": 2 }
       ],
       "look": { "walls": "sumiInk6", "floor": "sumiInk5", "fog": "sumiInk0", "glow": ["waveAqua2", "oniViolet"], "decor": "crystals", "particles": "none" }
     },
@@ -21,7 +23,9 @@
       "species": [
         { "speciesId": "istap", "weight": 3 },
         { "speciesId": "hulepadde", "weight": 2 },
-        { "speciesId": "boelgehale", "weight": 1 }
+        { "speciesId": "boelgehale", "weight": 1 },
+        { "speciesId": "frostpip", "weight": 3 },
+        { "speciesId": "snetrold", "weight": 1 }
       ],
       "look": { "walls": "waveBlue2", "floor": "fujiGray", "fog": "waveBlue1", "glow": ["springBlue", "fujiWhite"], "decor": "icicles", "particles": "snow" }
     },
@@ -32,7 +36,9 @@
       "species": [
         { "speciesId": "gloedklump", "weight": 3 },
         { "speciesId": "ildflagrer", "weight": 2 },
-        { "speciesId": "dryppesten", "weight": 1 }
+        { "speciesId": "dryppesten", "weight": 1 },
+        { "speciesId": "lavasnegl", "weight": 2 },
+        { "speciesId": "gloedsalamander", "weight": 2 }
       ],
       "look": { "walls": "sumiInk4", "floor": "sumiInk3", "fog": "sumiInk1", "glow": ["surimiOrange", "autumnRed"], "decor": "lava", "particles": "embers" }
     },
@@ -43,7 +49,8 @@
       "species": [
         { "speciesId": "svampling", "weight": 3 },
         { "speciesId": "lovgro", "weight": 2 },
-        { "speciesId": "glimtorm", "weight": 1 }
+        { "speciesId": "glimtorm", "weight": 1 },
+        { "speciesId": "stoevbold", "weight": 2 }
       ],
       "look": { "walls": "winterGreen", "floor": "sumiInk5", "fog": "sumiInk1", "glow": ["springGreen", "oniViolet"], "decor": "mushrooms", "particles": "spores" }
     },
@@ -54,7 +61,9 @@
       "species": [
         { "speciesId": "hulepadde", "weight": 3 },
         { "speciesId": "dryppel", "weight": 2 },
-        { "speciesId": "istap", "weight": 1 }
+        { "speciesId": "istap", "weight": 1 },
+        { "speciesId": "grottefisk", "weight": 2 },
+        { "speciesId": "lysmanet", "weight": 2 }
       ],
       "look": { "walls": "waveBlue1", "floor": "sumiInk5", "fog": "sumiInk0", "glow": ["waveAqua2", "crystalBlue"], "decor": "pool", "particles": "drips" }
     }

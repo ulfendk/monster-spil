@@ -1,0 +1,11 @@
+{
+  "id": "aakandefroe",
+  "navn": "Åkandefrø",
+  "type": "graes",
+  "baseStats": { "hp": 40, "angreb": 10, "forsvar": 11, "fart": 9 },
+  "moveIds": ["bladsving", "rodslag", "bobleskud"],
+  "spriteFront": "creatures/aakandefroe_front.png",
+  "spriteBack": "creatures/aakandefroe_back.png",
+  "sound": "creatures/aakandefroe.wav",
+  "catchRate": 0.45
+}

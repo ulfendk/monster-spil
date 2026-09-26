@@ -1,0 +1,11 @@
+{
+  "id": "regnsky",
+  "navn": "Regnsky",
+  "type": "vand",
+  "baseStats": { "hp": 34, "angreb": 12, "forsvar": 8, "fart": 13 },
+  "moveIds": ["vandpist", "tordenbrag", "bobleskud"],
+  "spriteFront": "creatures/regnsky_front.png",
+  "spriteBack": "creatures/regnsky_back.png",
+  "sound": "creatures/regnsky.wav",
+  "catchRate": 0.45
+}

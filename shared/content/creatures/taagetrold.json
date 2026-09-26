@@ -1,0 +1,11 @@
+{
+  "id": "taagetrold",
+  "navn": "Tågetrold",
+  "type": "vand",
+  "baseStats": { "hp": 44, "angreb": 12, "forsvar": 11, "fart": 9 },
+  "moveIds": ["bobleskud", "stormflod", "hovedstoed"],
+  "spriteFront": "creatures/taagetrold_front.png",
+  "spriteBack": "creatures/taagetrold_back.png",
+  "sound": "creatures/taagetrold.wav",
+  "catchRate": 0.35
+}

@@ -36,7 +36,7 @@ import { recordProgress } from "../progress/record";
 import { levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
-import { crossTarget, emptyTerrain, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { crossTarget, emptyTerrain, encounterTableAt, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import type { MinigameData } from "./minigames/Minigame";
 
@@ -579,8 +579,9 @@ export class OverworldScene extends Phaser.Scene {
     const onCaveVisit = (visit: CaveVisit) => this.startCave(visit);
     const onWorkDone = ({ kind, x, y }: { kind: "cut" | "dig"; x: number; y: number }) => {
       if (kind === "dig" && this.pendingDig?.x === x && this.pendingDig?.y === y) {
+        const onSand = this.pendingDig.onSand;
         this.pendingDig = undefined;
-        this.dug();
+        this.dug(onSand);
       }
     };
     const onFood = () => this.syncFood();
@@ -1010,22 +1011,24 @@ export class OverworldScene extends Phaser.Scene {
   private startDig(): void {
     if (!this.canDigHere() || this.isMoving) return this.showToast(t("dig_here_not"));
     const tile = { ...this.playerTile };
+    const ids = this.areaMeta.terrain!;
+    const onSand = ids.sand !== undefined && this.groundLayer.getTileAt(tile.x, tile.y)?.index === ids.sand;
     this.launchGame("Dig", undefined, (success) => {
       if (!success) return;
       if (presence.workSupported) {
-        this.pendingDig = tile;
+        this.pendingDig = { ...tile, onSand };
         presence.send("work", { kind: "dig", x: tile.x, y: tile.y });
       } else {
-        this.world.setLocalTile(tile.x, tile.y, this.areaMeta.terrain!.hole!);
-        this.dug();
+        this.world.setLocalTile(tile.x, tile.y, ids.hole!);
+        this.dug(onSand);
       }
     });
   }
 
-  private pendingDig?: TileCoord;
+  private pendingDig?: TileCoord & { onSand: boolean };
 
-  /** The hole is dug: what's down there? */
-  private dug(): void {
+  /** The hole is dug: what's down there? (Sand hides its own monsters.) */
+  private dug(onSand: boolean): void {
     recordProgress({ kind: "work", work: "dig" });
     this.refreshDig();
     const reward = pickDigReward(minigameConfig, Math.random);
@@ -1042,7 +1045,7 @@ export class OverworldScene extends Phaser.Scene {
       return this.showToast(`${ic("sparkle")} ${t("dig_gem")}`, 3000);
     }
     if (reward.kind === "monster") {
-      const species = this.content.speciesById[pickDigMonster(minigameConfig, Math.random) ?? ""];
+      const species = this.content.speciesById[pickDigMonster(minigameConfig, Math.random, onSand) ?? ""];
       if (species) {
         this.showToast(`${ic("paw")} ${t("dig_monster")}`, 2000);
         this.time.delayedCall(900, () => this.startWildBattle(species));
@@ -1485,7 +1488,7 @@ export class OverworldScene extends Phaser.Scene {
     const inGrass = !!this.grassLayer.getTileAt(this.playerTile.x, this.playerTile.y);
     let speciesId: string | undefined;
     if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
-    else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(this.areaMeta.encounterTable);
+    else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, this.playerTile.x, this.playerTile.y));
     const species = speciesId ? this.content.speciesById[speciesId] : undefined;
     if (!species) return false;
     this.startWildBattle(species);

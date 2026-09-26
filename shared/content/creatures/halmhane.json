@@ -1,0 +1,11 @@
+{
+  "id": "halmhane",
+  "navn": "Halmhane",
+  "type": "ild",
+  "baseStats": { "hp": 38, "angreb": 13, "forsvar": 9, "fart": 12 },
+  "moveIds": ["gloedslag", "haleslag", "flammehvirvel"],
+  "spriteFront": "creatures/halmhane_front.png",
+  "spriteBack": "creatures/halmhane_back.png",
+  "sound": "creatures/halmhane.wav",
+  "catchRate": 0.45
+}

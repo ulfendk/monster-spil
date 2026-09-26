@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { caveCatchChance, caveRocks, createRng, flickToThrow, type CaveVisit, type CreatureInstance, type Rng } from "@shared";
+import { caveCatchChance, caveRocks, createRng, type CaveVisit, type CreatureInstance, type Rng, type Vec3 } from "@shared";
 import { caveKindFor } from "../content/load-caves";
 import { faceFrameKey } from "../gfx/placeholder-sprites";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -16,6 +16,7 @@ import { CAVE_ICON, POINTS_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
 import type { CaveStage } from "../cave/cave-stage";
 import { recordProgress } from "../progress/record";
+import { SlingshotInput } from "../ui/slingshot-input";
 
 export interface CaveSceneData {
   save: SaveData;
@@ -23,13 +24,10 @@ export interface CaveSceneData {
   visit: CaveVisit;
 }
 
-/** Only the last part of a flick counts: that's where its speed is. */
-const FLICK_WINDOW_MS = 160;
-
 /**
- * Inside a cave: monsters peek out from behind rocks and you flick balls at them. The cave
+ * Inside a cave: monsters peek out from behind rocks and you shoot balls at them with a slingshot. The cave
  * itself is 3D (cave/cave-stage.ts, three.js, loaded only now) in a canvas under this
- * scene; this scene draws the buttons and texts on top, turns flicks into throws and does
+ * scene; this scene draws the buttons and texts on top, turns pulls into throws and does
  * the catching, which works like catching in the wild: caught monsters go into the save
  * and count on the scoreboard. The visit (who is in there, how many balls) came from the
  * server when the player went in.
@@ -43,7 +41,7 @@ export class CaveScene extends Phaser.Scene {
   private caught: string[] = [];
   private throwing = false;
   private done = false;
-  private trail: Array<{ x: number; y: number; t: number }> = [];
+  private slingshot?: SlingshotInput;
   private hud: Phaser.GameObjects.GameObject[] = [];
   private toast?: Phaser.GameObjects.Container;
 
@@ -58,7 +56,6 @@ export class CaveScene extends Phaser.Scene {
     this.caught = [];
     this.throwing = false;
     this.done = false;
-    this.trail = [];
   }
 
   create(): void {
@@ -95,9 +92,7 @@ export class CaveScene extends Phaser.Scene {
       this.time.delayedCall(kind ? 2300 : 0, () => {
         if (!this.done && this.balls === this.caveData.visit.balls) this.say(`${ic("ball")} ${t("cave_throw")}`, 3000);
       });
-      this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onDown(p));
-      this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.onMove(p));
-      this.input.on("pointerup", (p: Phaser.Input.Pointer) => this.onUp(p));
+      this.slingshot = new SlingshotInput(this, () => this.stage, () => !this.done && !this.throwing && this.balls > 0, (v) => this.shoot(v));
     });
     onRelayout(this, () => {
       this.fitStage();
@@ -122,32 +117,14 @@ export class CaveScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ throwing
 
-  private onDown(p: Phaser.Input.Pointer): void {
-    if (this.done || this.throwing) return;
-    this.trail = [{ x: p.x, y: p.y, t: p.time }];
+  /** A whole pull of the slingshot, `dx`/`dy` pixels back from where the finger pressed (for testing in dev builds). */
+  sling(dx: number, dy: number): void {
+    this.slingshot?.pull(dx, dy);
   }
 
-  private onMove(p: Phaser.Input.Pointer): void {
-    if (!p.isDown || this.trail.length === 0) return;
-    this.trail.push({ x: p.x, y: p.y, t: p.time });
-    // Keep just the recent part of the movement.
-    while (this.trail.length > 2 && p.time - this.trail[0]!.t > FLICK_WINDOW_MS) this.trail.shift();
-  }
-
-  private onUp(p: Phaser.Input.Pointer): void {
-    if (this.trail.length === 0) return;
-    this.trail.push({ x: p.x, y: p.y, t: p.time });
-    while (this.trail.length > 2 && p.time - this.trail[0]!.t > FLICK_WINDOW_MS) this.trail.shift();
-    const first = this.trail[0]!;
-    this.trail = [];
-    this.flick(p.x - first.x, p.y - first.y, Math.max(16, p.time - first.t));
-  }
-
-  /** A flick in screen pixels over `ms` milliseconds: throw, if it's a throw. */
-  flick(dx: number, dy: number, ms: number): void {
+  /** The slingshot was let go: a ball flies. */
+  private shoot(v: Vec3): void {
     if (!this.stage || this.done || this.throwing || this.balls <= 0) return;
-    const v = flickToThrow(dx, dy, ms, this.scale.height);
-    if (!v) return;
     this.throwing = true;
     this.balls--;
     this.drawHud();

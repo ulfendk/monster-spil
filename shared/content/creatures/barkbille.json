@@ -1,0 +1,11 @@
+{
+  "id": "barkbille",
+  "navn": "Barkbille",
+  "type": "graes",
+  "baseStats": { "hp": 40, "angreb": 10, "forsvar": 14, "fart": 8 },
+  "moveIds": ["rodslag", "kloer", "bid"],
+  "spriteFront": "creatures/barkbille_front.png",
+  "spriteBack": "creatures/barkbille_back.png",
+  "sound": "creatures/barkbille.wav",
+  "catchRate": 0.5
+}

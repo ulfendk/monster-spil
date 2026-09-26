@@ -11,6 +11,8 @@ import type {
   BattleLogEntry,
   DuelView,
   TeamView,
+  Move,
+  TypeId,
 } from "@shared";
 import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
 import { listen, say } from "../net/lobby";
@@ -20,6 +22,8 @@ import { beastsById } from "../content/load-beasts";
 import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant, mySpecies } from "../battle-participant";
 import type { CatchSceneData } from "./CatchScene";
+import type { BattleStage, Impact, Side } from "../cave/battle-stage";
+import { faceFrameKey } from "../gfx/placeholder-sprites";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { passOut, persist } from "../save/game-state";
@@ -44,7 +48,7 @@ import {
 import { playHitSound, playMissSound, playFaintSound } from "../audio/beep";
 import { t } from "../i18n/da";
 import { getLayout, onRelayout } from "../ui/layout";
-import { ic, richText } from "../ui/rich-text";
+import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon, iconKey } from "../gfx/icon-art";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { C, CSS, FONT } from "../ui/theme";
@@ -118,6 +122,16 @@ export class BattleScene extends Phaser.Scene {
   private finished = false;
   /** Set once my monster has fainted and the pass-out wait has been started. */
   private passedOut = false;
+  /** Wild battles in 3D: the meadow under this scene (cave/battle-stage.ts), once three.js has loaded. */
+  private stage?: BattleStage;
+  private stageCanvas?: HTMLCanvasElement;
+  /** Loading the meadow: the 2D pictures wait for it (or for it to fail). */
+  private stageLoading = false;
+  /** The ink card behind the message in 3D, and where effectiveness feedback shows. */
+  private logCard?: Phaser.GameObjects.Graphics;
+  private feedbackY = 0;
+  /** False once the scene has shut down (a late-loading meadow is then thrown away). */
+  private alive = false;
 
   constructor() {
     super("Battle");
@@ -131,6 +145,11 @@ export class BattleScene extends Phaser.Scene {
     this.duel = data.duel;
     this.raid = data.raid;
     this.team = data.team;
+    this.stage = undefined;
+    this.alive = true;
+    // A wild battle is shown in 3D in the meadow, if the device can (tried below).
+    this.stageLoading = !data.duel && !data.raid && !data.team;
+    this.events.once("shutdown", () => this.teardownStage());
 
     if (data.team) {
       this.myId = data.team.myId;
@@ -155,12 +174,72 @@ export class BattleScene extends Phaser.Scene {
       const wild = makeParticipant("wild", data.wildInstance!, data.wildSpecies!, data.content);
       this.battleState = createBattle(Date.now(), player, wild);
     }
-    this.logTextValue = "";
-    this.logIconValue = "";
+    // A wild monster says hello (in a duel or a raid the first message comes from the server).
+    this.logTextValue = this.stageLoading ? `${this.foe().species.navn} ${t("battle_appears")}` : "";
+    this.logIconValue = this.stageLoading ? "paw" : "";
     this.buildUi();
     this.renderActions();
     onRelayout(this, () => this.relayout());
     playCreatureSound(this, this.foe().species);
+    if (this.stageLoading) this.load3d();
+  }
+
+  // ------------------------------------------------------------ the 3D meadow (wild battles)
+
+  /** Loads three.js and puts the meadow under this scene; without WebGL (or offline before it was cached) the battle stays 2D. */
+  private load3d(): void {
+    void import("../cave/battle-stage")
+      .then(({ BattleStage }) => {
+        if (!this.alive) return;
+        const picture = (key: string) => (this.textures.exists(key) ? (this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement) : undefined);
+        const foe = this.foe().species;
+        const mine = this.me().species;
+        const foeImage = picture(foe.spriteFront);
+        const mineImage = picture(mine.spriteBack);
+        if (!foeImage || !mineImage) throw new Error("no pictures for the 3D battle");
+        const canvas = document.createElement("canvas");
+        canvas.className = "cave-stage";
+        document.getElementById("game")!.prepend(canvas);
+        try {
+          this.stage = new BattleStage(
+            canvas,
+            { speciesId: foe.id, image: foeImage, blink: picture(faceFrameKey(foe.spriteFront, "blink")), talk: picture(faceFrameKey(foe.spriteFront, "talk")) },
+            { speciesId: mine.id, image: mineImage },
+            Math.floor(this.rng.next() * 2 ** 31)
+          );
+        } catch (error) {
+          canvas.remove();
+          throw error;
+        }
+        this.stageCanvas = canvas;
+        this.stage.onCry = (id) => playCreatureSound(this, id === foe.id ? foe : mine);
+        if (import.meta.env.DEV) (window as unknown as { __battle?: BattleScene }).__battle = this;
+      })
+      .catch((error: unknown) => console.warn("3D battle unavailable:", error))
+      .finally(() => {
+        if (!this.alive) return;
+        this.stageLoading = false;
+        this.relayout();
+      });
+  }
+
+  private teardownStage(): void {
+    this.alive = false;
+    this.stage?.destroy();
+    this.stage = undefined;
+    this.stageCanvas?.remove();
+    this.stageCanvas = undefined;
+  }
+
+  /** The 3D meadow covers the game's area exactly, under the Phaser canvas; in the battle it's framed for `band`. */
+  private fitStage(band?: Parameters<BattleStage["resize"]>[2]): void {
+    const host = document.getElementById("game");
+    if (this.stage && host) this.stage.resize(host.clientWidth, host.clientHeight, band);
+  }
+
+  /** Close-up moves (a claw, a bite, a tail, a headbutt: weak stone moves) dash in; the rest fly over. */
+  private static isCloseMove(move: Move): boolean {
+    return move.type === "sten" && move.power <= 30;
   }
 
   private me(): BattleParticipant {
@@ -398,6 +477,7 @@ export class BattleScene extends Phaser.Scene {
    * diagonal. Called again (after destroying the old objects) when the screen rotates.
    */
   private buildUi(): void {
+    if (this.stage) return this.buildUi3d();
     const layout = getLayout(this);
     const { width, portrait, safe } = layout;
     const player = this.me();
@@ -415,11 +495,13 @@ export class BattleScene extends Phaser.Scene {
       sun: { x: foe.x, y: foe.y, r: Math.min(width, layout.height) * (boss ? 0.3 : 0.2) },
     });
     if (boss) (this.backdrop[1] as Phaser.GameObjects.Arc).setAlpha(0.55);
+    // While the 3D meadow loads, the monsters wait (so they don't flash up in 2D first).
+    const pictures = !this.stageLoading;
     // The dragon is drawn bigger than any monster.
     const foeScale = spriteScale * (this.raid ? 1.5 : 1);
-    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale * spriteFit(this, this.textureFor(wild.species.spriteFront)));
+    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale * spriteFit(this, this.textureFor(wild.species.spriteFront))).setVisible(pictures);
     this.wildHpBar = createHpBar(this, foe.x, foe.y - 64 * foeScale - layout.px(14), wild.species.navn, barSize);
-    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale * spriteFit(this, this.textureFor(player.species.spriteBack)));
+    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale * spriteFit(this, this.textureFor(player.species.spriteBack))).setVisible(pictures);
     this.playerHpBar = createHpBar(this, me.x, me.y - 64 * spriteScale - layout.px(14), player.species.navn, barSize);
 
     const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;
@@ -428,9 +510,59 @@ export class BattleScene extends Phaser.Scene {
     this.logText = this.add
       .text(width / 2, logY, this.logTextValue, { ...TITLE_STYLE, fontSize: layout.font(24), wordWrap: { width: width - safe.left - safe.right - 40 } })
       .setOrigin(0.5);
+    this.feedbackY = logY + layout.px(50);
 
     this.updateHpBars();
     this.drawAllies();
+  }
+
+  /**
+   * The 3D version (wild battles): the meadow fills the screen under this scene, framed so
+   * both monsters fit between the top and the message; the message is an ink card just above
+   * the buttons, and the health bars sit on ink cards in the free corners — the wild
+   * monster's at the top left, mine at the bottom right (the monsters stand on the diagonal).
+   */
+  private buildUi3d(): void {
+    const layout = getLayout(this);
+    const { width, portrait, safe } = layout;
+    const arena = this.arena();
+    const grid = this.buttonGrid();
+    const gap = layout.px(12);
+    const barSize = Phaser.Math.Clamp(Math.min(width * (portrait ? 0.5 : 0.3), 260) / 220, 0.6, 1.1);
+    const barW = 220 * barSize + 20 * barSize;
+    const barH = Math.round(36 * barSize) + Math.max(14, Math.round(24 * barSize)) + Math.round(10 * barSize);
+    const iconSize = Math.max(36, layout.px(52));
+    const fontPx = parseInt(layout.font(22), 10);
+    const logW = Math.min(width - safe.left - safe.right - 24, 900);
+    // Room for three lines on a narrow phone, two elsewhere.
+    const logH = Math.round(Math.max(iconSize + 16, fontPx * 1.3 * (width < 600 ? 3 : 2) + 16));
+    const logY = grid.top - gap - logH / 2;
+    const band = { top: arena.top + barH + gap / 2, bottom: logY - logH / 2 - barH - gap };
+    // The corners' bars may overlap the picture's band a little where the monsters aren't.
+    const overlap = Math.min(barH, Math.max(0, 260 - (band.bottom - band.top)) / 2);
+    band.top -= overlap;
+    band.bottom += overlap;
+    this.fitStage({ ...band, margin: safe.left + 12 });
+    this.backdrop = [];
+
+    // The 2D pictures stay (the fallback ball throw uses their places), but hidden.
+    this.wildSprite = this.add.image(0, 0, this.textureFor(this.foe().species.spriteFront)).setVisible(false);
+    this.playerSprite = this.add.image(0, 0, this.textureFor(this.me().species.spriteBack)).setVisible(false);
+    const barBottom = barH - Math.round(36 * barSize) - Math.round(10 * barSize) / 2 - Math.max(14, Math.round(24 * barSize)) / 2;
+    this.wildHpBar = createHpBar(this, safe.left + 12 + barW / 2, arena.top + barH - barBottom, this.foe().species.navn, barSize, true);
+    this.playerHpBar = createHpBar(this, width - safe.right - 12 - barW / 2, logY - logH / 2 - gap / 2 - barBottom, this.me().species.navn, barSize, true);
+
+    this.logCard = this.add.graphics();
+    this.logCard.fillStyle(C.overlay, 0.85).fillRoundedRect(width / 2 - logW / 2, logY - logH / 2, logW, logH, Math.min(18, logH / 2));
+    this.logIcon = this.add
+      .image(width / 2 - logW / 2 + 12 + iconSize / 2, logY, iconKey(this.logIconValue || "star"))
+      .setDisplaySize(iconSize, iconSize)
+      .setVisible(Boolean(this.logIconValue));
+    this.logText = this.add
+      .text(width / 2 - logW / 2 + iconSize + 28, logY, this.logTextValue, { ...TITLE_STYLE, fontSize: layout.font(22), align: "left", wordWrap: { width: logW - iconSize - 44 } })
+      .setOrigin(0, 0.5);
+    this.feedbackY = band.top + (band.bottom - band.top) * 0.45;
+    this.updateHpBars();
   }
 
   /** The area above the buttons, inside the safe area. */
@@ -460,6 +592,8 @@ export class BattleScene extends Phaser.Scene {
   private relayout(): void {
     const showingActions = this.actionButtons.length > 0;
     for (const o of [...this.backdrop, this.wildSprite, this.playerSprite, this.logIcon, this.logText, this.wildHpBar.container, this.playerHpBar.container]) o.destroy();
+    this.logCard?.destroy();
+    this.logCard = undefined;
     this.buildUi();
     if (showingActions) this.renderActions();
   }
@@ -508,10 +642,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Catching: the 3D meadow opens over the battle and you flick the ball at the monster.
-   * When the ball hits, the turn is worked out at once (so the ball knows whether to glow or
-   * burst open); it's shown here when the battle comes back. Without 3D (no WebGL), the
-   * ball is thrown the old way.
+   * Catching: the 3D meadow opens over the battle (in a 3D battle it's the same meadow: my
+   * monster steps aside) and you shoot the ball at the monster with the slingshot. When the
+   * ball hits, the turn is worked out at once (so the ball knows whether to glow or burst
+   * open); it's shown here when the battle comes back. Without 3D (no WebGL), the ball is
+   * thrown the old way.
    */
   private performCatch(): void {
     if (this.busy || this.battleState.outcome !== "ongoing") return;
@@ -522,6 +657,7 @@ export class BattleScene extends Phaser.Scene {
     const data: CatchSceneData = {
       species: wild.species,
       seed: Math.floor(this.rng.next() * 2 ** 31),
+      ...(this.stage ? { stage: this.stage } : {}),
       decide: (thrown) => {
         worked = this.wildTurn({ kind: "catch", throw: thrown });
         return worked.outcome === "caught";
@@ -529,7 +665,11 @@ export class BattleScene extends Phaser.Scene {
       done: (thrown) => {
         this.scene.stop("Catch");
         this.scene.wake();
-        this.presentTurn(worked ?? this.wildTurn({ kind: "catch", throw: thrown }));
+        const next = worked ?? this.wildTurn({ kind: "catch", throw: thrown });
+        if (!this.stage) return this.presentTurn(next);
+        // Back to the battle in the meadow: my monster steps back in, then the turn plays out.
+        this.relayout();
+        void this.stage.endCatch().then(() => this.presentTurn(next));
       },
       unavailable: () => {
         this.scene.stop("Catch");
@@ -611,6 +751,10 @@ export class BattleScene extends Phaser.Scene {
 
   /** Shows a worked-out turn: its log, the HP bars, and what comes next. */
   private presentTurn(nextState: BattleState): void {
+    if (this.stage) {
+      void this.presentTurn3d(nextState);
+      return;
+    }
     const newEntries = nextState.log.slice(this.battleState.log.length);
     this.battleState = nextState;
     this.updateHpBars();
@@ -624,6 +768,66 @@ export class BattleScene extends Phaser.Scene {
       this.busy = false;
       this.renderActions();
     }
+  }
+
+  /** In 3D the turn plays out one thing at a time: each move flies, hits (the health bar drops then), faints sink. */
+  private async presentTurn3d(nextState: BattleState): Promise<void> {
+    const before = this.battleState;
+    const entries = nextState.log.slice(before.log.length);
+    const hp: Record<string, number> = Object.fromEntries(before.participants.map((p) => [p.playerId, p.active.currentHp]));
+    this.clearActionButtons();
+    this.battleState = nextState;
+    for (const [id, value] of Object.entries(hp)) this.setBar(id, value);
+    for (const entry of entries) {
+      if (!this.alive) return;
+      await this.play3d(entry, hp);
+    }
+    if (!this.alive) return;
+    this.updateHpBars();
+    if (nextState.outcome !== "ongoing") {
+      this.showOutcomeMessage(nextState.outcome);
+      this.time.delayedCall(1400, () => this.endBattle());
+    } else {
+      this.busy = false;
+      this.renderActions();
+    }
+  }
+
+  /** One log entry in the meadow: its message, then its animation and sounds. */
+  private async play3d(entry: BattleLogEntry, hp: Record<string, number>): Promise<void> {
+    const stage = this.stage;
+    if (!stage) return;
+    this.say(entry.text, LOG_ICONS[entry.kind]);
+    const sideOf = (id?: string): Side => (id === this.myId ? "mine" : "wild");
+    if (entry.kind === "damage" || entry.kind === "miss") {
+      const attacker = this.battleState.participants.find((p) => p.playerId === entry.actorPlayerId);
+      const move = entry.moveId ? attacker?.moves[entry.moveId] : undefined;
+      const type: TypeId = move?.type ?? attacker?.species.type ?? "sten";
+      const impact: Impact = entry.kind === "miss" ? "miss" : entry.effectiveness === "strong" ? "strong" : entry.effectiveness === "weak" ? "weak" : "hit";
+      await stage.attack(sideOf(entry.actorPlayerId), type, impact, move ? BattleScene.isCloseMove(move) : false, () => {
+        if (entry.kind === "miss") return playMissSound();
+        playHitSound();
+        const target = entry.targetPlayerId ?? "";
+        hp[target] = Math.max(0, (hp[target] ?? 0) - (entry.amount ?? 0));
+        this.setBar(target, hp[target]!);
+        if (entry.effectiveness === "strong") this.flashFeedback(`${ic(STRONG_ICON)} ${t("battle_effective_strong")}`);
+        else if (entry.effectiveness === "weak") this.flashFeedback(`${ic(WEAK_ICON)} ${t("battle_effective_weak")}`);
+      });
+    } else if (entry.kind === "faint") {
+      playFaintSound();
+      await stage.faint(sideOf(entry.targetPlayerId));
+    } else if (entry.kind === "flee") {
+      await stage.flee();
+    }
+    // Time to read the message (the catching entries were already shown in the meadow).
+    await new Promise<void>((resolve) => this.time.delayedCall(entry.kind === "faint" ? 400 : 700, resolve));
+  }
+
+  /** Sets one side's health bar. */
+  private setBar(playerId: string, value: number): void {
+    const p = this.battleState.participants.find((q) => q.playerId === playerId);
+    if (!p) return;
+    (playerId === this.myId ? this.playerHpBar : this.wildHpBar).setHp(value, p.species.baseStats.hp);
   }
 
   private reactToEntries(entries: BattleLogEntry[]): void {
@@ -659,7 +863,9 @@ export class BattleScene extends Phaser.Scene {
 
   private flashFeedback(label: string): void {
     const layout = getLayout(this);
-    const text = richText(this, layout.width / 2, this.logText.y + layout.px(50), label, { fontFamily: FONT, fontSize: layout.font(26), color: CSS.accent }).setAlpha(0);
+    const style = { fontFamily: FONT, fontSize: layout.font(26), color: CSS.accent };
+    // Over the bright meadow it needs an ink chip behind it.
+    const text = (this.stage ? richChip(this, layout.width / 2, this.feedbackY, label, style) : richText(this, layout.width / 2, this.feedbackY, label, style)).setAlpha(0);
     this.tweens.add({ targets: text, alpha: 1, duration: 150, yoyo: true, hold: 500, onComplete: () => text.destroy() });
   }
 

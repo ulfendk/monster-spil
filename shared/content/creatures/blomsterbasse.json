@@ -1,0 +1,11 @@
+{
+  "id": "blomsterbasse",
+  "navn": "Blomsterbasse",
+  "type": "graes",
+  "baseStats": { "hp": 36, "angreb": 11, "forsvar": 9, "fart": 13 },
+  "moveIds": ["bladsving", "sporesky", "bid"],
+  "spriteFront": "creatures/blomsterbasse_front.png",
+  "spriteBack": "creatures/blomsterbasse_back.png",
+  "sound": "creatures/blomsterbasse.wav",
+  "catchRate": 0.45
+}

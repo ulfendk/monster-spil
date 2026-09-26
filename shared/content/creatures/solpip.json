@@ -1,0 +1,11 @@
+{
+  "id": "solpip",
+  "navn": "Solpip",
+  "type": "ild",
+  "baseStats": { "hp": 32, "angreb": 12, "forsvar": 7, "fart": 14 },
+  "moveIds": ["gloedslag", "flammehvirvel", "bid"],
+  "spriteFront": "creatures/solpip_front.png",
+  "spriteBack": "creatures/solpip_back.png",
+  "sound": "creatures/solpip.wav",
+  "catchRate": 0.5
+}

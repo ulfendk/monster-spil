@@ -7,6 +7,17 @@ export interface EncounterTableEntry {
 }
 
 /**
+ * A part of a big map with its own wild monsters (see shared/src/world/regions.ts):
+ * rectangles of tiles (x, y = top-left tile, w × h tiles) and who lives in their tall grass.
+ */
+export interface EncounterRegion {
+  id: string;
+  navn: string;
+  rects: Array<{ x: number; y: number; w: number; h: number }>;
+  encounterTable: EncounterTableEntry[];
+}
+
+/**
  * Hand-authored sidecar for a Tiled area export — game logic that doesn't
  * belong inside the Tiled JSON itself, so re-exporting the map from Tiled
  * never clobbers it.
@@ -19,7 +30,10 @@ export interface AreaMeta {
   collisionLayer: string;
   /** Tile GIDs on collisionLayer that block movement */
   collisionGids: number[];
+  /** Who turns up in tall grass that lies in none of the `regions`. */
   encounterTable: EncounterTableEntry[];
+  /** Parts of the map with their own wild monsters; the first one a tile lies in wins. */
+  regions?: EncounterRegion[];
   /** 0-1 chance per step taken inside the encounter zone */
   encounterRate: number;
   playerStart: { x: number; y: number };

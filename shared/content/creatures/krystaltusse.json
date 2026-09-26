@@ -1,0 +1,11 @@
+{
+  "id": "krystaltusse",
+  "navn": "Krystaltusse",
+  "type": "sten",
+  "baseStats": { "hp": 42, "angreb": 11, "forsvar": 14, "fart": 8 },
+  "moveIds": ["klippefald", "stenkast", "bid"],
+  "spriteFront": "creatures/krystaltusse_front.png",
+  "spriteBack": "creatures/krystaltusse_back.png",
+  "sound": "creatures/krystaltusse.wav",
+  "catchRate": 0.4
+}

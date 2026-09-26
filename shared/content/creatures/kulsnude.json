@@ -1,0 +1,11 @@
+{
+  "id": "kulsnude",
+  "navn": "Kulsnude",
+  "type": "ild",
+  "baseStats": { "hp": 38, "angreb": 12, "forsvar": 9, "fart": 10 },
+  "moveIds": ["gloedslag", "bid", "flammehvirvel"],
+  "spriteFront": "creatures/kulsnude_front.png",
+  "spriteBack": "creatures/kulsnude_back.png",
+  "sound": "creatures/kulsnude.wav",
+  "catchRate": 0.5
+}

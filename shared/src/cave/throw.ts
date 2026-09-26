@@ -1,5 +1,5 @@
 /**
- * Throwing balls in the cave: a flick on the screen becomes a throw in 3D, the ball flies
+ * Throwing balls in the cave and the meadow: pulling a slingshot back and letting go becomes a throw in 3D, the ball flies
  * in an arc under gravity, and a hit near a monster's middle catches more easily. Pure
  * functions, so the feel can be tested without a browser; the 3D scene only draws them.
  *
@@ -18,23 +18,28 @@ export const BALL_START: Vec3 = { x: 0, y: 0.9, z: -1 };
 /** How far from a monster's middle the ball may pass and still hit it (it's generous: the youngest player is 6). */
 export const HIT_RADIUS = 0.75;
 
-/** Swipes shorter than this (as a share of the screen's height) are taps, not throws. */
-const MIN_SWIPE = 0.06;
+/** Pulls shorter than this (as a share of the longest pull) are let go without a throw. */
+export const MIN_PULL = 0.15;
+/** How far to the side the slingshot can aim: the tangent of its widest angle (about 35°). */
+const MAX_AIM = 0.7;
 
 /**
- * A flick on the screen → the ball's launch velocity. `dx`/`dy` in pixels (screen y grows
- * downwards, so an upward flick has dy < 0), `ms` how long the finger moved, `screenH` the
- * screen's height. Faster flicks throw further and higher; sideways movement aims left or
- * right. Undefined for a tap or a flick that doesn't go upwards.
+ * Pulling the slingshot back and letting go → the ball's launch velocity. `dx`/`dy` is how
+ * far the finger pulled from where it pressed, in pixels (screen y grows downwards, so
+ * pulling back towards yourself is dy > 0), `maxPull` the longest pull that counts. The
+ * longer the pull, the further and higher the ball flies; it goes the opposite way of the
+ * pull, so pulling down and to the right aims left. Undefined for a pull too short to throw
+ * or one that doesn't pull back (downwards) at all.
  */
-export function flickToThrow(dx: number, dy: number, ms: number, screenH: number): Vec3 | undefined {
-  const up = -dy / screenH;
-  if (up < MIN_SWIPE || screenH <= 0) return undefined;
-  const secs = Math.max(0.05, ms / 1000);
-  // Screens per second, within what a child's flick can reasonably do.
-  const speed = Math.min(4, Math.max(0.5, up / secs));
-  const side = Math.max(-4, Math.min(4, dx / screenH / secs));
-  return { x: side * 2.2, y: 2.4 + 1.2 * speed, z: -(3 + 3.4 * speed) };
+export function slingshotToThrow(dx: number, dy: number, maxPull: number): Vec3 | undefined {
+  if (maxPull <= 0 || dy <= 0) return undefined;
+  const pull = Math.min(1, Math.hypot(dx, dy) / maxPull);
+  if (pull < MIN_PULL) return undefined;
+  // From a gentle lob up to a long, high throw.
+  const speed = 0.5 + 3.5 * ((pull - MIN_PULL) / (1 - MIN_PULL));
+  const z = -(3 + 3.4 * speed);
+  const aim = Math.max(-MAX_AIM, Math.min(MAX_AIM, -dx / dy));
+  return { x: aim * -z, y: 2.4 + 1.2 * speed, z };
 }
 
 /** Where the ball is `t` seconds after the throw. */

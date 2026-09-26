@@ -1,0 +1,11 @@
+{
+  "id": "tordenugle",
+  "navn": "Tordenugle",
+  "type": "lyn",
+  "baseStats": { "hp": 38, "angreb": 13, "forsvar": 9, "fart": 14 },
+  "moveIds": ["gnistestoed", "tordenbrag", "haleslag"],
+  "spriteFront": "creatures/tordenugle_front.png",
+  "spriteBack": "creatures/tordenugle_back.png",
+  "sound": "creatures/tordenugle.wav",
+  "catchRate": 0.35
+}

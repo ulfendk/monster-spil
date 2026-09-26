@@ -1,0 +1,11 @@
+{
+  "id": "taagefisk",
+  "navn": "Tågefisk",
+  "type": "vand",
+  "baseStats": { "hp": 36, "angreb": 12, "forsvar": 8, "fart": 14 },
+  "moveIds": ["vandpist", "boelgebrus", "haleslag"],
+  "spriteFront": "creatures/taagefisk_front.png",
+  "spriteBack": "creatures/taagefisk_back.png",
+  "sound": "creatures/taagefisk.wav",
+  "catchRate": 0.45
+}

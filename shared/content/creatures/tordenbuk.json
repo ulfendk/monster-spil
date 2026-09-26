@@ -1,0 +1,11 @@
+{
+  "id": "tordenbuk",
+  "navn": "Tordenbuk",
+  "type": "lyn",
+  "baseStats": { "hp": 44, "angreb": 14, "forsvar": 11, "fart": 10 },
+  "moveIds": ["tordenbrag", "lynnedslag", "hovedstoed"],
+  "spriteFront": "creatures/tordenbuk_front.png",
+  "spriteBack": "creatures/tordenbuk_back.png",
+  "sound": "creatures/tordenbuk.wav",
+  "catchRate": 0.3
+}

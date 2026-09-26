@@ -62,3 +62,21 @@ test("every creature's sound file exists and is a format iPad Safari plays", () 
 test("every monster has a cry", () => {
   for (const s of loadCreatures()) assert.ok(s.sound, `${s.id} has no sound`);
 });
+
+test("every monster can be found somewhere (or is a starter or a reward)", () => {
+  const json = (file: string) => JSON.parse(readFileSync(path.join(contentDir, file), "utf-8"));
+  const ids = (list: Array<{ speciesId: string; weight?: number }> = []) => list.filter((e) => e.weight !== 0).map((e) => e.speciesId);
+  const meta = json("areas/startskoven.meta.json");
+  const found = new Set<string>([
+    "flammepels", "dryppel", "lovgro", // the starters (client/src/scenes/StarterScene.ts)
+    ...ids(meta.encounterTable),
+    ...(meta.regions ?? []).flatMap((r: { encounterTable: [] }) => ids(r.encounterTable)),
+    ...json("caves.json").kinds.flatMap((k: { species: [] }) => ids(k.species)),
+    ...ids(json("minigames.json").dig.monsters),
+    ...ids(json("minigames.json").dig.sandMonsters),
+    ...Object.values(json("disasters.json") as Record<string, { speciesId?: string }>).map((d) => d.speciesId ?? ""),
+    ...["raid", "beasts"].flatMap((dir) => readdirSync(path.join(contentDir, dir)).filter((f) => f.endsWith(".json")).map((f) => json(`${dir}/${f}`).rewardSpeciesId)),
+  ]);
+  for (const s of loadCreatures()) assert.ok(found.has(s.id), `${s.id} lives nowhere`);
+  for (const id of found) assert.ok(loadCreatures().some((s) => s.id === id), `unknown monster ${id}`);
+});

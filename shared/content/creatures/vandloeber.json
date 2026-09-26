@@ -1,0 +1,11 @@
+{
+  "id": "vandloeber",
+  "navn": "Vandløber",
+  "type": "vand",
+  "baseStats": { "hp": 34, "angreb": 10, "forsvar": 9, "fart": 13 },
+  "moveIds": ["vandpist", "bobleskud", "bid"],
+  "spriteFront": "creatures/vandloeber_front.png",
+  "spriteBack": "creatures/vandloeber_back.png",
+  "sound": "creatures/vandloeber.wav",
+  "catchRate": 0.5
+}

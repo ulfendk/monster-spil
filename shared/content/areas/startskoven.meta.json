@@ -9,7 +9,95 @@
     { "speciesId": "gnistrot", "weight": 3 },
     { "speciesId": "stenbid", "weight": 2 },
     { "speciesId": "boelgehale", "weight": 2 },
-    { "speciesId": "ildflagrer", "weight": 2 }
+    { "speciesId": "ildflagrer", "weight": 2 },
+    { "speciesId": "hophare", "weight": 3 },
+    { "speciesId": "muldmus", "weight": 3 },
+    { "speciesId": "regnsky", "weight": 2 },
+    { "speciesId": "gnistpindsvin", "weight": 2 },
+    { "speciesId": "halmhane", "weight": 2 }
+  ],
+  "regions": [
+    {
+      "id": "hjertelandet",
+      "navn": "Hjertelandet",
+      "rects": [{ "x": 0, "y": 0, "w": 64, "h": 48 }],
+      "encounterTable": [
+        { "speciesId": "gnistrot", "weight": 3 },
+        { "speciesId": "stenbid", "weight": 2 },
+        { "speciesId": "boelgehale", "weight": 2 },
+        { "speciesId": "ildflagrer", "weight": 2 },
+        { "speciesId": "mosmus", "weight": 3 },
+        { "speciesId": "gnistflue", "weight": 2 },
+        { "speciesId": "kulsnude", "weight": 2 },
+        { "speciesId": "vandloeber", "weight": 2 }
+      ]
+    },
+    {
+      "id": "storsoeen",
+      "navn": "Storsøen",
+      "rects": [{ "x": 100, "y": 28, "w": 46, "h": 34 }],
+      "encounterTable": [
+        { "speciesId": "aakandefroe", "weight": 3 },
+        { "speciesId": "taagefisk", "weight": 3 },
+        { "speciesId": "sivsnog", "weight": 2 },
+        { "speciesId": "perlemusling", "weight": 2 },
+        { "speciesId": "boelgehale", "weight": 2 },
+        { "speciesId": "svanefjer", "weight": 1 },
+        { "speciesId": "dampskjold", "weight": 1 }
+      ]
+    },
+    {
+      "id": "sandklitterne",
+      "navn": "Sandklitterne",
+      "rects": [{ "x": 118, "y": 0, "w": 42, "h": 24 }],
+      "encounterTable": [
+        { "speciesId": "sandhvisker", "weight": 3 },
+        { "speciesId": "gloedskorpion", "weight": 2 },
+        { "speciesId": "oasepadde", "weight": 2 },
+        { "speciesId": "stoevtrold", "weight": 1 }
+      ]
+    },
+    {
+      "id": "hoejfjeldet",
+      "navn": "Højfjeldet",
+      "rects": [{ "x": 112, "y": 76, "w": 48, "h": 44 }],
+      "encounterTable": [
+        { "speciesId": "stenged", "weight": 3 },
+        { "speciesId": "tordenugle", "weight": 2 },
+        { "speciesId": "snefnug", "weight": 2 },
+        { "speciesId": "granitgnom", "weight": 2 },
+        { "speciesId": "magmamus", "weight": 2 },
+        { "speciesId": "stenbid", "weight": 1 },
+        { "speciesId": "krystalhjort", "weight": 1 }
+      ]
+    },
+    {
+      "id": "dybskoven",
+      "navn": "Dybskoven",
+      "rects": [{ "x": 0, "y": 80, "w": 64, "h": 40 }],
+      "encounterTable": [
+        { "speciesId": "kvistugle", "weight": 3 },
+        { "speciesId": "barkbille", "weight": 3 },
+        { "speciesId": "lygtemand", "weight": 2 },
+        { "speciesId": "svampenisse", "weight": 2 },
+        { "speciesId": "taagetrold", "weight": 2 },
+        { "speciesId": "ildflue", "weight": 2 },
+        { "speciesId": "mosbjoern", "weight": 1 }
+      ]
+    },
+    {
+      "id": "nordengene",
+      "navn": "Nordengene",
+      "rects": [{ "x": 64, "y": 0, "w": 54, "h": 48 }, { "x": 146, "y": 24, "w": 14, "h": 24 }],
+      "encounterTable": [
+        { "speciesId": "blomsterbasse", "weight": 3 },
+        { "speciesId": "solpip", "weight": 3 },
+        { "speciesId": "kloeverhop", "weight": 3 },
+        { "speciesId": "gnistrot", "weight": 2 },
+        { "speciesId": "vindpust", "weight": 2 },
+        { "speciesId": "tordenbuk", "weight": 1 }
+      ]
+    }
   ],
   "encounterRate": 0.1,
   "playerStart": { "x": 32, "y": 24 },

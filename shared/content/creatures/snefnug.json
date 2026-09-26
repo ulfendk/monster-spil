@@ -1,0 +1,11 @@
+{
+  "id": "snefnug",
+  "navn": "Snefnug",
+  "type": "vand",
+  "baseStats": { "hp": 32, "angreb": 11, "forsvar": 9, "fart": 13 },
+  "moveIds": ["isnaale", "bobleskud", "haleslag"],
+  "spriteFront": "creatures/snefnug_front.png",
+  "spriteBack": "creatures/snefnug_back.png",
+  "sound": "creatures/snefnug.wav",
+  "catchRate": 0.5
+}

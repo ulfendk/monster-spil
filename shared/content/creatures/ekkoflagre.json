@@ -1,0 +1,11 @@
+{
+  "id": "ekkoflagre",
+  "navn": "Ekkoflagre",
+  "type": "lyn",
+  "baseStats": { "hp": 34, "angreb": 12, "forsvar": 8, "fart": 15 },
+  "moveIds": ["gnistestoed", "tordenbrag", "bid"],
+  "spriteFront": "creatures/ekkoflagre_front.png",
+  "spriteBack": "creatures/ekkoflagre_back.png",
+  "sound": "creatures/ekkoflagre.wav",
+  "catchRate": 0.45
+}

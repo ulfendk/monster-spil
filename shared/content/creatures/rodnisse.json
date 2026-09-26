@@ -1,0 +1,11 @@
+{
+  "id": "rodnisse",
+  "navn": "Rodnisse",
+  "type": "graes",
+  "baseStats": { "hp": 42, "angreb": 11, "forsvar": 12, "fart": 8 },
+  "moveIds": ["rodslag", "stenkast", "bid"],
+  "spriteFront": "creatures/rodnisse_front.png",
+  "spriteBack": "creatures/rodnisse_back.png",
+  "sound": "creatures/rodnisse.wav",
+  "catchRate": 0.45
+}

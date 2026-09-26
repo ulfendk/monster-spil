@@ -1,0 +1,11 @@
+{
+  "id": "vindpust",
+  "navn": "Vindpust",
+  "type": "lyn",
+  "baseStats": { "hp": 34, "angreb": 12, "forsvar": 7, "fart": 15 },
+  "moveIds": ["gnistestoed", "tordenbrag", "haleslag"],
+  "spriteFront": "creatures/vindpust_front.png",
+  "spriteBack": "creatures/vindpust_back.png",
+  "sound": "creatures/vindpust.wav",
+  "catchRate": 0.4
+}

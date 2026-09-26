@@ -1,0 +1,11 @@
+{
+  "id": "gloedsalamander",
+  "navn": "Glødsalamander",
+  "type": "ild",
+  "baseStats": { "hp": 38, "angreb": 14, "forsvar": 9, "fart": 13 },
+  "moveIds": ["flammehvirvel", "gloedslag", "haleslag"],
+  "spriteFront": "creatures/gloedsalamander_front.png",
+  "spriteBack": "creatures/gloedsalamander_back.png",
+  "sound": "creatures/gloedsalamander.wav",
+  "catchRate": 0.35
+}

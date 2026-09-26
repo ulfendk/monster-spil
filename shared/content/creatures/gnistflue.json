@@ -1,0 +1,11 @@
+{
+  "id": "gnistflue",
+  "navn": "Gnistflue",
+  "type": "lyn",
+  "baseStats": { "hp": 30, "angreb": 11, "forsvar": 6, "fart": 16 },
+  "moveIds": ["gnistestoed", "bid", "tordenbrag"],
+  "spriteFront": "creatures/gnistflue_front.png",
+  "spriteBack": "creatures/gnistflue_back.png",
+  "sound": "creatures/gnistflue.wav",
+  "catchRate": 0.5
+}

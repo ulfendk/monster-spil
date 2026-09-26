@@ -1,0 +1,11 @@
+{
+  "id": "sandhvisker",
+  "navn": "Sandhvisker",
+  "type": "sten",
+  "baseStats": { "hp": 36, "angreb": 12, "forsvar": 9, "fart": 14 },
+  "moveIds": ["sandpisk", "bid", "jordrystelse"],
+  "spriteFront": "creatures/sandhvisker_front.png",
+  "spriteBack": "creatures/sandhvisker_back.png",
+  "sound": "creatures/sandhvisker.wav",
+  "catchRate": 0.45
+}

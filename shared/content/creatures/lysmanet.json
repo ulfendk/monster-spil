@@ -1,0 +1,11 @@
+{
+  "id": "lysmanet",
+  "navn": "Lysmanet",
+  "type": "lyn",
+  "baseStats": { "hp": 34, "angreb": 11, "forsvar": 9, "fart": 12 },
+  "moveIds": ["gnistestoed", "bobleskud", "tordenbrag"],
+  "spriteFront": "creatures/lysmanet_front.png",
+  "spriteBack": "creatures/lysmanet_back.png",
+  "sound": "creatures/lysmanet.wav",
+  "catchRate": 0.4
+}

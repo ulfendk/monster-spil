@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { flickToThrow, type CreatureSpecies } from "@shared";
+import type { CreatureSpecies, Vec3 } from "@shared";
 import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip } from "../ui/rich-text";
 import { CSS, FONT } from "../ui/theme";
@@ -7,6 +7,8 @@ import { t } from "../i18n/da";
 import { faceFrameKey } from "../gfx/placeholder-sprites";
 import { playCreatureSound } from "../audio/creature-sound";
 import type { MeadowStage } from "../cave/meadow-stage";
+import type { BattleStage } from "../cave/battle-stage";
+import { SlingshotInput } from "../ui/slingshot-input";
 
 /** How a throw went, for the battle engine's catch action. */
 export type ThrowOutcome = { hit: false } | { hit: true; precision: number };
@@ -14,6 +16,8 @@ export type ThrowOutcome = { hit: false } | { hit: true; precision: number };
 export interface CatchSceneData {
   species: CreatureSpecies;
   seed: number;
+  /** A 3D battle's meadow: catch in it (my monster steps aside) instead of opening a new one. */
+  stage?: BattleStage;
   /** A hit: the battle works out the turn now and says whether it's caught. */
   decide: (thrown: ThrowOutcome) => boolean;
   /** The throw is over (and its animation done): back to the battle. */
@@ -22,22 +26,21 @@ export interface CatchSceneData {
   unavailable: () => void;
 }
 
-/** Only the last part of a flick counts: that's where its speed is. */
-const FLICK_WINDOW_MS = 160;
-
 /**
  * Catching a wild monster, in 3D: it stands in a sunny meadow (cave/meadow-stage.ts, three.js,
- * loaded only now) in a canvas under this scene, alive and shifting about, and you flick one
- * ball at it. A miss uses the turn; a hit lets the battle engine roll the catch (a hit near
+ * loaded only now) in a canvas under this scene, alive and shifting about, and you shoot one
+ * ball at it with the slingshot. A miss uses the turn; a hit lets the battle engine roll the catch (a hit near
  * the middle helps), and the ball glows or bursts open accordingly. Then it's back to the
  * battle, which shows the turn.
  */
 export class CatchScene extends Phaser.Scene {
   private catchData!: CatchSceneData;
   private stage?: MeadowStage;
+  /** The meadow belongs to the battle: don't tear it down here. */
+  private borrowed = false;
   private canvas?: HTMLCanvasElement;
   private thrown = false;
-  private trail: Array<{ x: number; y: number; t: number }> = [];
+  private slingshot?: SlingshotInput;
   private hint?: Phaser.GameObjects.Container;
 
   constructor() {
@@ -47,11 +50,27 @@ export class CatchScene extends Phaser.Scene {
   init(data: CatchSceneData): void {
     this.catchData = data;
     this.thrown = false;
-    this.trail = [];
   }
 
   create(): void {
     this.events.once("shutdown", () => this.teardown());
+    onRelayout(this, () => {
+      this.fitStage();
+      this.drawHint();
+    });
+    const battleStage = this.catchData.stage;
+    if (battleStage) {
+      this.borrowed = true;
+      this.stage = battleStage;
+      this.fitStage();
+      void battleStage.beginCatch().then(() => {
+        if (!this.scene.isActive()) return;
+        battleStage.greet();
+        this.startAiming();
+      });
+      return;
+    }
+    this.borrowed = false;
     void import("../cave/meadow-stage")
       .then(({ MeadowStage }) => {
         if (!this.scene.isActive()) return;
@@ -69,12 +88,8 @@ export class CatchScene extends Phaser.Scene {
         );
         this.stage.onCry = () => playCreatureSound(this, species);
         this.fitStage();
-        if (import.meta.env.DEV) (window as unknown as { __catch?: CatchScene }).__catch = this;
         this.time.delayedCall(400, () => this.stage?.greet());
-        this.drawHint();
-        this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onDown(p));
-        this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.onMove(p));
-        this.input.on("pointerup", (p: Phaser.Input.Pointer) => this.onUp(p));
+        this.startAiming();
       })
       .catch((error: unknown) => {
         // No WebGL, or the 3D code couldn't load (offline before it was cached): the old way.
@@ -82,10 +97,13 @@ export class CatchScene extends Phaser.Scene {
         this.teardown();
         this.catchData.unavailable();
       });
-    onRelayout(this, () => {
-      this.fitStage();
-      this.drawHint();
-    });
+  }
+
+  /** The slingshot is up: say how, and listen for the pull. */
+  private startAiming(): void {
+    if (import.meta.env.DEV) (window as unknown as { __catch?: CatchScene }).__catch = this;
+    this.drawHint();
+    this.slingshot = new SlingshotInput(this, () => this.stage, () => !this.thrown, (v) => this.shoot(v));
   }
 
   private fitStage(): void {
@@ -94,7 +112,7 @@ export class CatchScene extends Phaser.Scene {
   }
 
   private teardown(): void {
-    this.stage?.destroy();
+    if (!this.borrowed) this.stage?.destroy();
     this.stage = undefined;
     this.canvas?.remove();
     this.canvas = undefined;
@@ -109,31 +127,14 @@ export class CatchScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ the throw
 
-  private onDown(p: Phaser.Input.Pointer): void {
-    if (this.thrown) return;
-    this.trail = [{ x: p.x, y: p.y, t: p.time }];
+  /** A whole pull of the slingshot, `dx`/`dy` pixels back from where the finger pressed (for testing in dev builds). */
+  sling(dx: number, dy: number): void {
+    this.slingshot?.pull(dx, dy);
   }
 
-  private onMove(p: Phaser.Input.Pointer): void {
-    if (!p.isDown || this.trail.length === 0) return;
-    this.trail.push({ x: p.x, y: p.y, t: p.time });
-    while (this.trail.length > 2 && p.time - this.trail[0]!.t > FLICK_WINDOW_MS) this.trail.shift();
-  }
-
-  private onUp(p: Phaser.Input.Pointer): void {
-    if (this.trail.length === 0) return;
-    this.trail.push({ x: p.x, y: p.y, t: p.time });
-    while (this.trail.length > 2 && p.time - this.trail[0]!.t > FLICK_WINDOW_MS) this.trail.shift();
-    const first = this.trail[0]!;
-    this.trail = [];
-    this.flick(p.x - first.x, p.y - first.y, Math.max(16, p.time - first.t));
-  }
-
-  /** A flick in screen pixels over `ms` milliseconds: the one throw, if it's a throw. */
-  flick(dx: number, dy: number, ms: number): void {
+  /** The slingshot was let go: the one throw. */
+  private shoot(v: Vec3): void {
     if (!this.stage || this.thrown) return;
-    const v = flickToThrow(dx, dy, ms, this.scale.height);
-    if (!v) return;
     this.thrown = true;
     this.hint?.destroy();
     const stage = this.stage;
