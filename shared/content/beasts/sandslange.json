@@ -1,0 +1,18 @@
+{
+  "id": "sandslange",
+  "navn": "Sandslangen",
+  "type": "sten",
+  "habitat": "sand",
+  "maxHp": 250,
+  "baseStats": { "hp": 250, "angreb": 11, "forsvar": 11, "fart": 9 },
+  "moves": [
+    { "id": "sandhvirvel", "navn": "Sandhvirvel", "type": "sten", "power": 40, "accuracy": 0.9 },
+    { "id": "haleslag", "navn": "Haleslag", "type": "sten", "power": 30, "accuracy": 0.95 },
+    { "id": "giftbid", "navn": "Giftbid", "type": "graes", "power": 35, "accuracy": 0.9 }
+  ],
+  "spriteFront": "beasts/sandslange_front.png",
+  "spriteBack": "beasts/sandslange_back.png",
+  "sound": "beasts/sandslange.wav",
+  "rewardSpeciesId": "slangeunge",
+  "restSeconds": 30
+}

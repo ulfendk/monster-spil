@@ -2,7 +2,7 @@ import type { BattleLogEntry, BattleParticipant, BattleState } from "../types/ba
 import type { DuelAction } from "../duel/duel-session.js";
 import { resolveTurn } from "../battle/engine.js";
 import { createRng } from "../battle/rng.js";
-import { BOSS_PLAYER_ID, bossParticipant, type BossDefinition, type RaidState } from "./raid.js";
+import { BOSS_PLAYER_ID, bossParticipant, type FightBoss, type FightState, type RaidState } from "./raid.js";
 
 /**
  * Teaming up against the family dragon. One player gathers a team at the lair,
@@ -108,15 +108,15 @@ export function leaveTeam(session: TeamSession, playerId: string): TeamSession {
   return settle({ ...session, members, pending });
 }
 
-export interface TeamTurnResult {
+export interface TeamTurnResult<S extends FightState = RaidState> {
   session: TeamSession;
-  raid: RaidState;
+  raid: S;
   /** True if this very turn beat the dragon. */
   defeatedNow: boolean;
 }
 
 /** Records a member's move; when everyone still standing has picked, resolves the turn. */
-export function submitTeamAction(session: TeamSession, playerId: string, action: DuelAction, raid: RaidState, boss: BossDefinition, now: Date): ({ ok: true } & TeamTurnResult) | { ok: false; reason: string } {
+export function submitTeamAction<S extends FightState>(session: TeamSession, playerId: string, action: DuelAction, raid: S, boss: FightBoss, now: Date): ({ ok: true } & TeamTurnResult<S>) | { ok: false; reason: string } {
   if (session.phase !== "active") return { ok: false, reason: "team is not fighting" };
   const member = session.members.find((m) => m.playerId === playerId);
   if (!member || member.status !== "in") return { ok: false, reason: "not in the fight" };
@@ -130,12 +130,12 @@ export function submitTeamAction(session: TeamSession, playerId: string, action:
 }
 
 /** The turn timer ran out: resolve with whatever was picked; the silent ones skip (and are out after TEAM_MAX_MISSED). */
-export function timeoutTeamTurn(session: TeamSession, raid: RaidState, boss: BossDefinition, now: Date): TeamTurnResult {
+export function timeoutTeamTurn<S extends FightState>(session: TeamSession, raid: S, boss: FightBoss, now: Date): TeamTurnResult<S> {
   if (session.phase !== "active") return { session, raid, defeatedNow: false };
   return resolveTeamTurn(session, raid, boss, now);
 }
 
-function resolveTeamTurn(session: TeamSession, raidIn: RaidState, boss: BossDefinition, now: Date): TeamTurnResult {
+function resolveTeamTurn<S extends FightState>(session: TeamSession, raidIn: S, boss: FightBoss, now: Date): TeamTurnResult<S> {
   let raid = raidIn;
   const turn = session.turn + 1;
   const rng = createRng((session.seed ^ Math.imul(turn, 0x9e3779b1)) >>> 0);
@@ -202,7 +202,7 @@ function oneOnOne(session: TeamSession, turn: number, member: BattleParticipant,
 }
 
 /** Ends the fight when the dragon is down or nobody is standing. */
-function settle(session: TeamSession, raid?: RaidState): TeamSession {
+function settle(session: TeamSession, raid?: FightState): TeamSession {
   if (session.phase !== "active") return session;
   if (raid && raid.hp <= 0) return { ...session, phase: "done", outcome: "won" };
   if (!session.members.some((m) => m.status === "in")) return { ...session, phase: "done", outcome: "lost" };
@@ -233,9 +233,11 @@ export interface TeamView {
   outcome?: TeamSession["outcome"];
   hpFactor: number;
   battle?: BattleState;
+  /** Which boss the team fights: a visiting beast's id (protocol v11); absent = the dragon. Set by the server. */
+  targetId?: string;
 }
 
-export function teamViewFor(session: TeamSession, viewerId: string, raid: RaidState, boss: BossDefinition): TeamView {
+export function teamViewFor(session: TeamSession, viewerId: string, raid: FightState, boss: FightBoss): TeamView {
   const me = session.members.find((m) => m.playerId === viewerId);
   const view: TeamView = {
     id: session.id,

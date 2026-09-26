@@ -4,7 +4,7 @@
  * monster's JSON ("spriteFront", "spriteBack", "sound") — no TypeScript to touch.
  * Keys are the same relative paths the JSON uses, e.g. "creatures/flammepels.wav".
  */
-const modules = import.meta.glob<string>("../../../shared/content/{creatures,raid}/*.{png,wav,mp3,m4a}", {
+const modules = import.meta.glob<string>("../../../shared/content/{creatures,raid,beasts}/*.{png,wav,mp3,m4a}", {
   eager: true,
   query: "?url",
   import: "default",

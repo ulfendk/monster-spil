@@ -137,6 +137,29 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
       <p class="note">Dragen flyver af sig selv til et nyt sted på kortet (aldrig mens nogen kæmper mod den, eller mens en katastrofe er på vej, og aldrig ovenpå en spiller). Når den er lettet, kan ingen udfordre den, før den har landet.</p>
     </section>
 
+    <h2>Sandslanger og kæmpeørne</h2>
+    <section class="card">
+      <div class="row"><strong id="beastStatus"></strong><span id="beastNext" class="muted"></span></div>
+      <div id="beastActive" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="beastToggle"></button>
+        <label>Kommer, i gennemsnit <select id="beastMean">
+          <option value="15">hvert kvarter</option><option value="30">hver halve time</option><option value="60">hver time</option>
+          <option value="120">hver 2. time</option><option value="240">hver 4. time</option><option value="720">hver 12. time</option>
+          <option value="1440">en gang i døgnet</option>
+        </select></label>
+        <label>Bliver i <select id="beastStay">
+          <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">en time</option>
+        </select></label>
+        <label>Tilfældighed <select id="beastRandom">
+          <option value="0">ingen (præcis)</option><option value="0.25">lidt</option><option value="0.5">noget</option><option value="0.75">meget</option><option value="1">helt vildt</option>
+        </select></label>
+        <button id="beastSave" class="quiet">Gem</button>
+      </div>
+      <div class="row" id="beastCall" style="margin-top:12px"></div>
+      <p class="note">Sandslanger stiger op af sandet (klitterne og strandene), kæmpeørne lander ved skovkanter. Hver slags kommer for sig selv og forsvinder igen, når tiden er gået — men aldrig midt i en kamp. Alle der har skadet den, får en unge, når den bliver slået.</p>
+    </section>
+
     <h2>Naturkatastrofer</h2>
     <section class="card">
       <div class="row"><strong id="disasterStatus"></strong><span id="disasterNext" class="muted"></span></div>
@@ -288,7 +311,45 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     $("scoreInfo").textContent = s.scoreEvents + " pointhændelser gemt";
     showRoam(d.roam, d);
     showDisasters(s.disasters);
+    if (s.beasts) showBeasts(s.beasts);
   }
+
+  let beastSettings = null;
+  function showBeasts(b) {
+    beastSettings = b.settings;
+    $("beastStatus").textContent = b.active.length ? b.active.map((a) => a.navn).join(" og ") + " er her!" : b.settings.enabled ? "Slået til" : "Stoppet";
+    const next = b.kinds.filter((k) => k.nextAt).map((k) => k.navn + " omkring " + when(k.nextAt));
+    $("beastNext").textContent = next.length ? "· næste: " + next.join(", ") : "";
+    const list = $("beastActive");
+    list.replaceChildren();
+    for (const a of b.active) {
+      const away = el("button", { className: "quiet", textContent: "Send væk" });
+      away.onclick = () => beasts({ action: "dismiss", id: a.id });
+      list.append(el("div", { className: "row" }, [
+        el("span", { textContent: a.navn + " ved (" + a.x + ", " + a.y + ") · " + a.hp + " / " + a.maxHp + " HP · " + a.contributors + " har kæmpet · går kl. " + new Date(a.leavesAt).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }) }),
+        away,
+      ]));
+    }
+    $("beastToggle").textContent = b.settings.enabled ? "Stop besøg" : "Start besøg";
+    $("beastToggle").className = b.settings.enabled ? "danger" : "";
+    for (const [id, value] of [["beastMean", b.settings.meanMinutes], ["beastStay", b.settings.stayMinutes]]) {
+      const sel = $(id);
+      if (![...sel.options].some((o) => Number(o.value) === value)) sel.append(el("option", { value: String(value), textContent: value + " min" }));
+      sel.value = String(value);
+    }
+    const rnd = $("beastRandom");
+    rnd.value = [...rnd.options].reduce((best, o) => Math.abs(Number(o.value) - b.settings.randomness) < Math.abs(Number(best.value) - b.settings.randomness) ? o : best).value;
+    const call = $("beastCall");
+    call.replaceChildren();
+    for (const k of b.kinds) {
+      const btn = el("button", { textContent: "Kald på " + k.navn.toLowerCase() + " nu" });
+      btn.disabled = b.active.some((a) => a.beastId === k.id);
+      btn.onclick = () => beasts({ action: "call", beastId: k.id });
+      call.append(btn);
+    }
+  }
+  $("beastToggle").onclick = () => beastSettings && beasts({ action: "settings", enabled: !beastSettings.enabled });
+  $("beastSave").onclick = () => beasts({ action: "settings", meanMinutes: Number($("beastMean").value), stayMinutes: Number($("beastStay").value), randomness: Number($("beastRandom").value) });
 
   let roamSettings = null;
   function showRoam(r, d) {
@@ -391,6 +452,7 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     try { await post(g("/delete")); await load(); } catch (e) { fail(e); }
   };
   const dragon = (body) => post(g("/dragon"), body).then(loadGame).catch(fail);
+  const beasts = (body) => post(g("/beasts"), body).then(loadGame).catch(fail);
   $("dragonReset").onclick = () => confirm("Væk dragen med fuld HP? Ugens skade på den nulstilles.") && dragon({ action: "reset" });
   $("dragonSetHp").onclick = () => dragon({ action: "hp", hp: Number($("dragonHpInput").value) });
   $("dragonSleep").onclick = () => confirm("Læg dragen til at sove til mandag (uden belønninger)?") && dragon({ action: "hp", hp: 0 });

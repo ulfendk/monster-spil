@@ -9,12 +9,15 @@ export interface MinimapDot {
   x: number;
   y: number;
   colour: number;
-  /** Drawn bigger with a white ring (me), or as a 🐉 (the dragon). */
-  kind?: "me" | "dragon";
+  /** Drawn bigger with a white ring (me), or as its icon (the dragon, a sand serpent, a giant eagle). */
+  kind?: "me" | BossMarker;
   dim?: boolean;
 }
 
-type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood";
+type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood" | "sand";
+/** Bosses shown on the overview map as their icon. */
+const BOSS_MARKERS = ["dragon", "serpent", "eagle"] as const;
+export type BossMarker = (typeof BOSS_MARKERS)[number];
 const COLOURS: Record<Kind | "ground" | "grass", number> = {
   ground: KANAGAWA.autumnGreen,
   tree: KANAGAWA.winterGreen,
@@ -25,6 +28,7 @@ const COLOURS: Record<Kind | "ground" | "grass", number> = {
   burnt: KANAGAWA.sumiInk4,
   crater: KANAGAWA.boatYellow1,
   flood: KANAGAWA.springBlue,
+  sand: KANAGAWA.oldWhite,
 };
 /** Which tile ids (on the ground layer) are drawn as what; anything else is open ground. */
 export type MinimapIds = Partial<Record<Kind, number[]>>;
@@ -41,7 +45,8 @@ export class Minimap {
   private objects: Phaser.GameObjects.GameObject[] = [];
   private image?: Phaser.GameObjects.Image;
   private dots?: Phaser.GameObjects.Graphics;
-  private dragonMarker?: Phaser.GameObjects.Image;
+  /** One icon per boss kind; beasts of one kind are never on the map twice at once. */
+  private markers?: Record<BossMarker, Phaser.GameObjects.Image>;
   private scale = 1;
   private origin = { x: 0, y: 0 };
 
@@ -105,7 +110,8 @@ export class Minimap {
     this.image.setInteractive();
     this.image.on("pointerup", () => this.close());
     this.dots = this.scene.add.graphics();
-    this.dragonMarker = addIcon(this.scene, 0, 0, "dragon", 24).setVisible(false);
+    const markers = Object.fromEntries(BOSS_MARKERS.map((m) => [m, addIcon(this.scene, 0, 0, m, 24).setVisible(false)])) as Record<BossMarker, Phaser.GameObjects.Image>;
+    this.markers = markers;
     const size = layout.touch(64);
     const close = createButton(this.scene, width - safe.right - size / 2 - 12, safe.top + size / 2 + 12, "✗", () => this.close(), {
       width: size,
@@ -113,14 +119,15 @@ export class Minimap {
       fontSize: layout.font(32),
       backgroundColor: C.buttonQuiet,
     });
-    this.objects = [backdrop, frame, this.image, this.dots, this.dragonMarker, close];
+    this.objects = [backdrop, frame, this.image, this.dots, ...Object.values(markers), close];
     for (const o of this.objects) (o as Phaser.GameObjects.Image).setScrollFactor(0).setDepth(DEPTH);
   }
 
   close(): void {
     for (const o of this.objects) o.destroy();
     this.objects = [];
-    this.image = this.dots = this.dragonMarker = undefined;
+    this.image = this.dots = undefined;
+    this.markers = undefined;
   }
 
   /** After a rotation: lay the open map out again for the new screen size. */
@@ -130,7 +137,7 @@ export class Minimap {
 
   /** Redraws the dots and the camera frame; call every frame (does nothing while closed). */
   draw(dots: MinimapDot[], view: Phaser.Geom.Rectangle, tileSize: number): void {
-    if (!this.dots || !this.dragonMarker) return;
+    if (!this.dots || !this.markers) return;
     const s = this.scale;
     const g = this.dots.clear();
     const px = (tile: number) => tile * s + s / 2;
@@ -141,12 +148,12 @@ export class Minimap {
       (view.height / tileSize) * s
     );
     const r = Math.max(4, s * 1.2);
-    this.dragonMarker.setVisible(false);
+    for (const m of Object.values(this.markers)) m.setVisible(false);
     for (const d of dots) {
       const x = this.origin.x + px(d.x);
       const y = this.origin.y + px(d.y);
-      if (d.kind === "dragon") {
-        this.dragonMarker.setPosition(x, y).setDisplaySize(r * 5, r * 5).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
+      if (d.kind && d.kind !== "me") {
+        this.markers[d.kind].setPosition(x, y).setDisplaySize(r * 5, r * 5).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
         continue;
       }
       const radius = d.kind === "me" ? r * 1.5 : r;

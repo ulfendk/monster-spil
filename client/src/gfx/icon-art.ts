@@ -265,6 +265,32 @@ const ART: Record<string, (g: G) => void> = {
     }
     g.fillStyle(K.washi, 1).fillTriangle(54, 88, 62, 88, 58, 98).fillTriangle(66, 88, 74, 88, 70, 98);
   },
+  serpent: (g) => {
+    // A coil in the sand, and a hooded head rising from it.
+    ellipse(g, 64, 108, 108, 26, K.boatYellow2);
+    ellipse(g, 64, 88, 80, 26, K.boatYellow1);
+    shape(g, [{ x: 54, y: 84 }, { x: 56, y: 50 }, { x: 72, y: 50 }, { x: 74, y: 84 }], K.boatYellow1, 5);
+    ellipse(g, 64, 40, 58, 44, K.autumnRed);
+    ellipse(g, 64, 42, 34, 32, K.boatYellow1, 5);
+    for (const side of [-1, 1]) {
+      ellipse(g, 64 + side * 8, 40, 10, 12, K.carpYellow, 0);
+      g.fillStyle(INK, 1).fillEllipse(64 + side * 8, 40, 3, 10);
+    }
+    stroke(g, 64, 58, 64, 66, K.autumnRed, 4);
+  },
+  eagle: (g) => {
+    // Spread wings, a white head and a hooked beak.
+    for (const side of [-1, 1]) {
+      shape(g, [{ x: 64 + side * 14, y: 56 }, { x: 64 + side * 60, y: 30 }, { x: 64 + side * 58, y: 50 }, { x: 64 + side * 50, y: 62 }, { x: 64 + side * 42, y: 76 }, { x: 64 + side * 16, y: 84 }], K.sumiInk6);
+    }
+    ellipse(g, 64, 80, 40, 58, K.boatYellow2);
+    ellipse(g, 64, 42, 38, 34, K.fujiWhite);
+    shape(g, [{ x: 58, y: 48 }, { x: 72, y: 48 }, { x: 68, y: 66 }, { x: 62, y: 58 }], K.carpYellow, 5);
+    for (const side of [-1, 1]) {
+      g.fillStyle(INK, 1).fillCircle(64 + side * 9, 38, 4);
+      stroke(g, 64 + side * 3, 30, 64 + side * 16, 27, INK, 5);
+    }
+  },
   team: (g) => {
     for (const [x, c] of [[44, K.oniViolet], [84, K.crystalBlue]] as const) {
       g.fillStyle(c, 1).fillRoundedRect(x - 30, 70, 60, 50, { tl: 28, tr: 28, bl: 4, br: 4 });

@@ -52,7 +52,7 @@ export {
   startAttempt,
   weekIdFor,
 } from "./raid/raid.js";
-export type { BossDefinition, RaidState, RaidView, RaidTurnResult } from "./raid/raid.js";
+export type { BossDefinition, FightBoss, FightState, RaidState, RaidView, RaidTurnResult } from "./raid/raid.js";
 export { SCORE_POINTS, SCOREBOARD_DAYS, inWindow, scoreboard } from "./score/scoreboard.js";
 export type { ScoreEvent, ScoreKind, ScorePlayer, ScoreRow } from "./score/scoreboard.js";
 export { DIAGONAL_TIME_FACTOR, chooseStep, dragDirection } from "./world/steps.js";
@@ -126,3 +126,19 @@ export {
   nextRoamAt,
 } from "./raid/roam.js";
 export type { LairOptions, RoamSettings } from "./raid/roam.js";
+export {
+  beastDue,
+  beastView,
+  chooseBeastSpot,
+  cleanBeastSettings,
+  DEFAULT_BEAST_SETTINGS,
+  freshBeast,
+  habitatTile,
+  HABITATS,
+  MAX_BEAST_GAP_MINUTES,
+  MAX_BEAST_STAY_MINUTES,
+  MIN_BEAST_GAP_MINUTES,
+  MIN_BEAST_STAY_MINUTES,
+  nextBeastAt,
+} from "./raid/beasts.js";
+export type { BeastDefinition, BeastSettings, BeastSpotOptions, BeastState, BeastView, Habitat } from "./raid/beasts.js";

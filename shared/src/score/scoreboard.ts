@@ -2,7 +2,7 @@
  * The family's weekly scoreboard: the server records events as they happen and
  * this turns them into ranked rows for the last `days` days. Pure and plain data.
  */
-export type ScoreKind = "catch" | "duel" | "dragon";
+export type ScoreKind = "catch" | "duel" | "dragon" | "beast";
 
 export interface ScoreEvent {
   /** Unique, so an event reported twice (e.g. after a reconnect) is only counted once. */
@@ -11,11 +11,11 @@ export interface ScoreEvent {
   kind: ScoreKind;
   /** ISO timestamp of when it happened (for catches: on the device, possibly offline). */
   at: string;
-  /** Set on the "dragon" event of the player who struck the final blow. */
+  /** Set on the "dragon" or "beast" event of the player who struck the final blow. */
   finalBlow?: boolean;
 }
 
-export const SCORE_POINTS = { catch: 1, duel: 2, dragon: 5, finalBlow: 3 } as const;
+export const SCORE_POINTS = { catch: 1, duel: 2, dragon: 5, finalBlow: 3, beast: 3, beastFinalBlow: 2 } as const;
 
 export const SCOREBOARD_DAYS = 7;
 
@@ -33,6 +33,7 @@ export interface ScoreRow {
   avatarId?: string;
   catches: number;
   duels: number;
+  /** Big beasts beaten: the dragon and the visiting beasts. */
   dragons: number;
   points: number;
   /** 1-based; players with equal points share a rank. */
@@ -62,6 +63,9 @@ export function scoreboard(events: ScoreEvent[], players: Record<string, ScorePl
     } else if (e.kind === "duel") {
       row.duels++;
       row.points += SCORE_POINTS.duel;
+    } else if (e.kind === "beast") {
+      row.dragons++;
+      row.points += SCORE_POINTS.beast + (e.finalBlow ? SCORE_POINTS.beastFinalBlow : 0);
     } else {
       row.dragons++;
       row.points += SCORE_POINTS.dragon + (e.finalBlow ? SCORE_POINTS.finalBlow : 0);

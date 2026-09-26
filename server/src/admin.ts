@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   DISASTER_KINDS,
+  cleanBeastSettings,
   cleanDisasterSettings,
   cleanRoamSettings,
   currentRaid,
@@ -9,6 +10,7 @@ import {
   raidView,
   scoreboard,
   weekIdFor,
+  type BeastDefinition,
   type BossDefinition,
   type DisasterConfigs,
   type DisasterKind,
@@ -35,6 +37,7 @@ import { ADMIN_PAGE } from "./admin-page.js";
  *   POST /players/<id>/delete                    forget a player (scores, backup, rewards)
  *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
  *   POST /dragon  {action:"reset"} | {action:"hp", hp} | {action:"roam", enabled, meanMinutes, randomness} | {action:"fly"}
+ *   POST /beasts  {action:"settings", enabled, meanMinutes, stayMinutes, randomness} | {action:"call", beastId?} | {action:"dismiss", id}
  *   POST /scores/clear                           remove this week's points
  *   POST /disasters/settings  {enabled, meanMinutes, randomness, kinds}
  *   POST /disasters/trigger  {kind?, target?}    one now (random kind and place when not given)
@@ -46,6 +49,8 @@ export interface AdminDeps {
   password: string | undefined;
   registry: GameRegistry;
   bosses: BossDefinition[];
+  /** The visiting beasts' kinds (sand serpents, giant eagles, …). */
+  beasts: BeastDefinition[];
   disasterConfigs: DisasterConfigs;
   /** The game's room (every game has one while the server runs). */
   room: (gameId: string) => LobbyRoom | undefined;
@@ -151,6 +156,11 @@ export class AdminPortal {
 
     if (sub === "/dragon" && method === "POST") {
       const result = await this.dragon(gameId, await readJson(req));
+      return json(res, result.ok ? 200 : 400, result);
+    }
+    if (sub === "/beasts" && method === "POST") {
+      if (!room) await this.deps.openRoom(gameId);
+      const result = await this.beasts(gameId, await readJson(req));
       return json(res, result.ok ? 200 : 400, result);
     }
     if (sub === "/scores/clear" && method === "POST") {
@@ -271,7 +281,23 @@ export class AdminPortal {
       nextAt: room?.roam?.nextAt,
       flying: room?.roam?.isFlying() ?? false,
     };
-    return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters };
+    const visits = room?.visits;
+    const beasts = {
+      settings: store.data.beasts.settings,
+      kinds: this.deps.beasts.map((b) => ({ id: b.id, navn: b.navn, habitat: b.habitat, nextAt: visits?.nextAt(b.id) })),
+      active: store.data.beasts.active.map((b) => ({
+        id: b.id,
+        beastId: b.beastId,
+        navn: this.deps.beasts.find((d) => d.id === b.beastId)?.navn ?? b.beastId,
+        x: b.x,
+        y: b.y,
+        hp: b.hp,
+        maxHp: b.maxHp,
+        leavesAt: b.leavesAt,
+        contributors: Object.values(b.damageBy).filter((d) => d > 0).length,
+      })),
+    };
+    return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters, beasts };
   }
 
   /** Forgets a player: scoreboard entry and points, unclaimed rewards, and their backup. */
@@ -303,6 +329,28 @@ export class AdminPortal {
     store.changed();
     this.deps.room(gameId)?.adminRenamedPlayer(playerId, navn);
     return { ok: true };
+  }
+
+  /** Visiting beasts: how often they come and how long they stay, call one now, or send one away. */
+  private async beasts(gameId: string, body: Json): Promise<{ ok: boolean; error?: string }> {
+    const store = await this.deps.registry.store(gameId);
+    const visits = this.deps.room(gameId)?.visits;
+    if (!visits) return { ok: false, error: "spillet kører ikke" };
+    if (body?.action === "settings") {
+      store.data.beasts.settings = cleanBeastSettings(body, store.data.beasts.settings);
+      visits.settingsChanged();
+      store.changed();
+      return { ok: true };
+    }
+    if (body?.action === "call") {
+      const problem = visits.call(typeof body.beastId === "string" && body.beastId ? body.beastId : undefined);
+      return problem ? { ok: false, error: problem } : { ok: true };
+    }
+    if (body?.action === "dismiss") {
+      const problem = visits.dismiss(String(body.id));
+      return problem ? { ok: false, error: problem } : { ok: true };
+    }
+    return { ok: false, error: "ukendt handling" };
   }
 
   private async dragon(gameId: string, body: Json): Promise<{ ok: boolean; error?: string }> {

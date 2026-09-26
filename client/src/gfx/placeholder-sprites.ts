@@ -28,15 +28,121 @@ const shade = (colour: number, amount: number): number =>
  * for its type. Dropping a real drawing in at the same texture key needs no code
  * change — only deleting this module once every creature has art.
  *
- * `dragonIds`: species drawn with wings and horns (the raid bosses and the babies
- * they give), so they don't look like ordinary monsters.
+ * `looks`: species drawn as something other than an ordinary monster — the raid bosses and
+ * the babies they give as dragons (wings and horns), sand serpents and their hatchlings
+ * as coiled serpents, giant eagles and their eaglets as eagles.
  */
-export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[], dragonIds: ReadonlySet<string> = new Set()): void {
+export type BossLook = "dragon" | "serpent" | "eagle";
+
+export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[], looks: Readonly<Record<string, BossLook>> = {}): void {
   for (const s of species) {
-    const dragon = dragonIds.has(s.id);
-    if (!scene.textures.exists(s.spriteFront)) drawCreature(scene, s, s.spriteFront, false, dragon);
-    if (!scene.textures.exists(s.spriteBack)) drawCreature(scene, s, s.spriteBack, true, dragon);
+    const look = looks[s.id];
+    for (const [key, isBack] of [[s.spriteFront, false], [s.spriteBack, true]] as const) {
+      if (scene.textures.exists(key)) continue;
+      if (look === "serpent") drawSerpent(scene, s, key, isBack);
+      else if (look === "eagle") drawEagle(scene, s, key, isBack);
+      else drawCreature(scene, s, key, isBack, look === "dragon");
+    }
   }
+}
+
+/**
+ * A sand serpent: three coils stacked like a spring, lighter belly bands, and a hooded head
+ * rising from the top with slit eyes and a forked tongue. Seen from behind: coils and hood.
+ */
+function drawSerpent(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean): void {
+  const g = scene.add.graphics();
+  const colour = shade(TYPE_COLOURS[species.type], -6);
+  const cx = SPRITE_SIZE / 2;
+  const coils = [
+    { y: 106, w: 104, h: 30 },
+    { y: 86, w: 86, h: 26 },
+    { y: 68, w: 66, h: 22 },
+  ];
+  for (const c of coils) {
+    g.fillStyle(colour, 1).fillEllipse(cx, c.y, c.w, c.h);
+    // Diamond marks along the coil, like the scales of a desert snake.
+    for (let i = -2; i <= 2; i++) {
+      const x = cx + i * c.w * 0.18;
+      g.fillStyle(shade(colour, -26), 1).fillPoints([{ x, y: c.y - 7 }, { x: x + 5, y: c.y - 2 }, { x, y: c.y + 3 }, { x: x - 5, y: c.y - 2 }], true);
+    }
+    if (!isBack) g.fillStyle(shade(colour, 22), 1).fillEllipse(cx, c.y + c.h * 0.22, c.w * 0.7, c.h * 0.34);
+    g.lineStyle(LINE, INK, 1).strokeEllipse(cx, c.y, c.w, c.h);
+  }
+  // The neck rising out of the top coil, and the hood around the head.
+  const neck = [{ x: cx - 10, y: 66 }, { x: cx - 8, y: 44 }, { x: cx + 8, y: 44 }, { x: cx + 10, y: 66 }];
+  fillOutlined(g, neck, colour);
+  fillOutlined(g, ellipsePoints(cx, 32, 30, 22, 0, 24), shade(colour, -14));
+  fillOutlined(g, ellipsePoints(cx, 32, 18, 16, 0, 20), colour);
+  if (!isBack) {
+    for (const side of [-1, 1]) {
+      g.fillStyle(KANAGAWA.carpYellow, 1).fillEllipse(cx + side * 8, 30, 10, 11);
+      g.fillStyle(INK, 1).fillEllipse(cx + side * 8, 30, 3, 9);
+      g.fillStyle(KANAGAWA.sakuraPink, 0.85).fillEllipse(cx + side * 13, 39, 8, 4);
+    }
+    // A forked tongue flicking out.
+    g.lineStyle(2.5, KANAGAWA.autumnRed, 1);
+    g.beginPath();
+    g.moveTo(cx, 44);
+    g.lineTo(cx, 52);
+    g.lineTo(cx - 4, 57);
+    g.moveTo(cx, 52);
+    g.lineTo(cx + 4, 57);
+    g.strokePath();
+  } else {
+    // The hood's markings, seen from behind.
+    g.lineStyle(2.5, INK, 0.8).strokeEllipse(cx - 9, 30, 9, 11).strokeEllipse(cx + 9, 30, 9, 11);
+  }
+  g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
+  g.destroy();
+}
+
+/**
+ * A giant eagle: wide feathered wings spread behind a strong body, a white head with a
+ * hooked beak and fierce eyes, and talons. Seen from behind: wings, back and the white nape.
+ */
+function drawEagle(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean): void {
+  const g = scene.add.graphics();
+  const body = shade(TYPE_COLOURS[species.type], -34);
+  const wing = shade(body, -18);
+  const cx = SPRITE_SIZE / 2;
+  const cy = 76;
+  for (const side of [-1, 1]) {
+    // Each wing ends in a fan of long flight feathers.
+    const pts: Point[] = [{ x: cx + side * 14, y: cy - 16 }, { x: cx + side * 40, y: cy - 38 }, { x: cx + side * 62, y: cy - 34 }];
+    for (let f = 0; f < 5; f++) {
+      pts.push({ x: cx + side * (62 - f * 4), y: cy - 22 + f * 9 });
+      pts.push({ x: cx + side * (52 - f * 5), y: cy - 18 + f * 9 });
+    }
+    pts.push({ x: cx + side * 16, y: cy + 16 });
+    fillOutlined(g, pts, wing);
+    g.lineStyle(1.5, INK, 0.5);
+    for (let f = 0; f < 4; f++) g.lineBetween(cx + side * (30 + f * 6), cy - 24 + f * 4, cx + side * (48 - f * 2), cy + f * 9 - 12);
+  }
+  // Talons under the body.
+  for (const side of [-1, 1]) {
+    const x = cx + side * 12;
+    g.lineStyle(3, KANAGAWA.carpYellow, 1).lineBetween(x, cy + 26, x, cy + 40);
+    g.lineStyle(2.5, INK, 1);
+    for (const d of [-5, 0, 5]) g.lineBetween(x, cy + 40, x + d, cy + 46);
+  }
+  g.fillStyle(body, 1).fillEllipse(cx, cy, 44, 58);
+  if (!isBack) g.fillStyle(shade(body, 18), 1).fillEllipse(cx, cy + 10, 26, 30);
+  g.lineStyle(LINE, INK, 1).strokeEllipse(cx, cy, 44, 58);
+  // The white head.
+  fillOutlined(g, ellipsePoints(cx, 38, 17, 15, 0, 22), KANAGAWA.fujiWhite);
+  if (!isBack) {
+    // A hooked yellow beak.
+    fillOutlined(g, [{ x: cx - 6, y: 42 }, { x: cx + 6, y: 42 }, { x: cx + 3, y: 54 }, { x: cx - 1, y: 50 }], KANAGAWA.carpYellow);
+    for (const side of [-1, 1]) {
+      g.fillStyle(KANAGAWA.surimiOrange, 1).fillEllipse(cx + side * 7, 35, 9, 9);
+      g.fillStyle(INK, 1).fillCircle(cx + side * 7, 35, 2.8);
+      // A stern brow.
+      g.lineStyle(3, INK, 1).lineBetween(cx + side * 2, 31, cx + side * 12, 28);
+    }
+  }
+  g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
+  g.destroy();
 }
 
 /** The body's size from the stats: defence makes it wider, HP taller (clamped to fit the texture). */

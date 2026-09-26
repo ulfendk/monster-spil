@@ -1,0 +1,11 @@
+{
+  "id": "slangeunge",
+  "navn": "Slangeunge",
+  "type": "sten",
+  "baseStats": { "hp": 42, "angreb": 13, "forsvar": 13, "fart": 9 },
+  "moveIds": ["stenkast", "jordrystelse", "kloer"],
+  "spriteFront": "creatures/slangeunge_front.png",
+  "spriteBack": "creatures/slangeunge_back.png",
+  "sound": "creatures/slangeunge.wav",
+  "catchRate": 0
+}

@@ -9,9 +9,10 @@ import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton } from "../ui/Button";
 import { t } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
-import { CAUGHT_ICON, DISASTER_ICONS, DRAGON_ICON, OWNED_ICON, STEPS_ICON, arrowAngle } from "../ui/icons";
+import { BEAST_ICONS, CAUGHT_ICON, DISASTER_ICONS, DRAGON_ICON, OWNED_ICON, STEPS_ICON, arrowAngle } from "../ui/icons";
 import { disasterForSpecies } from "../content/load-disasters";
 import { bossesById } from "../content/load-raid";
+import { beastForBaby } from "../content/load-beasts";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
 import { ic, richText } from "../ui/rich-text";
@@ -106,6 +107,9 @@ export class MonsterbogScene extends Phaser.Scene {
         } else if (Object.values(bossesById).some((b) => b.rewardSpeciesId === species.id)) {
           // Not found in the wild: this one hatches from beating the family dragon.
           addIcon(this, x, y + 76 * k, DRAGON_ICON, Math.max(26, 34 * k));
+        } else if (beastForBaby(species.id)) {
+          // Hatches from beating a visiting beast: a sand serpent or a giant eagle.
+          addIcon(this, x, y + 76 * k, BEAST_ICONS[beastForBaby(species.id)!.habitat], Math.max(26, 34 * k));
         } else if (disasterForSpecies(species.id)) {
           // Only turns up where a natural disaster struck (a meteor crater, floodwater, …).
           addIcon(this, x, y + 76 * k, DISASTER_ICONS[disasterForSpecies(species.id)!], Math.max(26, 34 * k));

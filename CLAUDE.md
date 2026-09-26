@@ -33,8 +33,8 @@ Milestone 3 (PvP duels) is built and tested against a local server with scripted
 clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
 Since then: a shared 160×120 world where players see each other, a weekly family
-dragon raid, a weekly scoreboard, an overview map, save backups, a parent's admin
-portal and several games per server (sections below). Ideas not yet scheduled live
+dragon raid, visiting sand serpents and giant eagles, a weekly scoreboard, an overview
+map, save backups, a parent's admin portal and several games per server (sections below). Ideas not yet scheduled live
 in `docs/backlog.md`.
 
 ## Monorepo layout
@@ -256,7 +256,8 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   same seed, same coordinates, gates cut through its old east and south border — so
   saved positions, the dragon's perch and stored disaster changes stayed valid. The
   new lands (own seed) add Storsøen with an island and a river, Højfjeldet, the deep
-  forest Dybskoven and meadows. Anything that loops over every tile on the server
+  forest Dybskoven and meadows; sand (tile 14: the dunes Sandklitterne in the north-east
+  and Storsøen's beaches) is painted last with its own seed, so it never shifts the rest. Anything that loops over every tile on the server
   (connectivity checks, food spots) must stay cheap: 19,200 tiles, often once per
   disaster tile.
   The overworld camera follows the player; HUD buttons and popups are top-level
@@ -334,6 +335,41 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   shadow and a landing shake; `syncDragon` places it without animation if the device
   didn't see it fly, and a player who is under where it lands is moved to the nearest
   free tile (`ensureFreeTile`).
+
+### Visiting beasts: sand serpents and giant eagles (protocol v11)
+
+- **Fought exactly like the dragon** — alone or as a team, shared HP, everyone who hurt
+  one gets a baby of its kind (`slangeunge`, `oerneunge`: ordinary creature files, in no
+  encounter table) — but they **come and go**: each kind turns up about every hour (the
+  parent's average ± randomness, counted from when the last one left), stays 15 minutes,
+  and leaves; never while someone fights it, while a team that is only *gathering* is
+  sent home (`teamEnded` reason `"gone"`). A beaten one is gone at once. 250 HP.
+- **Content:** `shared/content/beasts/<id>.json` — a boss (stats, own moves, reward
+  species, rest seconds) plus `habitat`: `"sand"` (rises from sand tiles) or `"forest"`
+  (lands on open ground with ≥3 trees around it). Adding a kind is adding a file; the
+  server reads the folder at runtime (the Dockerfile copies it), the client globs it.
+- **Pure rules** (tested) in `shared/src/raid/beasts.ts`: settings, `nextBeastAt`,
+  `habitatTile`, `chooseBeastSpot` (its habitat, room for a small team, away from the
+  start, never on or next to players/the dragon/other beasts, never cutting the map),
+  `freshBeast`, `beastView`. `raid.ts` and `team.ts` work on any `FightBoss`/`FightState`,
+  so solo attempts and teams are the same code for the dragon and the beasts.
+- **Server:** `server/src/beast-visits.ts` (`BeastVisits`, one per game's room; state in
+  the game store's `beasts`). `LobbyRoom` keys fights by target: `raidBattles` hold a
+  `targetId`, `teams` is one team per boss (`"dragon"` or the beast's id). The dragon's
+  messages are unchanged; beasts add `targetId` to `raidStart`/`teamCreate` and to
+  `raidBattle`/`TeamView`, and the server sends `beasts` (all of them) on join and on
+  every change. Score: kind `"beast"`, 3 points (+2 final blow), counted in the
+  scoreboard's big-beast column. Admin portal: on/off, how often, how long they stay,
+  randomness, call one now, send one away.
+- **Client:** `client/src/gfx/beast-layer.ts` draws them (a serpent rises out of the sand
+  in a spray of grains and sinks back; an eagle swoops down with a growing shadow and flies
+  off), blocks their tile, and gives the overworld the beast under a tap; the popup is the
+  dragon's (⚔️, 👥⚔️ or ✓ to join). Placeholder looks: `serpent` and `eagle` in
+  `placeholder-sprites.ts`, icons `serpent`/`eagle` (`BEAST_ICONS` by habitat) on the
+  overview map, in the monster book (for the babies) and on the reward screen.
+  `scripts/e2e-beasts.mjs` covers it end to end.
+- **Testing in Chrome:** the Claude-in-Chrome window renders no animation frames; step the
+  game by hand (`__game.step(t, 16)` in a loop) to play tweens through.
 
 ### Teaming up (protocol v5)
 

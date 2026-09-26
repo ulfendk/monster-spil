@@ -16,6 +16,7 @@ import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, close
 import { listen, say } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
+import { beastsById } from "../content/load-beasts";
 import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant } from "../battle-participant";
 import type { SaveData } from "../save/schema";
@@ -222,7 +223,7 @@ export class BattleScene extends Phaser.Scene {
 
   private wireTeam(): void {
     const onTeam = (view: TeamView) => this.onTeamUpdate(view);
-    const onEnded = () => this.abortDuel(t("raid_won"), OUTCOME_ICONS.won);
+    const onEnded = (reason: string) => (reason === "gone" ? this.abortDuel(t("beast_gone"), FLEE_ICON) : this.abortDuel(this.bossWonText(), OUTCOME_ICONS.won));
     const onStatus = (status: string) => {
       if (status !== "online") this.abortDuel(t("duel_connection_lost"), CONNECTION_LOST_ICON);
     };
@@ -269,8 +270,8 @@ export class BattleScene extends Phaser.Scene {
       const dealt = next.log
         .filter((e) => e.kind === "damage" && e.actorPlayerId === this.myId && e.targetPlayerId === BOSS_PLAYER_ID)
         .reduce((sum, e) => sum + (e.amount ?? 0), 0);
-      if (view.outcome === "won") this.say(t("raid_won"), OUTCOME_ICONS.won);
-      else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
+      if (view.outcome === "won") this.say(this.bossWonText(), OUTCOME_ICONS.won);
+      else this.say(this.bossDealtText(dealt), LOG_ICONS.damage);
       this.time.delayedCall(2600, () => this.endBattle());
       return;
     }
@@ -324,7 +325,8 @@ export class BattleScene extends Phaser.Scene {
 
   private onRaidUpdate(update: RaidBattleUpdate): void {
     if (this.finished) return;
-    if (update.over === "defeated") return this.abortDuel(t("raid_won"), OUTCOME_ICONS.won);
+    if (update.over === "defeated") return this.abortDuel(this.bossWonText(), OUTCOME_ICONS.won);
+    if (update.over === "gone") return this.abortDuel(t("beast_gone"), FLEE_ICON);
     const next = update.battle;
     const previousLogLength = this.battleState.log.length;
     this.battleState = next;
@@ -340,10 +342,25 @@ export class BattleScene extends Phaser.Scene {
     const dealt = next.log
       .filter((e) => e.kind === "damage" && e.targetPlayerId === BOSS_PLAYER_ID)
       .reduce((sum, e) => sum + (e.amount ?? 0), 0);
-    if (next.winnerId === this.myId) this.say(t("raid_won"), OUTCOME_ICONS.won);
-    else this.say(`${t("raid_dealt_prefix")} ${dealt} ${t("raid_dealt_suffix")}`, LOG_ICONS.damage);
+    if (next.winnerId === this.myId) this.say(this.bossWonText(), OUTCOME_ICONS.won);
+    else this.say(this.bossDealtText(dealt), LOG_ICONS.damage);
     if (next.outcome === "lost") this.startPassOut(0, "dragon");
     this.time.delayedCall(2200, () => this.endBattle());
+  }
+
+  /** The boss's name when it is a visiting beast: then the texts name it instead of "the dragon". */
+  private beastName(): string | undefined {
+    const id = this.battleState.participants[1]?.species.id;
+    return id ? beastsById[id]?.navn : undefined;
+  }
+
+  private bossWonText(): string {
+    const navn = this.beastName();
+    return navn ? `${navn} ${t("beast_won_suffix")}` : t("raid_won");
+  }
+
+  private bossDealtText(dealt: number): string {
+    return `${t("raid_dealt_prefix")} ${dealt} ${this.beastName() ? t("beast_dealt_suffix") : t("raid_dealt_suffix")}`;
   }
 
   /** My monster fainted: start the pass-out wait (once) — in a duel longer the less of a fight it was, against the dragon always 60 s. */

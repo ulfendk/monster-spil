@@ -3,7 +3,7 @@
 //   node scripts/generate-startskoven.mjs
 // Dependency-free on purpose (own PNG encoder). Writes:
 //   shared/content/areas/startskoven.json          (Tiled-format export)
-//   shared/content/areas/startskoven-tileset.png   (13 tiles: 5 landscape + 8 for natural disasters)
+//   shared/content/areas/startskoven-tileset.png   (14 tiles: 5 landscape + 8 for natural disasters + sand)
 // and updates playerStart in startskoven.meta.json. The map is deterministic
 // (seeded), so re-running gives the same world. Once someone edits the map in
 // Tiled, stop running this — the Tiled file is then the source of truth.
@@ -19,9 +19,10 @@ const T = 64;
 // 6 mountain (blocks). The rest only appear when natural disasters change the map
 // (shared/src/world/disasters.ts): 7 burnt ground, 8 crater, 9 floodwater (shallow, walkable),
 // 10 fallen tree (blocks), 11 fissure (blocks), 12 rubble, 13 UFO wreck (blocks).
+// 14 sand: dunes and beaches, where sand serpents rise (shared/src/raid/beasts.ts).
 const GROUND = 1, TREE = 2, GRASS = 3, WATER = 4, PATH = 5, MOUNTAIN = 6;
-const BURNT = 7, CRATER = 8, FLOOD = 9, LOG = 10, CRACK = 11, RUBBLE = 12, WRECK = 13;
-const TILE_COUNT = 13;
+const BURNT = 7, CRATER = 8, FLOOD = 9, LOG = 10, CRACK = 11, RUBBLE = 12, WRECK = 13, SAND = 14;
+const TILE_COUNT = 14;
 const BLOCKING = [TREE, WATER, MOUNTAIN, LOG, CRACK, WRECK];
 
 function rng(seed) {
@@ -70,6 +71,7 @@ function drawTileset() {
     ash: [0x2a, 0x2a, 0x37], ashLight: [0x36, 0x36, 0x46], ember: [0xff, 0xa0, 0x66], emberRed: [0xc3, 0x40, 0x43],
     craterRim: [0x93, 0x80, 0x56], craterFloor: [0x49, 0x44, 0x3a], craterDeep: [0x2a, 0x27, 0x22],
     shallow: [0x3e, 0x6a, 0x88], shallowLight: [0x7f, 0xb4, 0xca],
+    sand: [0xd8, 0xbd, 0x86], sandLight: [0xe6, 0xd2, 0xa4], sandRipple: [0xc0, 0xa3, 0x6e],
     ink: [0x16, 0x16, 0x1d], metal: [0xc8, 0xc0, 0x93], metalLight: [0xdc, 0xd7, 0xba], alien: [0x98, 0xbb, 0x6c],
   };
   const line = (ox, x0, y0, x1, y1, colour, w = 1) => {
@@ -235,6 +237,17 @@ function drawTileset() {
   ellipse(o, 32, 22, 11, 8, K.ink);
   ellipse(o, 32, 22, 9, 6, K.shallowLight);
   for (const x of [16, 32, 48]) disc(o, x, 31, 2, x === 32 ? K.alien : K.emberRed);
+  // 14 sand: pale dune sand with wind ripples that line up across tiles, and a few pebbles
+  o = 13 * T;
+  ground(o, K.sand);
+  for (const baseY of [8, 24, 40, 56]) {
+    for (let x = 0; x < T; x++) {
+      const y = baseY + Math.round(2.5 * Math.sin((x / T) * Math.PI * 2));
+      set(o + x, y, K.sandRipple);
+      if (x % 3) set(o + x, y + 1, K.sandLight);
+    }
+  }
+  for (const [x, y] of [[20, 16], [46, 33], [12, 47]]) { disc(o, x, y, 2, K.pathDot); set(o + x - 1, y - 1, K.sandLight); }
   return { width, height: T, px };
 }
 
@@ -464,6 +477,23 @@ for (let p = 0; p < 34; p++) {
 }
 for (const [cx, cy, rx, ry] of meadows) fillEllipse(cx, cy, rx, ry, (x, y) => { if (ground[at(x, y)] === GROUND) grass[at(x, y)] = GRASS; });
 
+// Sandklitterne: a dune field in the north-east with a small oasis, and beaches around Storsøen.
+// Painted last and with its own seed, so the rest of the new lands stays exactly as it was.
+const drift = rng(20261001);
+fillEllipse(138, 11, 17, 8, (x, y) => {
+  // A ragged edge, so it reads as drifting sand rather than a painted oval.
+  const edge = ((x - 138) / 17) ** 2 + ((y - 11) / 8) ** 2;
+  if (!onEdge(x, y) && [GROUND, TREE].includes(ground[at(x, y)]) && (edge < 0.7 || drift() < 0.55)) { ground[at(x, y)] = SAND; grass[at(x, y)] = 0; }
+});
+fillEllipse(144, 9, 2.5, 1.6, (x, y) => (ground[at(x, y)] = WATER));
+const nearLake = (x, y, r) => {
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (inside(x + dx, y + dy) && ground[at(x + dx, y + dy)] === WATER && Math.hypot(dx, dy) <= r + 0.3) return true;
+  return false;
+};
+for (let y = 28; y < 60; y++) for (let x = 100; x < 144; x++) {
+  if (isNew(x, y) && ground[at(x, y)] === GROUND && !grass[at(x, y)] && Math.hypot((x - 122) / 16, (y - 44) / 11) < 1.35 && nearLake(x, y, 2)) ground[at(x, y)] = SAND;
+}
+
 // Gates through the heartland's old east and south borders: the two roads above, plus a
 // few footpaths, each cut through the border trees until it meets open ground on both sides.
 const walkable = (x, y) => inside(x, y) && !BLOCKING.includes(ground[at(x, y)]);
@@ -533,8 +563,8 @@ const metaPath = path.join(AREAS, "startskoven.meta.json");
 const metaText = readFileSync(metaPath, "utf8")
   .replace(/"collisionGids":\s*\[[^\]]*\]/, `"collisionGids": [${BLOCKING.join(", ")}]`)
   .replace(/"playerStart":\s*\{[^}]*\}/, `"playerStart": { "x": ${START.x}, "y": ${START.y} }`)
-  .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}, ${LOG}], "water": [${WATER}], "path": [${PATH}], "mountain": [${MOUNTAIN}, ${CRACK}, ${WRECK}], "burnt": [${BURNT}], "crater": [${CRATER}, ${RUBBLE}], "flood": [${FLOOD}] }`)
-  .replace(/"terrain":\s*\{[^}]*\}/, `"terrain": ${JSON.stringify({ ground: GROUND, tree: TREE, grass: GRASS, water: WATER, path: PATH, mountain: MOUNTAIN, burnt: BURNT, crater: CRATER, flood: FLOOD, log: LOG, crack: CRACK, rubble: RUBBLE, wreck: WRECK }).replace(/,/g, ", ").replace(/:/g, ": ")}`);
+  .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}, ${LOG}], "water": [${WATER}], "path": [${PATH}], "mountain": [${MOUNTAIN}, ${CRACK}, ${WRECK}], "burnt": [${BURNT}], "crater": [${CRATER}, ${RUBBLE}], "flood": [${FLOOD}], "sand": [${SAND}] }`)
+  .replace(/"terrain":\s*\{[^}]*\}/, `"terrain": ${JSON.stringify({ ground: GROUND, tree: TREE, grass: GRASS, water: WATER, path: PATH, mountain: MOUNTAIN, burnt: BURNT, crater: CRATER, flood: FLOOD, log: LOG, crack: CRACK, rubble: RUBBLE, wreck: WRECK, sand: SAND }).replace(/,/g, ", ").replace(/:/g, ": ")}`);
 writeFileSync(metaPath, metaText);
 
 console.log(`Startskoven ${W}x${H}: ${reach.size} walkable tiles, ${grassTiles} grass tiles, ${sealed} sealed-off tiles turned to trees, ${heartlandChanged} heartland tiles opened for gates`);

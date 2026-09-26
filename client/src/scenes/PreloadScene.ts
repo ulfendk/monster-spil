@@ -4,8 +4,9 @@ import { loadContent } from "../content/load-content";
 import { contentAssets } from "../content/load-assets";
 import { cryKey } from "../audio/creature-sound";
 import { bossesById } from "../content/load-raid";
+import { beastLook, beastsById } from "../content/load-beasts";
 import { bossSpecies } from "@shared";
-import { generatePlaceholderSprites } from "../gfx/placeholder-sprites";
+import { generatePlaceholderSprites, type BossLook } from "../gfx/placeholder-sprites";
 import { generateAvatarTextures } from "../gfx/avatar-sprites";
 import { generateIcons } from "../gfx/icon-art";
 import { addGame, loadGames } from "../save/games";
@@ -25,7 +26,7 @@ export class PreloadScene extends Phaser.Scene {
    */
   preload(): void {
     this.content = loadContent();
-    for (const species of [...Object.values(this.content.speciesById), ...Object.values(bossesById).map(bossSpecies)]) {
+    for (const species of [...Object.values(this.content.speciesById), ...Object.values(bossesById).map(bossSpecies), ...Object.values(beastsById).map(bossSpecies)]) {
       for (const key of [species.spriteFront, species.spriteBack]) {
         const url = contentAssets[key];
         if (url) this.load.image(key, url);
@@ -38,8 +39,11 @@ export class PreloadScene extends Phaser.Scene {
   create(): void {
     const content = this.content;
     const bosses = Object.values(bossesById);
-    const dragonIds = new Set([...bosses.map((b) => b.id), ...bosses.map((b) => b.rewardSpeciesId)]);
-    generatePlaceholderSprites(this, [...Object.values(content.speciesById), ...bosses.map(bossSpecies)], dragonIds);
+    const beasts = Object.values(beastsById);
+    const looks: Record<string, BossLook> = {};
+    for (const b of bosses) looks[b.id] = looks[b.rewardSpeciesId] = "dragon";
+    for (const b of beasts) looks[b.id] = looks[b.rewardSpeciesId] = beastLook(b);
+    generatePlaceholderSprites(this, [...Object.values(content.speciesById), ...bosses.map(bossSpecies), ...beasts.map(bossSpecies)], looks);
     generateAvatarTextures(this);
     generateIcons(this);
 

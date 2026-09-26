@@ -3,6 +3,7 @@ import type { BattleParticipant, BattleState } from "../types/battle.js";
 import type { DuelAction, DuelView } from "../duel/duel-session.js";
 import type { WorldPosition } from "../world/adjacency.js";
 import type { RaidView } from "../raid/raid.js";
+import type { BeastView } from "../raid/beasts.js";
 import type { TeamView } from "../raid/team.js";
 import type { FoodItem, FoodKind } from "../recovery/recovery.js";
 import type { ScoreRow } from "../score/scoreboard.js";
@@ -49,12 +50,14 @@ export const GAME_KEY_REJECTED = 4401;
  * v5 = teaming up against the dragon, v6 = food growing on the map, v7 = save backups,
  * v8 = several games per server (gameId + gameKey), game names and renames by a parent,
  * v9 = natural disasters: the map changes (terrain), warnings and strikes, the UFO's alien,
- * v10 = a roaming dragon: it flies to new perches (RaidView.lair, dragonFlight). The server announces its version with the
+ * v10 = a roaming dragon: it flies to new perches (RaidView.lair, dragonFlight),
+ * v11 = visiting beasts (sand serpents, giant eagles): `beasts`, and `targetId` on
+ * raidStart/teamCreate/raidBattle/TeamView (absent = the dragon). The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -76,16 +79,16 @@ export interface ClientMessages {
   move: WorldPosition;
   /** True while I can't be approached (e.g. in a wild battle); false when I'm back on the map. */
   away: { away: boolean };
-  /** Start an attempt on the dragon; I must stand next to its lair and not be resting. */
-  raidStart: { seat: BattleParticipant };
+  /** Start an attempt on the dragon — or on a visiting beast (`targetId`, v11+); I must stand next to it and not be resting. */
+  raidStart: { seat: BattleParticipant; targetId?: string };
   raidAction: { action: DuelAction };
   /** Catches made on this device (possibly while offline), so they count on the scoreboard. */
   scoreReport: { events: Array<{ id: string; kind: "catch"; at: string }> };
   getScores: Record<string, never>;
   /** The reward has been added to my save and persisted; the server may forget it. */
   rewardAck: { rewardId: string };
-  /** Gather a team at the lair (I become its leader); others then see it and can join. */
-  teamCreate: { seat: BattleParticipant };
+  /** Gather a team at the dragon — or at a visiting beast (`targetId`, v11+) — and lead it; others then see it and can join. */
+  teamCreate: { seat: BattleParticipant; targetId?: string };
   teamJoin: { teamId: string; seat: BattleParticipant };
   /** Leave the team (the leader leaving before the start cancels it). */
   teamLeave: { teamId: string };
@@ -123,10 +126,10 @@ export interface DisasterNews {
   at: string;
 }
 
-/** A creature the server hands out (e.g. for beating the dragon). Apply, persist, then send rewardAck. */
+/** A creature the server hands out (for beating the dragon or a visiting beast). Apply, persist, then send rewardAck. */
 export interface RewardDelivery {
   rewardId: string;
-  reason: "dragon";
+  reason: "dragon" | "beast";
   creature: CreatureInstance;
 }
 
@@ -153,14 +156,17 @@ export interface ServerMessages {
    * has ended for a reason other than the battle outcome ("defeated": someone else
    * beat it meanwhile). `restUntil` is when I may try again.
    */
-  raidBattle: { battle: BattleState; over?: "defeated"; restUntil?: string };
+  raidBattle: { battle: BattleState; over?: "defeated" | "gone"; restUntil?: string; targetId?: string };
   scoreReportAck: { ids: string[] };
   scores: { rows: ScoreRow[]; days: number };
   reward: RewardDelivery;
   /** My team as I may see it, after every change. */
   team: TeamView;
-  /** The team is gone: "cancelled" (the leader left while gathering) or "defeated" (someone else beat the dragon first). */
-  teamEnded: { teamId: string; reason: "cancelled" | "defeated" };
+  /**
+   * The team is gone: "cancelled" (the leader left while gathering), "defeated" (someone
+   * else beat the boss first) or "gone" (a visiting beast left before the fight began).
+   */
+  teamEnded: { teamId: string; reason: "cancelled" | "defeated" | "gone" };
   /** All food lying on the map right now (sent on join and whenever it changes). */
   food: FoodItem[];
   /** The food I took is mine: put it in the bag. */
@@ -176,6 +182,8 @@ export interface ServerMessages {
   disaster: DisasterMessage;
   /** The dragon takes off and lands on a new perch: animate the flight (the raid view already has the new lair; v10+). */
   dragonFlight: { from: WorldPosition; to: WorldPosition; ms: number };
+  /** Every visiting beast on the maps (v11+): on join and whenever one comes, is hurt, is beaten or leaves. */
+  beasts: BeastView[];
   /** My claim on a waiting monster was granted: battle it now. */
   spawnBattle: { spawnId: string; speciesId: string };
 }

@@ -6,7 +6,8 @@ import type { SaveData } from "../save/schema";
 import { presence } from "../net/presence";
 import { seatFor } from "../battle-participant";
 import { t } from "../i18n/da";
-import { DRAGON_ICON, TEAM_ICON } from "../ui/icons";
+import { BEAST_ICONS, DRAGON_ICON, TEAM_ICON } from "../ui/icons";
+import { beastForBaby } from "../content/load-beasts";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
@@ -304,7 +305,10 @@ export class InteractScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const species = this.sceneData.content.speciesById[creature.speciesId];
     const layout = getLayout(this);
-    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), presence.receivedReason === "dragon" ? `${ic(DRAGON_ICON)} ${t("reward_dragon")}` : t("trade_done"), 48, CSS.accent);
+    const beast = presence.receivedReason === "beast" ? beastForBaby(creature.speciesId) : undefined;
+    const title =
+      presence.receivedReason === "dragon" ? `${ic(DRAGON_ICON)} ${t("reward_dragon")}` : beast ? `${ic(BEAST_ICONS[beast.habitat])} ${t("reward_dragon")}` : t("trade_done");
+    this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), title, 48, CSS.accent);
     this.addOfferCircle(width / 2, height / 2, species, false, 90);
     if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
     this.addButton(width / 2, height - layout.safe.bottom - 24 - layout.touch(72) / 2, "OK", () => {

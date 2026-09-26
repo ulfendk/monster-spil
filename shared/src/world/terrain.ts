@@ -37,6 +37,8 @@ export interface TerrainTileIds {
   crack: number;
   rubble: number;
   wreck: number;
+  /** Dunes and beaches, where sand serpents rise (beasts.ts); a map without it has no serpents. */
+  sand?: number;
 }
 
 /** An area's base map, as the disaster rules need it. */

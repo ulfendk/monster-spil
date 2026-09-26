@@ -1,0 +1,18 @@
+{
+  "id": "kaempeoern",
+  "navn": "Kæmpeørnen",
+  "type": "lyn",
+  "habitat": "forest",
+  "maxHp": 250,
+  "baseStats": { "hp": 250, "angreb": 12, "forsvar": 9, "fart": 14 },
+  "moves": [
+    { "id": "stormvinger", "navn": "Stormvinger", "type": "lyn", "power": 40, "accuracy": 0.9 },
+    { "id": "oerneklo", "navn": "Ørneklo", "type": "sten", "power": 30, "accuracy": 0.95 },
+    { "id": "styrtdyk", "navn": "Styrtdyk", "type": "lyn", "power": 45, "accuracy": 0.85 }
+  ],
+  "spriteFront": "beasts/kaempeoern_front.png",
+  "spriteBack": "beasts/kaempeoern_back.png",
+  "sound": "beasts/kaempeoern.wav",
+  "rewardSpeciesId": "oerneunge",
+  "restSeconds": 30
+}

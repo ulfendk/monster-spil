@@ -1,0 +1,11 @@
+{
+  "id": "oerneunge",
+  "navn": "Ørneunge",
+  "type": "lyn",
+  "baseStats": { "hp": 38, "angreb": 14, "forsvar": 9, "fart": 15 },
+  "moveIds": ["gnistestoed", "lynnedslag", "kloer"],
+  "spriteFront": "creatures/oerneunge_front.png",
+  "spriteBack": "creatures/oerneunge_back.png",
+  "sound": "creatures/oerneunge.wav",
+  "catchRate": 0
+}

@@ -12,8 +12,11 @@ import { createRng } from "../battle/rng.js";
  * calls these, the same way it drives duels.
  */
 
-/** A boss as written in shared/content/raid/<id>.json. */
-export interface BossDefinition {
+/**
+ * What a fight needs to know about a boss: the weekly dragon and the visiting beasts
+ * (sand serpents, giant eagles — see beasts.ts) alike.
+ */
+export interface FightBoss {
   id: string;
   navn: string;
   type: TypeId;
@@ -23,24 +26,32 @@ export interface BossDefinition {
   spriteFront: string;
   spriteBack: string;
   sound?: string;
-  /** Where the boss sits on the map when its week starts; players must stand next to it to fight. It may fly off later (see roam.ts). */
-  lair: WorldPosition;
   /** The species every player who hurt it receives when it is beaten. */
   rewardSpeciesId: string;
   /** Seconds a player must wait between attempts. */
   restSeconds: number;
 }
 
-export interface RaidState {
-  bossId: string;
-  /** Monday (Danish time, YYYY-MM-DD) of the week this dragon belongs to; a new week wakes a fresh one. */
-  weekId: string;
+/** A boss as written in shared/content/raid/<id>.json. */
+export interface BossDefinition extends FightBoss {
+  /** Where the boss sits on the map when its week starts; players must stand next to it to fight. It may fly off later (see roam.ts). */
+  lair: WorldPosition;
+}
+
+/** A boss's shared HP and who hurt it: everyone fights their own battle, and all damage comes off this. */
+export interface FightState {
   hp: number;
   maxHp: number;
-  /** Total damage per playerId this week. */
+  /** Total damage per playerId. */
   damageBy: Record<string, number>;
   defeatedAt?: string;
   finalBlowBy?: string;
+}
+
+export interface RaidState extends FightState {
+  bossId: string;
+  /** Monday (Danish time, YYYY-MM-DD) of the week this dragon belongs to; a new week wakes a fresh one. */
+  weekId: string;
   /** Where the dragon sits now, once it has flown off from its home lair (a new week's dragon starts at home). */
   lair?: WorldPosition;
 }
@@ -97,7 +108,7 @@ export function raidView(raid: RaidState): RaidView {
   };
 }
 
-export function bossSpecies(boss: BossDefinition): CreatureSpecies {
+export function bossSpecies(boss: FightBoss): CreatureSpecies {
   return {
     id: boss.id,
     navn: boss.navn,
@@ -111,7 +122,7 @@ export function bossSpecies(boss: BossDefinition): CreatureSpecies {
   };
 }
 
-export function bossParticipant(boss: BossDefinition, hp: number): BattleParticipant {
+export function bossParticipant(boss: FightBoss, hp: number): BattleParticipant {
   return {
     playerId: BOSS_PLAYER_ID,
     species: bossSpecies(boss),
@@ -120,13 +131,13 @@ export function bossParticipant(boss: BossDefinition, hp: number): BattlePartici
   };
 }
 
-/** A new attempt: the player's seat against the dragon at its current shared HP. */
-export function startAttempt(raid: RaidState, boss: BossDefinition, seat: BattleParticipant, seed: number): BattleState {
+/** A new attempt: the player's seat against the boss at its current shared HP. */
+export function startAttempt(raid: FightState, boss: FightBoss, seat: BattleParticipant, seed: number): BattleState {
   return createBattle(seed, seat, bossParticipant(boss, raid.hp), "boss");
 }
 
-export interface RaidTurnResult {
-  raid: RaidState;
+export interface RaidTurnResult<S extends FightState = RaidState> {
+  raid: S;
   battle: BattleState;
   /** HP this turn took off the dragon. */
   damage: number;
@@ -139,13 +150,13 @@ export interface RaidTurnResult {
  * the shared HP (others may have hurt it meanwhile); the dragon picks its move
  * with the same derived rng, so a turn is reproducible from seed + turn number.
  */
-export function raidTurn(
-  raid: RaidState,
+export function raidTurn<S extends FightState>(
+  raid: S,
   battle: BattleState,
   playerId: string,
   action: { kind: "move"; moveId: string } | { kind: "flee" },
   now: Date
-): RaidTurnResult {
+): RaidTurnResult<S> {
   if (raid.hp <= 0 || battle.outcome !== "ongoing") return { raid, battle, damage: 0, defeatedNow: false };
   const [me, dragon] = battle.participants;
   const synced: BattleState = {
@@ -179,8 +190,8 @@ export function raidTurn(
   };
 }
 
-/** Everyone who hurt the dragon this week (and so shares the victory). */
-export function contributors(raid: RaidState): string[] {
+/** Everyone who hurt the boss (and so shares the victory). */
+export function contributors(raid: FightState): string[] {
   return Object.entries(raid.damageBy)
     .filter(([, damage]) => damage > 0)
     .map(([playerId]) => playerId);

@@ -10,6 +10,8 @@ import type {
   DuelView,
   LobbyPlayer,
   BattleState,
+  BeastView,
+  ServerMessages,
   RaidView,
   RewardDelivery,
   ScoreRow,
@@ -33,7 +35,7 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
  * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind),
  * "renamed" (navn), "terrain" (areaId), "disaster" (DisasterMessage), "spawnBattle" ({spawnId, speciesId}),
- * "struck" (a disaster caught me: I'm passed out now), "dragonFlight" ({from, to, ms}).
+ * "struck" (a disaster caught me: I'm passed out now), "dragonFlight" ({from, to, ms}), "beasts" (BeastView[]).
  */
 const HELLO_TIMEOUT_MS = 3000;
 /** Saves come in bursts (a battle's end, a trade); back up once things settle. */
@@ -59,9 +61,11 @@ class Presence {
   duel: DuelView | null = null;
   /** Set right after a completed trade or a dragon reward, until the interaction screen has shown it. */
   received?: CreatureInstance;
-  receivedReason: "trade" | "dragon" = "trade";
+  receivedReason: "trade" | "dragon" | "beast" = "trade";
   /** The family dragon, once the server has told us about it (protocol v4+). */
   raid?: RaidView;
+  /** The sand serpents and giant eagles on the maps right now (protocol v11+). */
+  beasts: BeastView[] = [];
   /** When I may attack the dragon again (ms since epoch). */
   restUntil = 0;
   /** Food lying on the maps (protocol v6+); empty offline. */
@@ -105,6 +109,11 @@ class Presence {
   /** True when the server runs the dragon raid and the scoreboard (protocol v4+). */
   get raidSupported(): boolean {
     return typeof this.serverVersion === "number" && this.serverVersion >= 4;
+  }
+
+  /** True when the server sends visiting beasts (protocol v11+). */
+  get beastsSupported(): boolean {
+    return typeof this.serverVersion === "number" && this.serverVersion >= 11;
   }
 
   /** True when the server keeps backups of saves (protocol v7+). */
@@ -262,6 +271,10 @@ class Presence {
       this.raid = view;
       this.events.emit("raid", view);
     });
+    listen(room, "beasts", (views) => {
+      this.beasts = views;
+      this.events.emit("beasts", views);
+    });
     listen(room, "raidBattle", (payload) => {
       if (payload.restUntil) this.restUntil = Date.parse(payload.restUntil);
       this.events.emit("raidBattle", payload);
@@ -291,6 +304,7 @@ class Presence {
       const wasGathering = this.team?.phase === "gathering";
       this.team = undefined;
       if (wasGathering && reason === "cancelled") this.interactNotice = t("team_cancelled");
+      if (wasGathering && reason === "gone") this.interactNotice = t("beast_gone");
       this.events.emit("teamEnded", reason);
       this.events.emit("interaction");
     });
@@ -360,6 +374,8 @@ class Presence {
       this.serverVersion = undefined;
       this.raid = undefined;
       this.team = undefined;
+      this.beasts = [];
+      this.events.emit("beasts", []);
       this.food = [];
       this.events.emit("food");
       this.events.emit("players");
@@ -457,7 +473,7 @@ class Presence {
     this.flushScore(); // more than 100 waiting: send the next batch
   }
 
-  /** A baby dragon for helping beat the dragon: add it (once), persist, then let the server forget it. */
+  /** A baby for helping beat the dragon or a visiting beast: add it (once), persist, then let the server forget it. */
   private async receiveReward(reward: RewardDelivery): Promise<void> {
     const save = getState();
     if (!save) return;
@@ -473,13 +489,13 @@ class Presence {
       console.error("Kunne ikke gemme belønningen", error);
     }
     this.received = reward.creature;
-    this.receivedReason = "dragon";
+    this.receivedReason = reward.reason === "beast" ? "beast" : "dragon";
     this.events.emit("interaction");
   }
 }
 
-export type RaidBattleUpdate = { battle: BattleState; over?: "defeated"; restUntil?: string };
-export type { RaidView, ScoreRow, TeamView };
+export type RaidBattleUpdate = ServerMessages["raidBattle"];
+export type { BeastView, RaidView, ScoreRow, TeamView };
 
 export const presence = new Presence();
 // Every save is backed up to the game server a few seconds later (when connected).

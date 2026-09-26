@@ -49,6 +49,8 @@ export const STEPS_ICON = "steps";
 /** The family dragon and the scoreboard. */
 export const DRAGON_ICON = "dragon";
 export const SLEEP_ICON = "sleep";
+/** The visiting beasts, by where they live: sand serpents and giant eagles. */
+export const BEAST_ICONS = { sand: "serpent", forest: "eagle" } as const;
 export const REST_ICON = "hourglass";
 export const SCORES_ICON = "trophy";
 export const DUEL_WIN_ICON = "sword";

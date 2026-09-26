@@ -13,6 +13,7 @@ import {
   duelInvolves,
   duelView,
   forfeitDuel,
+  beastView,
   contributors,
   currentRaid,
   inWindow,
@@ -47,17 +48,24 @@ import { bossForWeek } from "./bosses.js";
 import type { ServerArea } from "./areas.js";
 import { WorldEvents, type WorldPlayer } from "./world-events.js";
 import { DragonRoam, FLIGHT_MS } from "./dragon-roam.js";
+import { BeastVisits } from "./beast-visits.js";
 import type { SaveBackups } from "./save-backups.js";
 import type {
   ClientMessages,
   BattleState,
+  BeastDefinition,
+  BeastState,
+  BeastView,
   BossDefinition,
+  FightBoss,
+  FightState,
   CreatureInstance,
   DisasterConfigs,
   DuelResult,
   RaidState,
   RaidView,
   TeamSession,
+  TeamView,
   FoodItem,
   DuelSession,
   LobbyJoinOptions,
@@ -74,6 +82,8 @@ export interface LobbyDeps {
   registry: GameRegistry;
   gate: KeyGate;
   bosses: BossDefinition[];
+  /** Visiting beasts (shared/content/beasts); none in some tests. */
+  beasts?: BeastDefinition[];
   /** Every area: its food spots and, for disasters, its base map. */
   areas?: ServerArea[];
   disasterConfigs?: DisasterConfigs;
@@ -91,6 +101,27 @@ interface Online {
 const OPEN_TILES_PER_FOOD = 123;
 const foodPerArea = (area: ServerArea) => Math.max(1, Math.round(area.spots.length / OPEN_TILES_PER_FOOD));
 const FOOD_REGROW_MS = 3 * 60_000;
+
+/** The key of the dragon's team (beasts' teams are keyed by the beast's id, a UUID). */
+const DRAGON = "dragon";
+
+/** A boss someone can fight: the weekly dragon, or a visiting beast. */
+interface Foe {
+  /** DRAGON, or the beast's id. */
+  key: string;
+  /** The beast's id; undefined for the dragon (as in the protocol). */
+  targetId?: string;
+  boss: FightBoss;
+  state: FightState;
+  /** Where it is: players must stand next to it. */
+  at: WorldPosition;
+}
+
+const targetOf = (key: string): string | undefined => (key === DRAGON ? undefined : key);
+/** `{ targetId }` for a beast, nothing for the dragon, so the dragon's messages look exactly as before v11. */
+const targetField = (targetId: string | undefined): { targetId?: string } => (targetId ? { targetId } : {});
+const cleanTarget = (raw: unknown): string | undefined => (typeof raw === "string" && raw.length > 0 && raw.length <= 80 ? raw : undefined);
+const gatheringOf = (team: TeamSession) => ({ teamId: team.id, leaderId: team.leaderId, size: team.members.length });
 
 /** How long a duel waits for both players to pick a move before skipping the silent one. */
 const TURN_MS = 30_000;
@@ -159,14 +190,14 @@ export class LobbyRoom extends Room {
   private gate!: KeyGate;
   private store!: GameStore;
   private bosses!: BossDefinition[];
-  /** Each player's current attempt on the dragon. */
-  private raidBattles = new Map<string, BattleState>();
+  /** Each player's current attempt on a boss: the dragon, or a visiting beast (`targetId`). */
+  private raidBattles = new Map<string, { battle: BattleState; targetId?: string }>();
   /** When each player may attack the dragon again (ms since epoch). */
   private restUntil = new Map<string, number>();
   private announcedWeek = "";
-  /** The one team at the dragon: gathering at the lair or fighting. */
-  private team?: TeamSession;
-  private teamTimer?: { clear(): void };
+  /** Teams gathering at or fighting a boss, one per boss: keyed DRAGON or by the beast's id. */
+  private teams = new Map<string, TeamSession>();
+  private teamTimers = new Map<string, { clear(): void }>();
   /** Food lying on the maps, shared by everyone (in memory: it regrows anyway). */
   private food = new Map<string, FoodItem>();
   private areas: ServerArea[] = [];
@@ -176,6 +207,8 @@ export class LobbyRoom extends Room {
   world?: WorldEvents;
   /** The dragon flying to new perches. */
   roam?: DragonRoam;
+  /** Sand serpents and giant eagles coming and going (undefined without beast files). */
+  visits?: BeastVisits;
   private backups?: SaveBackups;
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. Only this game's key lets you in. */
@@ -205,6 +238,7 @@ export class LobbyRoom extends Room {
     this.areas = options.areas ?? [];
     if (options.disasterConfigs) this.startWorld(options.disasterConfigs);
     this.startRoam();
+    if (options.beasts?.length) this.startVisits(options.beasts);
     for (const area of this.areas) for (let i = 0; i < foodPerArea(area); i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
@@ -304,98 +338,117 @@ export class LobbyRoom extends Room {
       const me = this.playerOf(client);
       if (!me) return;
       const id = me.info.playerId;
-      const boss = this.boss();
-      const raid = this.raid();
-      if (this.raidBattles.has(id)) return this.tell(client, "raidBattle", { battle: this.raidBattles.get(id)! });
-      const refusal = this.dragonRefusal(me);
+      const current = this.raidBattles.get(id);
+      if (current) return this.tell(client, "raidBattle", { battle: current.battle, ...targetField(current.targetId) });
+      const targetId = cleanTarget(msg?.targetId);
+      const refusal = this.foeRefusal(me, targetId);
       if (refusal) return this.problem(client, refusal);
+      const foe = this.foe(targetId)!;
       const seat = sanitizeSeat(msg?.seat, id);
       if (!seat) return this.problem(client, "invalid creature");
-      const battle = startAttempt(raid, boss, seat, randomInt(0, 2 ** 31));
-      this.raidBattles.set(id, battle);
-      this.tell(client, "raidBattle", { battle });
+      const battle = startAttempt(foe.state, foe.boss, seat, randomInt(0, 2 ** 31));
+      this.raidBattles.set(id, { battle, ...targetField(targetId) });
+      this.tell(client, "raidBattle", { battle, ...targetField(targetId) });
       this.broadcastPlayers();
     });
 
     this.onMessage("raidAction", (client, msg: ClientMessages["raidAction"]) => {
       const me = this.playerOf(client);
-      const battle = me && this.raidBattles.get(me.info.playerId);
-      if (!me || !battle) return this.problem(client, "no raid");
+      const attempt = me && this.raidBattles.get(me.info.playerId);
+      if (!me || !attempt) return this.problem(client, "no raid");
+      const { battle, targetId } = attempt;
+      const foe = this.foe(targetId);
+      if (!foe) {
+        // The beast is gone (sent away by a parent): the attempt just ends.
+        this.raidBattles.delete(me.info.playerId);
+        this.broadcastPlayers();
+        return this.tell(client, "raidBattle", { battle, over: "gone", ...targetField(targetId) });
+      }
       const action = msg?.action;
       if (action?.kind === "move" && !battle.participants[0].moves[String(action.moveId)]) return this.problem(client, "unknown move");
       if (action?.kind !== "move" && action?.kind !== "flee") return this.problem(client, "unknown action");
       const result = raidTurn(
-        this.raid(),
+        foe.state,
         battle,
         me.info.playerId,
         action.kind === "move" ? { kind: "move", moveId: String(action.moveId) } : { kind: "flee" },
         new Date()
       );
-      this.store.data.raid = result.raid;
-      this.store.changed();
+      this.storeFoe(foe, result.raid);
       if (result.battle.outcome === "ongoing") {
-        this.raidBattles.set(me.info.playerId, result.battle);
-        this.tell(client, "raidBattle", { battle: result.battle });
+        this.raidBattles.set(me.info.playerId, { battle: result.battle, ...targetField(targetId) });
+        this.tell(client, "raidBattle", { battle: result.battle, ...targetField(targetId) });
       } else {
-        this.endAttempt(me.info.playerId, result.battle.outcome === "lost");
-        this.tell(client, "raidBattle", { battle: result.battle, restUntil: this.restIso(me.info.playerId) });
+        this.endAttempt(me.info.playerId, result.battle.outcome === "lost", foe.boss.restSeconds);
+        this.tell(client, "raidBattle", { battle: result.battle, restUntil: this.restIso(me.info.playerId), ...targetField(targetId) });
       }
-      if (result.damage > 0) this.broadcastRaid();
-      if (result.defeatedNow) this.dragonDefeated(result.raid);
+      if (result.damage > 0) this.broadcastFoe(foe.key);
+      if (result.defeatedNow) this.foeDefeated(foe, result.raid);
     });
 
-    // ---- teaming up against the dragon
+    // ---- teaming up against the dragon or a visiting beast
 
     this.onMessage("teamCreate", (client, msg: ClientMessages["teamCreate"]) => {
       const me = this.playerOf(client);
       if (!me) return;
-      if (this.team) return this.problem(client, "a team is already at the dragon");
-      const refusal = this.dragonRefusal(me);
+      const targetId = cleanTarget(msg?.targetId);
+      const key = targetId ?? DRAGON;
+      if (this.teams.has(key)) return this.problem(client, targetId ? "a team is already there" : "a team is already at the dragon");
+      const refusal = this.foeRefusal(me, targetId);
       if (refusal) return this.problem(client, refusal);
       const seat = sanitizeSeat(msg?.seat, me.info.playerId);
       if (!seat) return this.problem(client, "invalid creature");
       const created = createTeam(randomUUID(), me.info.playerId, seat);
       if (!created.ok) return this.problem(client, created.reason);
-      this.setTeam(created.session);
+      this.setTeam(key, created.session);
     });
 
     this.onMessage("teamJoin", (client, msg: ClientMessages["teamJoin"]) => {
       const me = this.playerOf(client);
-      if (!me || !this.team || this.team.id !== msg?.teamId) return this.problem(client, "no such team");
-      const refusal = this.dragonRefusal(me);
+      const found = this.teamById(msg?.teamId);
+      if (!me || !found) return this.problem(client, "no such team");
+      const [key, team] = found;
+      const refusal = this.foeRefusal(me, targetOf(key));
       if (refusal) return this.problem(client, refusal);
       const seat = sanitizeSeat(msg.seat, me.info.playerId);
       if (!seat) return this.problem(client, "invalid creature");
-      const joined = joinTeam(this.team, me.info.playerId, seat);
+      const joined = joinTeam(team, me.info.playerId, seat);
       if (!joined.ok) return this.problem(client, joined.reason);
-      this.setTeam(joined.session);
+      this.setTeam(key, joined.session);
     });
 
     this.onMessage("teamLeave", (client, msg: ClientMessages["teamLeave"]) => {
       const me = this.playerOf(client);
-      if (me && this.team?.id === msg?.teamId) this.leaveTeamAs(me.info.playerId);
+      const found = this.teamById(msg?.teamId);
+      if (me && found) this.leaveTeamAs(found[0], me.info.playerId);
     });
 
     this.onMessage("teamStart", (client, msg: ClientMessages["teamStart"]) => {
       const me = this.playerOf(client);
-      if (!me || !this.team || this.team.id !== msg?.teamId) return this.problem(client, "no such team");
-      if (this.raid().hp <= 0) return this.problem(client, "dragon sleeping");
-      const started = startTeam(this.team, me.info.playerId, randomInt(0, 2 ** 31));
+      const found = this.teamById(msg?.teamId);
+      if (!me || !found) return this.problem(client, "no such team");
+      const [key, team] = found;
+      const foe = this.foe(targetOf(key));
+      if (!foe || foe.state.hp <= 0) return this.problem(client, key === DRAGON ? "dragon sleeping" : "beast gone");
+      const started = startTeam(team, me.info.playerId, randomInt(0, 2 ** 31));
       if (!started.ok) return this.problem(client, started.reason);
-      this.setTeam(started.session);
-      this.armTeamTimer();
+      this.setTeam(key, started.session);
+      this.armTeamTimer(key);
     });
 
     this.onMessage("teamAction", (client, msg: ClientMessages["teamAction"]) => {
       const me = this.playerOf(client);
-      const team = this.team;
-      if (!me || !team || team.id !== msg?.teamId) return this.problem(client, "no such team");
+      const found = this.teamById(msg?.teamId);
+      if (!me || !found) return this.problem(client, "no such team");
+      const [key, team] = found;
+      const foe = this.foe(targetOf(key));
+      if (!foe) return this.problem(client, "beast gone");
       const action = msg.action;
       if (action?.kind !== "move" && action?.kind !== "flee") return this.problem(client, "unknown action");
       const clean = action.kind === "move" ? { kind: "move" as const, moveId: String(action.moveId) } : { kind: "flee" as const };
-      const result = submitTeamAction(team, me.info.playerId, clean, this.raid(), this.boss(), new Date());
+      const result = submitTeamAction(team, me.info.playerId, clean, foe.state, foe.boss, new Date());
       if (!result.ok) return this.problem(client, result.reason);
-      this.afterTeamTurn(team, result);
+      this.afterTeamTurn(key, team, result);
     });
 
     this.onMessage("foodTake", (client, msg: ClientMessages["foodTake"]) => {
@@ -519,10 +572,13 @@ export class LobbyRoom extends Room {
     this.tell(client, "game", { gameId: this.gameId, navn: this.registry.get(this.gameId)?.navn ?? "" });
     if (renamed && renamed !== options.navn) this.tell(client, "renamed", { navn: renamed });
     this.tell(client, "raid", this.raidViewNow());
+    this.tell(client, "beasts", this.beastViewsNow());
     this.tell(client, "food", [...this.food.values()]);
     this.world?.welcome(info.playerId);
     // Rejoining mid-team: show the team again (e.g. after a short drop-out).
-    if (this.team && teamInvolves(this.team, info.playerId)) this.tell(client, "team", teamViewFor(this.team, info.playerId, this.raid(), this.boss()));
+    const inTeam = this.teamOf(info.playerId);
+    const teamFoe = inTeam && this.foe(targetOf(inTeam[0]));
+    if (inTeam && teamFoe) this.tell(client, "team", this.teamView(inTeam[0], inTeam[1], info.playerId, teamFoe));
     for (const delivery of this.pending.get(info.playerId) ?? []) this.tell(client, "tradeComplete", delivery);
     for (const reward of this.store.data.rewards[info.playerId] ?? []) this.tell(client, "reward", reward);
     this.broadcastPlayers();
@@ -540,9 +596,11 @@ export class LobbyRoom extends Room {
     for (const session of [...this.duels.values()]) {
       if (duelInvolves(session, me.info.playerId)) this.settleDuel(forfeitDuel(session, me.info.playerId), "left");
     }
-    // Leaving mid-attempt just ends it; damage already dealt stays on the dragon.
-    if (this.raidBattles.has(me.info.playerId)) this.endAttempt(me.info.playerId);
-    if (this.team && teamInvolves(this.team, me.info.playerId)) this.leaveTeamAs(me.info.playerId);
+    // Leaving mid-attempt just ends it; damage already dealt stays on the boss.
+    const attempt = this.raidBattles.get(me.info.playerId);
+    if (attempt) this.endAttempt(me.info.playerId, false, this.foe(attempt.targetId)?.boss.restSeconds);
+    const inTeam = this.teamOf(me.info.playerId);
+    if (inTeam) this.leaveTeamAs(inTeam[0], me.info.playerId);
     this.world?.playerLeft(me.info.playerId);
     this.broadcastPlayers();
   }
@@ -604,8 +662,12 @@ export class LobbyRoom extends Room {
       boss: () => this.boss(),
       raid: () => this.raid(),
       lair: () => this.lairNow(),
-      busy: () => this.raidBattles.size > 0 || Boolean(this.team) || Boolean(this.world?.activeView),
-      players: () => [...this.online.values()].map((o) => ({ areaId: o.info.areaId, x: o.info.x, y: o.info.y })),
+      busy: () => [...this.raidBattles.values()].some((a) => !a.targetId) || this.teams.has(DRAGON) || Boolean(this.world?.activeView),
+      // Never landing on a player or a visiting beast.
+      players: () => [
+        ...[...this.online.values()].map((o) => ({ areaId: o.info.areaId, x: o.info.x, y: o.info.y })),
+        ...(this.visits?.active ?? []).map((b) => ({ areaId: b.areaId, x: b.x, y: b.y })),
+      ],
       flew: (from, to) => this.dragonFlew(from, to),
       rand: Math.random,
     });
@@ -631,7 +693,7 @@ export class LobbyRoom extends Room {
 
   private worldPlayer(o: Online): WorldPlayer {
     const id = o.info.playerId;
-    const unavailable = o.info.busy || o.info.away || this.raidBattles.has(id) || Boolean(this.team && teamInvolves(this.team, id));
+    const unavailable = o.info.busy || o.info.away || this.raidBattles.has(id) || Boolean(this.teamOf(id));
     return { playerId: id, areaId: o.info.areaId, x: o.info.x, y: o.info.y, unavailable };
   }
 
@@ -657,7 +719,8 @@ export class LobbyRoom extends Room {
     const taken = [...this.food.values()].filter((f) => f.areaId === area.areaId);
     // Not where a disaster has blocked the ground or made tall grass grow.
     const lair = this.lairNow(); // once, not per spot: it works out this week's dragon
-    const onLair = (p: { x: number; y: number }) => lair.areaId === area.areaId && lair.x === p.x && lair.y === p.y;
+    const blocked = new Set([lair, ...(this.visits?.active ?? [])].filter((p) => p.areaId === area.areaId).map((p) => `${p.x},${p.y}`));
+    const onLair = (p: { x: number; y: number }) => blocked.has(`${p.x},${p.y}`);
     const open = (this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots).filter((p) => !onLair(p));
     const spot = pickFoodSpot(open, taken, Math.random);
     if (!spot) return;
@@ -678,6 +741,7 @@ export class LobbyRoom extends Room {
   /** The admin portal changed the dragon or removed a player: tell everyone connected. */
   adminChanged(): void {
     this.broadcastRaid();
+    this.broadcastBeasts();
     this.broadcastPlayers();
   }
 
@@ -707,13 +771,32 @@ export class LobbyRoom extends Room {
     }
   }
 
-  /** Why this player can't fight the dragon right now (solo or in a team), or undefined. */
-  private dragonRefusal(me: Online): string | undefined {
+  // ------------------------------------------------------------ fights: the dragon and visiting beasts
+
+  /** The boss behind a target: the dragon (no targetId) or a visiting beast on the map now. */
+  private foe(targetId: string | undefined): Foe | undefined {
+    if (!targetId) return { key: DRAGON, boss: this.boss(), state: this.raid(), at: this.lairNow() };
+    const beast = this.visits?.get(targetId);
+    const def = beast && this.visits!.definition(beast.beastId);
+    return beast && def ? { key: beast.id, targetId: beast.id, boss: def, state: beast, at: beast } : undefined;
+  }
+
+  /** Stores a boss's HP after a turn. */
+  private storeFoe(foe: Foe, state: FightState): void {
+    if (foe.targetId) return this.visits?.update(state as BeastState);
+    this.store.data.raid = state as RaidState;
+    this.store.changed();
+  }
+
+  /** Why this player can't fight this boss right now (solo or in a team), or undefined. */
+  private foeRefusal(me: Online, targetId: string | undefined): string | undefined {
     const id = me.info.playerId;
-    if (me.info.busy || me.info.away || this.raidBattles.has(id) || (this.team && teamInvolves(this.team, id))) return "player is busy";
-    if (this.roam?.isFlying()) return "dragon flying";
-    if (!isAdjacent(me.info, this.lairNow())) return "too far away";
-    if (this.raid().hp <= 0) return "dragon sleeping";
+    if (me.info.busy || me.info.away || this.raidBattles.has(id) || this.teamOf(id)) return "player is busy";
+    const foe = this.foe(targetId);
+    if (!foe) return "beast gone";
+    if (!targetId && this.roam?.isFlying()) return "dragon flying";
+    if (!isAdjacent(me.info, foe.at)) return "too far away";
+    if (foe.state.hp <= 0) return targetId ? "beast gone" : "dragon sleeping";
     if ((this.restUntil.get(id) ?? 0) > Date.now()) return "resting";
     return undefined;
   }
@@ -721,91 +804,133 @@ export class LobbyRoom extends Room {
   /** The dragon as everyone sees it, including a team gathering at the lair that can be joined. */
   private raidViewNow(): RaidView {
     const view = { ...raidView(this.raid()), lair: this.lairNow() };
-    const team = this.team;
-    return team?.phase === "gathering" ? { ...view, gathering: { teamId: team.id, leaderId: team.leaderId, size: team.members.length } } : view;
+    const team = this.teams.get(DRAGON);
+    return team?.phase === "gathering" ? { ...view, gathering: gatheringOf(team) } : view;
+  }
+
+  /** The visiting beasts as everyone sees them, each with a team gathering at it. */
+  private beastViewsNow(): BeastView[] {
+    return (this.visits?.active ?? []).map((b) => {
+      const team = this.teams.get(b.id);
+      return team?.phase === "gathering" ? { ...beastView(b), gathering: gatheringOf(team) } : beastView(b);
+    });
+  }
+
+  private broadcastBeasts(): void {
+    const views = this.beastViewsNow();
+    for (const entry of this.online.values()) this.tell(entry.client, "beasts", views);
+  }
+
+  private broadcastFoe(key: string): void {
+    if (key === DRAGON) this.broadcastRaid();
+    else this.broadcastBeasts();
+  }
+
+  /** The team a player is in (gathering or fighting), with its target key. */
+  private teamOf(playerId: string): [string, TeamSession] | undefined {
+    for (const entry of this.teams) if (teamInvolves(entry[1], playerId)) return entry;
+    return undefined;
+  }
+
+  private teamById(teamId: unknown): [string, TeamSession] | undefined {
+    for (const entry of this.teams) if (entry[1].id === teamId) return entry;
+    return undefined;
+  }
+
+  private teamView(key: string, team: TeamSession, viewerId: string, foe: Foe): TeamView {
+    return { ...teamViewFor(team, viewerId, foe.state, foe.boss), ...targetField(targetOf(key)) };
   }
 
   /** Stores a team after any change and tells its members (and, while it gathers, everyone). */
-  private setTeam(team: TeamSession): void {
-    this.team = team;
-    this.pushTeam(team);
-    this.broadcastRaid();
+  private setTeam(key: string, team: TeamSession): void {
+    this.teams.set(key, team);
+    this.pushTeam(key, team);
+    this.broadcastFoe(key);
     this.broadcastPlayers();
   }
 
-  private pushTeam(team: TeamSession): void {
-    const raid = this.raid();
-    const boss = this.boss();
+  private pushTeam(key: string, team: TeamSession): void {
+    const foe = this.foe(targetOf(key));
+    if (!foe) return;
     for (const m of team.members) {
       const target = this.online.get(m.playerId);
-      if (target) this.tell(target.client, "team", teamViewFor(team, m.playerId, raid, boss));
+      if (target) this.tell(target.client, "team", this.teamView(key, team, m.playerId, foe));
     }
   }
 
-  private leaveTeamAs(playerId: string): void {
-    const team = this.team;
+  private leaveTeamAs(key: string, playerId: string): void {
+    const team = this.teams.get(key);
+    const foe = this.foe(targetOf(key));
     if (!team) return;
+    if (!foe) return this.endTeam(key, team, "gone");
     const next = leaveTeam(team, playerId);
-    if (next.phase === "cancelled") return this.endTeam(team, "cancelled");
-    if (team.phase === "active") this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
-    if (next.phase === "done") return this.finishTeam(next);
+    if (next.phase === "cancelled") return this.endTeam(key, team, "cancelled");
+    if (team.phase === "active") this.restUntil.set(playerId, Date.now() + foe.boss.restSeconds * 1000);
+    if (next.phase === "done") return this.finishTeam(key, next);
     // A member who dropped out of the gathering no longer sees the team.
     if (next.phase === "gathering") {
       const target = this.online.get(playerId);
       if (target) this.tell(target.client, "teamEnded", { teamId: team.id, reason: "cancelled" });
     }
-    this.setTeam(next);
+    this.setTeam(key, next);
     // Everyone still fighting may now have answered: the turn can resolve.
     if (next.phase === "active" && next.members.filter((m) => m.status === "in").every((m) => next.pending[m.playerId])) {
-      this.afterTeamTurn(next, timeoutTeamTurn(next, this.raid(), this.boss(), new Date()));
+      this.afterTeamTurn(key, next, timeoutTeamTurn(next, foe.state, foe.boss, new Date()));
     }
   }
 
-  /** After a move (or a timeout): store the raid, tell everyone, and settle a finished fight. */
-  private afterTeamTurn(before: TeamSession, result: { session: TeamSession; raid: RaidState; defeatedNow: boolean }): void {
-    this.store.data.raid = result.raid;
-    this.store.changed();
-    if (result.session.turn !== before.turn) this.armTeamTimer();
-    if (result.session.phase === "done") this.finishTeam(result.session);
-    else this.setTeam(result.session);
-    if (result.defeatedNow) this.dragonDefeated(result.raid);
+  /** After a move (or a timeout): store the boss's HP, tell everyone, and settle a finished fight. */
+  private afterTeamTurn(key: string, before: TeamSession, result: { session: TeamSession; raid: FightState; defeatedNow: boolean }): void {
+    const foe = this.foe(targetOf(key));
+    if (!foe) return this.endTeam(key, before, "gone");
+    this.storeFoe(foe, result.raid);
+    if (result.session.turn !== before.turn) this.armTeamTimer(key);
+    if (result.session.phase === "done") this.finishTeam(key, result.session);
+    else this.setTeam(key, result.session);
+    if (result.defeatedNow) this.foeDefeated({ ...foe, state: result.raid }, result.raid);
   }
 
   /** The fight is over: everyone sees the result, then rests like after a solo attempt. */
-  private finishTeam(team: TeamSession): void {
-    this.teamTimer?.clear();
-    this.teamTimer = undefined;
-    this.pushTeam(team);
-    const restUntil = Date.now() + this.boss().restSeconds * 1000;
+  private finishTeam(key: string, team: TeamSession): void {
+    this.teamTimers.get(key)?.clear();
+    this.teamTimers.delete(key);
+    this.pushTeam(key, team);
+    const restUntil = Date.now() + (this.foe(targetOf(key))?.boss.restSeconds ?? this.boss().restSeconds) * 1000;
     // Members whose monster fainted pass out on their device instead.
     for (const m of team.members) {
       if (m.status !== "fainted") this.restUntil.set(m.playerId, Math.max(this.restUntil.get(m.playerId) ?? 0, restUntil));
     }
-    this.team = undefined;
-    this.broadcastRaid();
+    this.teams.delete(key);
+    this.broadcastFoe(key);
     this.broadcastPlayers();
   }
 
-  private endTeam(team: TeamSession, reason: ServerMessages["teamEnded"]["reason"]): void {
-    this.teamTimer?.clear();
-    this.teamTimer = undefined;
-    this.team = undefined;
+  private endTeam(key: string, team: TeamSession, reason: ServerMessages["teamEnded"]["reason"]): void {
+    this.teamTimers.get(key)?.clear();
+    this.teamTimers.delete(key);
+    this.teams.delete(key);
     for (const m of team.members) {
       const target = this.online.get(m.playerId);
       if (target) this.tell(target.client, "teamEnded", { teamId: team.id, reason });
     }
-    this.broadcastRaid();
+    this.broadcastFoe(key);
     this.broadcastPlayers();
   }
 
   /** The turn clock restarts after each resolved turn; silent members then skip. */
-  private armTeamTimer(): void {
-    this.teamTimer?.clear();
-    this.teamTimer = this.clock.setTimeout(() => {
-      this.teamTimer = undefined;
-      const team = this.team;
-      if (team?.phase === "active") this.afterTeamTurn(team, timeoutTeamTurn(team, this.raid(), this.boss(), new Date()));
-    }, TURN_MS);
+  private armTeamTimer(key: string): void {
+    this.teamTimers.get(key)?.clear();
+    this.teamTimers.set(
+      key,
+      this.clock.setTimeout(() => {
+        this.teamTimers.delete(key);
+        const team = this.teams.get(key);
+        const foe = this.foe(targetOf(key));
+        if (team?.phase !== "active") return;
+        if (!foe) return this.endTeam(key, team, "gone");
+        this.afterTeamTurn(key, team, timeoutTeamTurn(team, foe.state, foe.boss, new Date()));
+      }, TURN_MS)
+    );
   }
 
   private broadcastRaid(): void {
@@ -814,9 +939,9 @@ export class LobbyRoom extends Room {
   }
 
   /** Ends a solo attempt. A monster that fainted passes out on the device instead of resting here. */
-  private endAttempt(playerId: string, fainted = false): void {
+  private endAttempt(playerId: string, fainted = false, restSeconds = this.boss().restSeconds): void {
     this.raidBattles.delete(playerId);
-    if (!fainted) this.restUntil.set(playerId, Date.now() + this.boss().restSeconds * 1000);
+    if (!fainted) this.restUntil.set(playerId, Date.now() + restSeconds * 1000);
     this.broadcastPlayers();
   }
 
@@ -825,34 +950,83 @@ export class LobbyRoom extends Room {
     return until ? new Date(until).toISOString() : undefined;
   }
 
-  /** Everyone who hurt the dragon this week shares the win: a scoreboard event and a baby dragon each. */
-  private dragonDefeated(raid: RaidState): void {
-    const boss = this.boss();
+  /**
+   * Everyone who hurt the boss shares the win: a scoreboard event and a baby of its kind
+   * each. A beaten beast is gone at once; a beaten dragon sleeps until Monday.
+   */
+  private foeDefeated(foe: Foe, state: FightState): void {
     const at = new Date().toISOString();
-    for (const playerId of contributors(raid)) {
-      this.store.data.events.push({ id: randomUUID(), playerId, kind: "dragon", at, ...(playerId === raid.finalBlowBy ? { finalBlow: true } : {}) });
+    const kind = foe.targetId ? ("beast" as const) : ("dragon" as const);
+    for (const playerId of contributors(state)) {
+      this.store.data.events.push({ id: randomUUID(), playerId, kind, at, ...(playerId === state.finalBlowBy ? { finalBlow: true } : {}) });
       const reward = {
         rewardId: randomUUID(),
-        reason: "dragon" as const,
+        reason: kind,
         // HP is set to the species' full HP by the device, which knows the species' stats.
-        creature: { instanceId: randomUUID(), speciesId: boss.rewardSpeciesId, ownerId: playerId, niveau: 1, currentHp: 1, caughtAt: at },
+        creature: { instanceId: randomUUID(), speciesId: foe.boss.rewardSpeciesId, ownerId: playerId, niveau: 1, currentHp: 1, caughtAt: at },
       };
       this.store.data.rewards[playerId] = [...(this.store.data.rewards[playerId] ?? []), reward];
       const target = this.online.get(playerId);
       if (target) this.tell(target.client, "reward", reward);
     }
     // A team still gathering (or fighting, if a solo attempt beat it) has nothing left to fight.
-    if (this.team?.phase === "gathering") this.endTeam(this.team, "defeated");
-    else if (this.team?.phase === "active") this.finishTeam({ ...this.team, phase: "done", outcome: "won" });
-    // Anyone else mid-attempt: the dragon is gone, so their attempt ends too.
-    for (const [playerId, battle] of [...this.raidBattles]) {
+    const team = this.teams.get(foe.key);
+    if (team?.phase === "gathering") this.endTeam(foe.key, team, "defeated");
+    else if (team?.phase === "active") this.finishTeam(foe.key, { ...team, phase: "done", outcome: "won" });
+    // Anyone else mid-attempt on it: it is beaten, so their attempt ends too.
+    for (const [playerId, attempt] of [...this.raidBattles]) {
+      if ((attempt.targetId ?? DRAGON) !== foe.key) continue;
       this.raidBattles.delete(playerId);
       const target = this.online.get(playerId);
-      if (target) this.tell(target.client, "raidBattle", { battle, over: "defeated" });
+      if (target) this.tell(target.client, "raidBattle", { battle: attempt.battle, over: "defeated", ...targetField(attempt.targetId) });
     }
+    if (foe.targetId) this.visits?.beaten(foe.targetId);
     this.store.changed();
-    this.broadcastRaid();
+    this.broadcastFoe(foe.key);
     this.broadcastPlayers();
+  }
+
+  // ------------------------------------------------------------ visiting beasts
+
+  private startVisits(beasts: BeastDefinition[]): void {
+    this.visits = new BeastVisits({
+      store: this.store,
+      areas: this.areas,
+      beasts,
+      terrain: (areaId) => this.world?.terrain(areaId) ?? emptyTerrain(),
+      occupied: (areaId) => {
+        const lair = this.lairNow();
+        const players = [...this.online.values()].filter((o) => o.info.areaId === areaId).map((o) => o.info);
+        return lair.areaId === areaId ? [...players, lair] : players;
+      },
+      // Only a fight going on keeps it; a team still gathering is sent home when it leaves.
+      busy: (id) => this.teams.get(id)?.phase === "active" || [...this.raidBattles.values()].some((a) => a.targetId === id),
+      changed: () => {
+        this.clearFoodUnderBeasts();
+        this.broadcastBeasts();
+      },
+      leaving: (beast) => {
+        const team = this.teams.get(beast.id);
+        if (team) this.endTeam(beast.id, team, "gone");
+      },
+      rand: Math.random,
+    });
+    this.clock.setInterval(() => this.visits?.tick(), 5_000);
+  }
+
+  /** Food doesn't lie where a beast has come up. */
+  private clearFoodUnderBeasts(): void {
+    let gone = false;
+    for (const b of this.visits?.active ?? []) {
+      for (const f of [...this.food.values()]) {
+        if (f.areaId === b.areaId && f.x === b.x && f.y === b.y) {
+          this.food.delete(f.id);
+          this.extraFood.delete(f.id);
+          gone = true;
+        }
+      }
+    }
+    if (gone) this.broadcastFood();
   }
 
   /** Why an invite from `me` to `target` must be refused, or undefined if it is fine. Shared by trades and duels. */
@@ -1002,7 +1176,7 @@ export class LobbyRoom extends Room {
       busy.add(s.inviteeId);
     }
     for (const playerId of this.raidBattles.keys()) busy.add(playerId);
-    for (const m of this.team?.members ?? []) if (m.status === "in") busy.add(m.playerId);
+    for (const team of this.teams.values()) for (const m of team.members) if (m.status === "in") busy.add(m.playerId);
     const players = [...this.online.values()].map(({ info }) => ({ ...info, busy: busy.has(info.playerId) }));
     for (const entry of this.online.values()) {
       entry.info.busy = busy.has(entry.info.playerId);
