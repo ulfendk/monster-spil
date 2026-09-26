@@ -35,12 +35,17 @@ export interface BattleState {
 
 export type BattleAction =
   | { kind: "move"; moveId: string }
-  | { kind: "catch" }
+  /**
+   * Throw a ball. `throw` says how a 3D throw went (the client's catching scene): a miss
+   * uses up the turn with no roll; a hit rolls as usual, better the nearer the middle
+   * (precision 1). Without it, the ball simply reaches the monster (as before 3D).
+   */
+  | { kind: "catch"; throw?: { hit: false } | { hit: true; precision: number } }
   | { kind: "flee" };
 
 export interface BattleLogEntry {
   turn: number;
-  kind: "damage" | "miss" | "faint" | "catch-success" | "catch-fail" | "flee";
+  kind: "damage" | "miss" | "faint" | "catch-success" | "catch-fail" | "catch-miss" | "flee";
   text: string;
   /** playerId of the participant this entry happened to, so a UI can animate the right sprite. */
   targetPlayerId?: string;

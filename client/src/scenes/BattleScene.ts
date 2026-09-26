@@ -19,6 +19,7 @@ import type { RaidBattleUpdate } from "../net/presence";
 import { beastsById } from "../content/load-beasts";
 import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant, mySpecies } from "../battle-participant";
+import type { CatchSceneData } from "./CatchScene";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { passOut, persist } from "../save/game-state";
@@ -506,14 +507,41 @@ export class BattleScene extends Phaser.Scene {
     this.actionButtons = [];
   }
 
+  /**
+   * Catching: the 3D meadow opens over the battle and you flick the ball at the monster.
+   * When the ball hits, the turn is worked out at once (so the ball knows whether to glow or
+   * burst open); it's shown here when the battle comes back. Without 3D (no WebGL), the
+   * ball is thrown the old way.
+   */
   private performCatch(): void {
     if (this.busy || this.battleState.outcome !== "ongoing") return;
     this.busy = true;
     this.clearActionButtons();
-    this.playBallThrowAnimation(() => {
-      this.busy = false;
-      this.performTurn({ kind: "catch" });
-    });
+    const wild = this.battleState.participants[1];
+    let worked: BattleState | undefined;
+    const data: CatchSceneData = {
+      species: wild.species,
+      seed: Math.floor(this.rng.next() * 2 ** 31),
+      decide: (thrown) => {
+        worked = this.wildTurn({ kind: "catch", throw: thrown });
+        return worked.outcome === "caught";
+      },
+      done: (thrown) => {
+        this.scene.stop("Catch");
+        this.scene.wake();
+        this.presentTurn(worked ?? this.wildTurn({ kind: "catch", throw: thrown }));
+      },
+      unavailable: () => {
+        this.scene.stop("Catch");
+        this.scene.wake();
+        this.playBallThrowAnimation(() => {
+          this.busy = false;
+          this.performTurn({ kind: "catch" });
+        });
+      },
+    };
+    this.scene.launch("Catch", data);
+    this.scene.sleep();
   }
 
   private playBallThrowAnimation(onComplete: () => void): void {
@@ -565,20 +593,25 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    const wild = this.battleState.participants[1];
-    const wildMoveId = pickWildMoveId(wild.species);
-    const previousLogLength = this.battleState.log.length;
+    this.presentTurn(this.wildTurn(playerAction));
+  }
 
-    const nextState = resolveTurn(
+  /** Works out a wild battle's turn: my action and the wild monster's move. */
+  private wildTurn(playerAction: BattleAction): BattleState {
+    const wild = this.battleState.participants[1];
+    return resolveTurn(
       this.battleState,
       [
         { playerId: "player", action: playerAction },
-        { playerId: "wild", action: { kind: "move", moveId: wildMoveId } },
+        { playerId: "wild", action: { kind: "move", moveId: pickWildMoveId(wild.species) } },
       ],
       this.rng
     );
+  }
 
-    const newEntries = nextState.log.slice(previousLogLength);
+  /** Shows a worked-out turn: its log, the HP bars, and what comes next. */
+  private presentTurn(nextState: BattleState): void {
+    const newEntries = nextState.log.slice(this.battleState.log.length);
     this.battleState = nextState;
     this.updateHpBars();
     this.reactToEntries(newEntries);

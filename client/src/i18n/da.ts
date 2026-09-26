@@ -76,6 +76,7 @@ const strings = {
   cave_visited: "Du har været derinde",
   cave_throw: "Svirp bolden op!",
   cave_caught: "Fanget!",
+  catch_missed: "Bolden ramte ikke!",
   cave_free: "Den slap fri!",
   cave_out_of_balls: "Ikke flere bolde",
   cave_everyone_caught: "Du fangede dem alle!",

@@ -428,6 +428,24 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   yielding between frames so the catch animation's awaits run); `__cave.flick(dx, dy, ms)`
   throws.
 
+### Catching in 3D (wild battles)
+
+- Tapping catch in a wild battle opens `CatchScene` over the battle (the battle sleeps): the
+  monster stands in a sunny meadow (`client/src/cave/meadow-stage.ts`: sky, a red rising
+  sun, hills, pines, susuki in a breeze), alive and shifting from side to side, and you flick
+  **one** ball at it. A miss uses the turn ("Bolden ramte ikke!", log kind `catch-miss`); a
+  hit lets the engine roll the catch, and the ball glows or bursts open accordingly.
+- **The engine decides** (`shared/src/battle/engine.ts`): the catch action carries
+  `throw?: {hit:false} | {hit:true, precision}`; a hit's chance is the old one ×
+  `catchBonus(precision)` (0.8 at the edge, 1.2 dead centre, exactly 1 at 0.5 — so a catch
+  without a throw is unchanged). `BattleScene.performCatch` works the turn out when the
+  ball hits (`wildTurn`) so the animation knows the result, and shows it (`presentTurn`)
+  when the battle wakes. Without WebGL the old 2D throw is used.
+- **The 3D code is shared:** `client/src/cave/throw-stage.ts` (`ThrowStage`: renderer,
+  camera, the temari ball, its flight and hit test, the catch animation, living monsters —
+  breathing, blinking, crying, startled jumps — and the tick loop); `CaveStage` and
+  `MeadowStage` add their scenery and say where monsters are and how they move.
+
 ### Teaming up (protocol v5)
 
 - **Pure rules in `shared/src/raid/team.ts`** (tested): one team at a time gathers

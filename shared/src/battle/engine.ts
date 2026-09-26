@@ -3,7 +3,7 @@ import type { Move } from "../types/move.js";
 import { getMultiplier } from "../types/type-chart.js";
 import type { BattleAction, BattleMode, BattleParticipant, BattleState, BattleLogEntry } from "../types/battle.js";
 import type { Rng } from "./rng.js";
-import { attemptCatch } from "./catch.js";
+import { attemptCatch, catchBonus } from "./catch.js";
 
 export function createBattle(
   seed: number,
@@ -67,7 +67,13 @@ export function resolveTurn(
     // You can't catch another player's creature.
     if (action.kind === "catch" && state.mode === "wild") {
       const opponent = otherParticipant(participants, participant);
-      const success = attemptCatch(opponent.active, opponent.species, rng);
+      if (action.throw && !action.throw.hit) {
+        // The ball missed: no roll. Like a failed catch, that's the turn.
+        log.push({ turn, kind: "catch-miss", text: "Bolden ramte ikke!", targetPlayerId: opponent.playerId });
+        return { ...state, turn, log: [...state.log, ...log], outcome: "ongoing" };
+      }
+      const precision = action.throw?.hit ? Math.max(0, Math.min(1, action.throw.precision)) : 0.5;
+      const success = attemptCatch(opponent.active, opponent.species, rng, catchBonus(precision));
       log.push({
         turn,
         kind: success ? "catch-success" : "catch-fail",

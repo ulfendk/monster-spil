@@ -26,6 +26,7 @@ export const LOG_ICONS = {
   faint: "faint",
   "catch-success": "cheer",
   "catch-fail": "angry",
+  "catch-miss": "miss",
   flee: "run",
 } as const;
 

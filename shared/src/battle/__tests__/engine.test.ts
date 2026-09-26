@@ -267,3 +267,20 @@ test("battle texts use the Danish possessive: an extra s, or an apostrophe after
   assert.equal(genitive("Flammepels"), "Flammepels'");
   assert.equal(genitive("Max"), "Max'");
 });
+
+test("a 3D throw that misses uses the turn with no roll; a hit rolls, better near the middle", () => {
+  const species = makeSpecies({ catchRate: 0.4 });
+  const state = createBattle(1, makeParticipant("player", makeSpecies(), [makeMove()]), makeParticipant("wild", species, [makeMove()]));
+  const missed = resolveTurn(state, [{ playerId: "player", action: { kind: "catch", throw: { hit: false } } }], fixedRng(0.0));
+  assert.equal(missed.outcome, "ongoing", "no catch, even with the luckiest roll");
+  assert.equal(missed.log.at(-1)?.kind, "catch-miss");
+  assert.equal(missed.turn, state.turn + 1);
+  // Full HP, catchRate 0.4: chance 0.4 × 0.5 = 0.2 at the middle; ×1.2 (0.24) dead centre, ×0.8 (0.16) at the edge.
+  const roll = (precision: number) => resolveTurn(state, [{ playerId: "player", action: { kind: "catch", throw: { hit: true, precision } } }], fixedRng(0.22)).outcome;
+  assert.equal(roll(1), "caught", "dead centre makes 0.22 a catch");
+  assert.equal(roll(0.5), "ongoing", "the middle is the old chance (0.2)");
+  assert.equal(roll(0), "ongoing");
+  // No throw info at all: exactly as before.
+  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.19)).outcome, "caught");
+  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.21)).outcome, "ongoing");
+});
