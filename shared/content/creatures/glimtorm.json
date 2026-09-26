@@ -1,0 +1,11 @@
+{
+  "id": "glimtorm",
+  "navn": "Glimtorm",
+  "type": "lyn",
+  "baseStats": { "hp": 32, "angreb": 10, "forsvar": 7, "fart": 13 },
+  "moveIds": ["gnistestoed", "lynnedslag", "kloer"],
+  "spriteFront": "creatures/glimtorm_front.png",
+  "spriteBack": "creatures/glimtorm_back.png",
+  "sound": "creatures/glimtorm.wav",
+  "catchRate": 0.5
+}

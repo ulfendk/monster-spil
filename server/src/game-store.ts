@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DEFAULT_BEAST_SETTINGS, DEFAULT_DISASTER_SETTINGS, DEFAULT_ROAM_SETTINGS } from "@monster-spil/shared";
-import type { AreaTerrain, BeastSettings, BeastState, DisasterKind, DisasterSettings, RaidState, RewardDelivery, RoamSettings, ScoreEvent, ScorePlayer } from "@monster-spil/shared";
+import { DEFAULT_BEAST_SETTINGS, DEFAULT_CAVE_SETTINGS, DEFAULT_DISASTER_SETTINGS, DEFAULT_ROAM_SETTINGS } from "@monster-spil/shared";
+import type { AreaTerrain, BeastSettings, BeastState, CaveSettings, CaveState, DisasterKind, DisasterSettings, RaidState, RewardDelivery, RoamSettings, ScoreEvent, ScorePlayer } from "@monster-spil/shared";
 
 /** A disaster that struck, for the admin portal and the "while you were away" note. */
 export interface DisasterRecord {
@@ -39,6 +39,13 @@ export interface BeastData {
   active: BeastState[];
 }
 
+/** Caves in the mountains: the parent's settings, when the next opens, and the open ones. */
+export interface CaveData {
+  settings: CaveSettings;
+  nextAt?: string;
+  active: CaveState[];
+}
+
 /** Everything the server must remember about one game across restarts. Kept small: one JSON file. */
 export interface GameData {
   version: 1;
@@ -54,6 +61,7 @@ export interface GameData {
   world: WorldData;
   roam: RoamData;
   beasts: BeastData;
+  caves: CaveData;
 }
 
 export const GAME_FILE = "game.json";
@@ -64,7 +72,8 @@ const WRITE_DELAY_MS = 500;
 const emptyWorld = (): WorldData => ({ settings: { ...DEFAULT_DISASTER_SETTINGS, kinds: { ...DEFAULT_DISASTER_SETTINGS.kinds } }, areas: {}, history: [] });
 const emptyRoam = (): RoamData => ({ settings: { ...DEFAULT_ROAM_SETTINGS } });
 const emptyBeasts = (): BeastData => ({ settings: { ...DEFAULT_BEAST_SETTINGS }, nextAt: {}, active: [] });
-const empty = (): GameData => ({ version: 1, players: {}, events: [], rewards: {}, renames: {}, world: emptyWorld(), roam: emptyRoam(), beasts: emptyBeasts() });
+const emptyCaves = (): CaveData => ({ settings: { ...DEFAULT_CAVE_SETTINGS }, active: [] });
+const empty = (): GameData => ({ version: 1, players: {}, events: [], rewards: {}, renames: {}, world: emptyWorld(), roam: emptyRoam(), beasts: emptyBeasts(), caves: emptyCaves() });
 
 /**
  * One game's persistent state, in `<dir>/game.json` (under a Docker volume in
@@ -82,7 +91,7 @@ export class GameStore {
   static async open(dir: string): Promise<GameStore> {
     try {
       const raw = JSON.parse(await readFile(path.join(dir, FILE), "utf-8")) as Partial<GameData>;
-      return new GameStore({ ...empty(), ...raw, version: 1, world: { ...emptyWorld(), ...raw.world }, roam: { ...emptyRoam(), ...raw.roam }, beasts: { ...emptyBeasts(), ...raw.beasts } }, dir);
+      return new GameStore({ ...empty(), ...raw, version: 1, world: { ...emptyWorld(), ...raw.world }, roam: { ...emptyRoam(), ...raw.roam }, beasts: { ...emptyBeasts(), ...raw.beasts }, caves: { ...emptyCaves(), ...raw.caves } }, dir);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") console.error(`Could not read ${path.join(dir, FILE)}, starting empty:`, error);
       return new GameStore(empty(), dir);

@@ -1,0 +1,11 @@
+{
+  "id": "dryppesten",
+  "navn": "Dryppesten",
+  "type": "sten",
+  "baseStats": { "hp": 45, "angreb": 11, "forsvar": 15, "fart": 6 },
+  "moveIds": ["stenkast", "jordrystelse", "kloer"],
+  "spriteFront": "creatures/dryppesten_front.png",
+  "spriteBack": "creatures/dryppesten_back.png",
+  "sound": "creatures/dryppesten.wav",
+  "catchRate": 0.4
+}

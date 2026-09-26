@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   DISASTER_KINDS,
   cleanBeastSettings,
+  cleanCaveSettings,
   cleanDisasterSettings,
   cleanRoamSettings,
   currentRaid,
@@ -38,6 +39,7 @@ import { ADMIN_PAGE } from "./admin-page.js";
  *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
  *   POST /dragon  {action:"reset"} | {action:"hp", hp} | {action:"roam", enabled, meanMinutes, randomness} | {action:"fly"}
  *   POST /beasts  {action:"settings", enabled, meanMinutes, stayMinutes, randomness} | {action:"call", beastId?} | {action:"dismiss", id}
+ *   POST /caves  {action:"settings", enabled, meanMinutes, openMinutes, randomness} | {action:"open"} | {action:"close", id}
  *   POST /scores/clear                           remove this week's points
  *   POST /disasters/settings  {enabled, meanMinutes, randomness, kinds}
  *   POST /disasters/trigger  {kind?, target?}    one now (random kind and place when not given)
@@ -161,6 +163,11 @@ export class AdminPortal {
     if (sub === "/beasts" && method === "POST") {
       if (!room) await this.deps.openRoom(gameId);
       const result = await this.beasts(gameId, await readJson(req));
+      return json(res, result.ok ? 200 : 400, result);
+    }
+    if (sub === "/caves" && method === "POST") {
+      if (!room) await this.deps.openRoom(gameId);
+      const result = await this.cavesAction(gameId, await readJson(req));
       return json(res, result.ok ? 200 : 400, result);
     }
     if (sub === "/scores/clear" && method === "POST") {
@@ -297,7 +304,8 @@ export class AdminPortal {
         contributors: Object.values(b.damageBy).filter((d) => d > 0).length,
       })),
     };
-    return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters, beasts };
+    const caves = { settings: store.data.caves.settings, nextAt: room?.caves?.nextAt, active: store.data.caves.active };
+    return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters, beasts, caves };
   }
 
   /** Forgets a player: scoreboard entry and points, unclaimed rewards, and their backup. */
@@ -351,6 +359,21 @@ export class AdminPortal {
       return problem ? { ok: false, error: problem } : { ok: true };
     }
     return { ok: false, error: "ukendt handling" };
+  }
+
+  /** Caves: how often they open and for how long, open one now, or close one. */
+  private async cavesAction(gameId: string, body: Json): Promise<{ ok: boolean; error?: string }> {
+    const store = await this.deps.registry.store(gameId);
+    const caves = this.deps.room(gameId)?.caves;
+    if (!caves) return { ok: false, error: "spillet kører ikke" };
+    if (body?.action === "settings") {
+      store.data.caves.settings = cleanCaveSettings(body, store.data.caves.settings);
+      caves.settingsChanged();
+      store.changed();
+      return { ok: true };
+    }
+    const problem = body?.action === "open" ? caves.open() : body?.action === "close" ? caves.close(String(body.id)) : "ukendt handling";
+    return problem ? { ok: false, error: problem } : { ok: true };
   }
 
   private async dragon(gameId: string, body: Json): Promise<{ ok: boolean; error?: string }> {

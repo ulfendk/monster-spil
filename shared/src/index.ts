@@ -142,3 +142,20 @@ export {
   nextBeastAt,
 } from "./raid/beasts.js";
 export type { BeastDefinition, BeastSettings, BeastSpotOptions, BeastState, BeastView, Habitat } from "./raid/beasts.js";
+export {
+  caveDue,
+  caveMouthTile,
+  chooseCaveSpot,
+  cleanCaveSettings,
+  DEFAULT_CAVE_SETTINGS,
+  freshCave,
+  MAX_CAVE_GAP_MINUTES,
+  MAX_CAVE_OPEN_MINUTES,
+  MIN_CAVE_GAP_MINUTES,
+  MIN_CAVE_OPEN_MINUTES,
+  nextCaveAt,
+  planCaveVisit,
+} from "./cave/caves.js";
+export type { CaveConfig, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
+export { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, GRAVITY, HIT_RADIUS, hitPrecision, landingTime } from "./cave/throw.js";
+export type { Vec3 } from "./cave/throw.js";

@@ -52,7 +52,7 @@ async function join(id, pos) {
   room.onMessage("team", (m) => (got.team = m));
   room.onMessage("teamEnded", (m) => got.ended.push(m));
   room.onMessage("scores", (m) => (got.scores = m));
-  for (const t of ["players", "playerMoved", "raid", "game", "terrain", "disaster", "food", "backupAck", "foodTaken"]) room.onMessage(t, () => {});
+  for (const t of ["players", "playerMoved", "raid", "game", "terrain", "disaster", "food", "backupAck", "foodTaken", "caves"]) room.onMessage(t, () => {});
   return { room, got };
 }
 const beastOf = (p, kind) => p.got.beasts?.find((b) => b.beastId === kind);
@@ -63,7 +63,7 @@ const alice = await join("alice", at(32, 24));
 const bob = await join("bob", at(32, 25));
 const cia = await join("cia", at(33, 24));
 await until(() => alice.got.beasts && bob.got.beasts && cia.got.beasts);
-check("hello says protocol 11", alice.got.hello?.protocolVersion === 11);
+check("hello says protocol 11 or newer", alice.got.hello?.protocolVersion >= 11);
 check("no beasts at first (visits are off)", alice.got.beasts.length === 0);
 
 // ---- a sand serpent, beaten alone

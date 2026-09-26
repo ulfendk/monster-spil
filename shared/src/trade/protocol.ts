@@ -4,6 +4,7 @@ import type { DuelAction, DuelView } from "../duel/duel-session.js";
 import type { WorldPosition } from "../world/adjacency.js";
 import type { RaidView } from "../raid/raid.js";
 import type { BeastView } from "../raid/beasts.js";
+import type { CaveView, CaveVisit } from "../cave/caves.js";
 import type { TeamView } from "../raid/team.js";
 import type { FoodItem, FoodKind } from "../recovery/recovery.js";
 import type { ScoreRow } from "../score/scoreboard.js";
@@ -52,12 +53,13 @@ export const GAME_KEY_REJECTED = 4401;
  * v9 = natural disasters: the map changes (terrain), warnings and strikes, the UFO's alien,
  * v10 = a roaming dragon: it flies to new perches (RaidView.lair, dragonFlight),
  * v11 = visiting beasts (sand serpents, giant eagles): `beasts`, and `targetId` on
- * raidStart/teamCreate/raidBattle/TeamView (absent = the dragon). The server announces its version with the
+ * raidStart/teamCreate/raidBattle/TeamView (absent = the dragon),
+ * v12 = caves that open in the mountains: `caves`, `caveEnter` → `caveVisit`. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -87,6 +89,8 @@ export interface ClientMessages {
   getScores: Record<string, never>;
   /** The reward has been added to my save and persisted; the server may forget it. */
   rewardAck: { rewardId: string };
+  /** Go into an open cave I'm standing next to (once per opening; v12+). */
+  caveEnter: { caveId: string };
   /** Gather a team at the dragon — or at a visiting beast (`targetId`, v11+) — and lead it; others then see it and can join. */
   teamCreate: { seat: BattleParticipant; targetId?: string };
   teamJoin: { teamId: string; seat: BattleParticipant };
@@ -182,6 +186,10 @@ export interface ServerMessages {
   disaster: DisasterMessage;
   /** The dragon takes off and lands on a new perch: animate the flight (the raid view already has the new lair; v10+). */
   dragonFlight: { from: WorldPosition; to: WorldPosition; ms: number };
+  /** Every open cave (v12+): on join and whenever one opens, closes or someone goes in. */
+  caves: CaveView[];
+  /** I'm in: the monsters in there this time and my balls. The device runs the minigame. */
+  caveVisit: CaveVisit;
   /** Every visiting beast on the maps (v11+): on join and whenever one comes, is hurt, is beaten or leaves. */
   beasts: BeastView[];
   /** My claim on a waiting monster was granted: battle it now. */

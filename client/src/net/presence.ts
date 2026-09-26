@@ -11,6 +11,7 @@ import type {
   LobbyPlayer,
   BattleState,
   BeastView,
+  CaveView,
   ServerMessages,
   RaidView,
   RewardDelivery,
@@ -35,7 +36,8 @@ export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "off
  * "duelActive" (DuelView), "problem" (reason), "raid" (RaidView), "raidBattle" (payload), "scores" (ScoreRow[]),
  * "team" (TeamView), "teamActive" (TeamView, once per fight), "teamEnded" (reason), "food", "foodTaken" (kind),
  * "renamed" (navn), "terrain" (areaId), "disaster" (DisasterMessage), "spawnBattle" ({spawnId, speciesId}),
- * "struck" (a disaster caught me: I'm passed out now), "dragonFlight" ({from, to, ms}), "beasts" (BeastView[]).
+ * "struck" (a disaster caught me: I'm passed out now), "dragonFlight" ({from, to, ms}), "beasts" (BeastView[]),
+ * "caves" (CaveView[]), "caveVisit" (CaveVisit: I'm in, start the minigame).
  */
 const HELLO_TIMEOUT_MS = 3000;
 /** Saves come in bursts (a battle's end, a trade); back up once things settle. */
@@ -64,6 +66,8 @@ class Presence {
   receivedReason: "trade" | "dragon" | "beast" = "trade";
   /** The family dragon, once the server has told us about it (protocol v4+). */
   raid?: RaidView;
+  /** Caves open in the mountains right now (protocol v12+). */
+  caves: CaveView[] = [];
   /** The sand serpents and giant eagles on the maps right now (protocol v11+). */
   beasts: BeastView[] = [];
   /** When I may attack the dragon again (ms since epoch). */
@@ -271,6 +275,11 @@ class Presence {
       this.raid = view;
       this.events.emit("raid", view);
     });
+    listen(room, "caves", (caves) => {
+      this.caves = caves;
+      this.events.emit("caves", caves);
+    });
+    listen(room, "caveVisit", (visit) => this.events.emit("caveVisit", visit));
     listen(room, "beasts", (views) => {
       this.beasts = views;
       this.events.emit("beasts", views);
@@ -376,6 +385,8 @@ class Presence {
       this.team = undefined;
       this.beasts = [];
       this.events.emit("beasts", []);
+      this.caves = [];
+      this.events.emit("caves", []);
       this.food = [];
       this.events.emit("food");
       this.events.emit("players");

@@ -33,8 +33,9 @@ Milestone 3 (PvP duels) is built and tested against a local server with scripted
 clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
 Since then: a shared 160×120 world where players see each other, a weekly family
-dragon raid, visiting sand serpents and giant eagles, a weekly scoreboard, an overview
-map, save backups, a parent's admin portal and several games per server (sections below). Ideas not yet scheduled live
+dragon raid, visiting sand serpents and giant eagles, caves with a 3D ball-throwing
+minigame, a weekly scoreboard, an overview map, save backups, a parent's admin portal
+and several games per server (sections below). Ideas not yet scheduled live
 in `docs/backlog.md`.
 
 ## Monorepo layout
@@ -371,6 +372,43 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 - **Testing in Chrome:** the Claude-in-Chrome window renders no animation frames; step the
   game by hand (`__game.step(t, 16)` in a loop) to play tweens through.
 
+### Caves: a 3D minigame (protocol v12)
+
+- **Caves come and go** in the mountains (online games only): about every hour one
+  opens in a mountain face you can walk up to and stays 20 minutes (the parent's
+  settings in the admin portal: on/off, how often, how long, randomness, open now, close).
+  The mouth stays a mountain tile, so walking and connectivity never change. Each player
+  can go in **once per opening**.
+- **Inside**, the device runs the minigame: monsters peek out from behind boulders (at
+  most two at a time), sometimes scamper to another boulder, and you **flick** balls at
+  them — flick speed throws further, sideways aims. A hit rolls `caveCatchChance`
+  (catchRate, better near the middle); a catch goes into the save exactly like a wild
+  catch (caughtCounts, pendingScore → scoreboard). 10 balls, 5 monsters per visit.
+- **Content:** `shared/content/caves.json` (balls, monsters per visit, weighted species);
+  the cave-only species (`glimtorm`, `dryppesten`, `hulepadde`) are ordinary creature
+  files in no encounter table; the monster book shows a cave icon for them. The server
+  reads caves.json at runtime (the Dockerfile copies it).
+- **Pure rules** (tested): `shared/src/cave/caves.ts` (settings, schedule, `caveMouthTile`,
+  `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`flickToThrow`,
+  `ballAt`, `landingTime`, hit precision, catch chance — a test checks every place a
+  monster can peek out can be hit with a reasonable flick).
+- **Server:** `server/src/cave-openings.ts` (`CaveOpenings`, one open cave at a time;
+  state in the game store's `caves`). `caveEnter {caveId}` (must stand next to it) →
+  `caveVisit {caveId, seed, speciesIds, balls}`; `caves` goes to everyone on join and
+  every change; problems `cave closed` / `cave visited`.
+- **Client:** `client/src/gfx/cave-layer.ts` draws the mouth (rocks tumble out as it
+  opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, flicks,
+  catching, saving) over `client/src/cave/cave-stage.ts`, the **three.js** scene (rock
+  dome, stalactites, glowing crystals, boulders, sprites made from the monsters' own
+  textures, a temari ball). three.js is loaded with a dynamic import only when entering
+  a cave (its own chunk, still precached for offline). It renders into a canvas *under*
+  Phaser's: the Phaser game is `transparent: true` (the page behind is the same ink), and
+  `index.html` layers `#game > canvas.cave-stage` below Phaser's canvas.
+  `scripts/e2e-caves.mjs` covers the server side.
+- **Testing in Chrome:** step the 3D scene by hand like the game (`__cave.stage.tick(dt)`,
+  yielding between frames so the catch animation's awaits run); `__cave.flick(dx, dy, ms)`
+  throws.
+
 ### Teaming up (protocol v5)
 
 - **Pure rules in `shared/src/raid/team.ts`** (tested): one team at a time gathers
@@ -619,7 +657,8 @@ BFS pathfinding if needed); on the ground it does nothing.
 Pre-approved: Phaser, Vite, TypeScript, Colyseus (server `@colyseus/core` +
 `@colyseus/ws-transport` + `@colyseus/schema`, client `colyseus.js`), `vite-plugin-pwa`
 (added for PWA manifest/service-worker generation), and for the drawing import
-(dev-only, root `devDependencies`, never shipped to the game) `sharp` and `imagetracerjs`.
+(dev-only, root `devDependencies`, never shipped to the game) `sharp` and `imagetracerjs`,
+and `three` (+ `@types/three`) for the cave minigame, loaded only inside a cave.
 **Ask before adding anything else.**
 
 ## Testing convention

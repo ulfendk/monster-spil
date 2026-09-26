@@ -265,6 +265,14 @@ const ART: Record<string, (g: G) => void> = {
     }
     g.fillStyle(K.washi, 1).fillTriangle(54, 88, 62, 88, 58, 98).fillTriangle(66, 88, 74, 88, 70, 98);
   },
+  cave: (g) => {
+    // A mountain with a dark cave mouth and a crystal glowing inside.
+    shape(g, [{ x: 64, y: 8 }, { x: 122, y: 118 }, { x: 6, y: 118 }], K.katanaGray);
+    shape(g, [{ x: 64, y: 8 }, { x: 80, y: 38 }, { x: 48, y: 38 }], K.fujiWhite, 5);
+    g.fillStyle(INK, 1).fillEllipse(64, 102, 56, 60).fillRect(36, 100, 56, 18);
+    outline(g, 5).strokeEllipse(64, 102, 56, 60);
+    shape(g, [{ x: 64, y: 82 }, { x: 72, y: 98 }, { x: 64, y: 114 }, { x: 56, y: 98 }], K.waveAqua2, 4);
+  },
   serpent: (g) => {
     // A coil in the sand, and a hooded head rising from it.
     ellipse(g, 64, 108, 108, 26, K.boatYellow2);

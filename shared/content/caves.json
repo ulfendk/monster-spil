@@ -1,0 +1,11 @@
+{
+  "navn": "Grotten",
+  "balls": 10,
+  "monsters": 5,
+  "species": [
+    { "speciesId": "glimtorm", "weight": 3 },
+    { "speciesId": "hulepadde", "weight": 3 },
+    { "speciesId": "dryppesten", "weight": 2 },
+    { "speciesId": "stenbid", "weight": 1 }
+  ]
+}

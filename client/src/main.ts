@@ -12,6 +12,7 @@ import { MonsterInfoScene } from "./scenes/MonsterInfoScene";
 import { InteractScene } from "./scenes/InteractScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { ScoreboardScene } from "./scenes/ScoreboardScene";
+import { CaveScene } from "./scenes/CaveScene";
 import { keepAppUpToDate } from "./pwa-update";
 import { CSS } from "./ui/theme";
 
@@ -21,6 +22,8 @@ const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
   backgroundColor: CSS.ink,
+  // See-through, so a cave's 3D canvas can show underneath (the page behind is the same ink).
+  transparent: true,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -30,7 +33,7 @@ const game = new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene],
+  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene, CaveScene],
 });
 
 // Development only: lets automated checks drive scenes (e.g. at iPhone sizes) without guessing tap positions.

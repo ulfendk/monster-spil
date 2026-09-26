@@ -49,6 +49,7 @@ import type { ServerArea } from "./areas.js";
 import { WorldEvents, type WorldPlayer } from "./world-events.js";
 import { DragonRoam, FLIGHT_MS } from "./dragon-roam.js";
 import { BeastVisits } from "./beast-visits.js";
+import { CaveOpenings } from "./cave-openings.js";
 import type { SaveBackups } from "./save-backups.js";
 import type {
   ClientMessages,
@@ -57,6 +58,7 @@ import type {
   BeastState,
   BeastView,
   BossDefinition,
+  CaveConfig,
   FightBoss,
   FightState,
   CreatureInstance,
@@ -84,6 +86,8 @@ export interface LobbyDeps {
   bosses: BossDefinition[];
   /** Visiting beasts (shared/content/beasts); none in some tests. */
   beasts?: BeastDefinition[];
+  /** What lives in the caves (shared/content/caves.json); without it no caves open. */
+  caveConfig?: CaveConfig;
   /** Every area: its food spots and, for disasters, its base map. */
   areas?: ServerArea[];
   disasterConfigs?: DisasterConfigs;
@@ -209,6 +213,8 @@ export class LobbyRoom extends Room {
   roam?: DragonRoam;
   /** Sand serpents and giant eagles coming and going (undefined without beast files). */
   visits?: BeastVisits;
+  /** Caves opening in the mountains (undefined without caves.json). */
+  caves?: CaveOpenings;
   private backups?: SaveBackups;
 
   /** Runs before a seat is reserved, so outsiders never become part of the room. Only this game's key lets you in. */
@@ -239,6 +245,7 @@ export class LobbyRoom extends Room {
     if (options.disasterConfigs) this.startWorld(options.disasterConfigs);
     this.startRoam();
     if (options.beasts?.length) this.startVisits(options.beasts);
+    if (options.caveConfig) this.startCaves(options.caveConfig);
     for (const area of this.areas) for (let i = 0; i < foodPerArea(area); i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
@@ -451,6 +458,18 @@ export class LobbyRoom extends Room {
       this.afterTeamTurn(key, team, result);
     });
 
+    this.onMessage("caveEnter", (client, msg: ClientMessages["caveEnter"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.caves) return;
+      const cave = this.caves.get(String(msg?.caveId));
+      if (!cave) return this.problem(client, "cave closed");
+      if (me.info.busy || me.info.away) return this.problem(client, "player is busy");
+      if (!isAdjacent(me.info, cave)) return this.problem(client, "too far away");
+      const visit = this.caves.enter(cave.id, me.info.playerId);
+      if (typeof visit === "string") return this.problem(client, visit);
+      this.tell(client, "caveVisit", visit);
+    });
+
     this.onMessage("foodTake", (client, msg: ClientMessages["foodTake"]) => {
       const me = this.playerOf(client);
       const item = this.food.get(String(msg?.foodId));
@@ -573,6 +592,7 @@ export class LobbyRoom extends Room {
     if (renamed && renamed !== options.navn) this.tell(client, "renamed", { navn: renamed });
     this.tell(client, "raid", this.raidViewNow());
     this.tell(client, "beasts", this.beastViewsNow());
+    this.tell(client, "caves", [...(this.caves?.active ?? [])]);
     this.tell(client, "food", [...this.food.values()]);
     this.world?.welcome(info.playerId);
     // Rejoining mid-team: show the team again (e.g. after a short drop-out).
@@ -742,6 +762,7 @@ export class LobbyRoom extends Room {
   adminChanged(): void {
     this.broadcastRaid();
     this.broadcastBeasts();
+    this.broadcastCaves();
     this.broadcastPlayers();
   }
 
@@ -1012,6 +1033,31 @@ export class LobbyRoom extends Room {
       rand: Math.random,
     });
     this.clock.setInterval(() => this.visits?.tick(), 5_000);
+  }
+
+  // ------------------------------------------------------------ caves
+
+  private startCaves(config: CaveConfig): void {
+    this.caves = new CaveOpenings({
+      store: this.store,
+      areas: this.areas,
+      config,
+      terrain: (areaId) => this.world?.terrain(areaId) ?? emptyTerrain(),
+      occupied: (areaId) => {
+        const lair = this.lairNow();
+        const here = [...this.online.values()].filter((o) => o.info.areaId === areaId).map((o) => o.info as WorldPosition);
+        const beasts = (this.visits?.active ?? []).filter((b) => b.areaId === areaId);
+        return [...here, ...beasts, ...(lair.areaId === areaId ? [lair] : [])];
+      },
+      changed: () => this.broadcastCaves(),
+      rand: Math.random,
+    });
+    this.clock.setInterval(() => this.caves?.tick(), 5_000);
+  }
+
+  private broadcastCaves(): void {
+    const caves = [...(this.caves?.active ?? [])];
+    for (const entry of this.online.values()) this.tell(entry.client, "caves", caves);
   }
 
   /** Food doesn't lie where a beast has come up. */

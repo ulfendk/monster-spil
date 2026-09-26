@@ -160,6 +160,28 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
       <p class="note">Sandslanger stiger op af sandet (klitterne og strandene), kæmpeørne lander ved skovkanter. Hver slags kommer for sig selv og forsvinder igen, når tiden er gået — men aldrig midt i en kamp. Alle der har skadet den, får en unge, når den bliver slået.</p>
     </section>
 
+    <h2>Grotter</h2>
+    <section class="card">
+      <div class="row"><strong id="caveStatus"></strong><span id="caveNext" class="muted"></span></div>
+      <div class="row" style="margin-top:12px">
+        <button id="caveToggle"></button>
+        <label>Åbner, i gennemsnit <select id="caveMean">
+          <option value="15">hvert kvarter</option><option value="30">hver halve time</option><option value="60">hver time</option>
+          <option value="120">hver 2. time</option><option value="240">hver 4. time</option><option value="720">hver 12. time</option>
+          <option value="1440">en gang i døgnet</option>
+        </select></label>
+        <label>Åben i <select id="caveOpen">
+          <option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="60">en time</option><option value="120">2 timer</option>
+        </select></label>
+        <label>Tilfældighed <select id="caveRandom">
+          <option value="0">ingen (præcis)</option><option value="0.25">lidt</option><option value="0.5">noget</option><option value="0.75">meget</option><option value="1">helt vildt</option>
+        </select></label>
+        <button id="caveSave" class="quiet">Gem</button>
+      </div>
+      <div class="row" style="margin-top:12px"><button id="caveOpenNow">Åbn en grotte nu</button><button id="caveClose" class="quiet">Luk grotten</button></div>
+      <p class="note">En grotte åbner i en bjergside og lukker igen, når tiden er gået. Hver spiller kan gå ind én gang, mens den er åben, og kaste bolde efter monstrene derinde.</p>
+    </section>
+
     <h2>Naturkatastrofer</h2>
     <section class="card">
       <div class="row"><strong id="disasterStatus"></strong><span id="disasterNext" class="muted"></span></div>
@@ -312,7 +334,33 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
     showRoam(d.roam, d);
     showDisasters(s.disasters);
     if (s.beasts) showBeasts(s.beasts);
+    if (s.caves) showCaves(s.caves);
   }
+
+  let caveState = null;
+  function showCaves(c) {
+    caveState = c;
+    const open = c.active[0];
+    $("caveStatus").textContent = open ? "En grotte er åben" : c.settings.enabled ? "Slået til" : "Stoppet";
+    $("caveNext").textContent = open
+      ? "ved (" + open.x + ", " + open.y + ") · " + open.visitedBy.length + " har været inde · lukker kl. " + new Date(open.closesAt).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })
+      : c.nextAt ? "· næste omkring " + when(c.nextAt) : "";
+    $("caveToggle").textContent = c.settings.enabled ? "Stop grotter" : "Start grotter";
+    $("caveToggle").className = c.settings.enabled ? "danger" : "";
+    for (const [id, value] of [["caveMean", c.settings.meanMinutes], ["caveOpen", c.settings.openMinutes]]) {
+      const sel = $(id);
+      if (![...sel.options].some((o) => Number(o.value) === value)) sel.append(el("option", { value: String(value), textContent: value + " min" }));
+      sel.value = String(value);
+    }
+    const rnd = $("caveRandom");
+    rnd.value = [...rnd.options].reduce((best, o) => Math.abs(Number(o.value) - c.settings.randomness) < Math.abs(Number(best.value) - c.settings.randomness) ? o : best).value;
+    $("caveOpenNow").disabled = Boolean(open);
+    $("caveClose").disabled = !open;
+  }
+  $("caveToggle").onclick = () => caveState && caves({ action: "settings", enabled: !caveState.settings.enabled });
+  $("caveSave").onclick = () => caves({ action: "settings", meanMinutes: Number($("caveMean").value), openMinutes: Number($("caveOpen").value), randomness: Number($("caveRandom").value) });
+  $("caveOpenNow").onclick = () => caves({ action: "open" });
+  $("caveClose").onclick = () => caveState && caveState.active[0] && caves({ action: "close", id: caveState.active[0].id });
 
   let beastSettings = null;
   function showBeasts(b) {
@@ -453,6 +501,7 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   };
   const dragon = (body) => post(g("/dragon"), body).then(loadGame).catch(fail);
   const beasts = (body) => post(g("/beasts"), body).then(loadGame).catch(fail);
+  const caves = (body) => post(g("/caves"), body).then(loadGame).catch(fail);
   $("dragonReset").onclick = () => confirm("Væk dragen med fuld HP? Ugens skade på den nulstilles.") && dragon({ action: "reset" });
   $("dragonSetHp").onclick = () => dragon({ action: "hp", hp: Number($("dragonHpInput").value) });
   $("dragonSleep").onclick = () => confirm("Læg dragen til at sove til mandag (uden belønninger)?") && dragon({ action: "hp", hp: 0 });

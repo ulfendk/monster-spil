@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { DISASTER_KINDS, type AreaMeta, type BaseArea, type DisasterConfigs } from "@monster-spil/shared";
+import { DISASTER_KINDS, type AreaMeta, type BaseArea, type CaveConfig, type DisasterConfigs } from "@monster-spil/shared";
 
 /** An area as the server needs it: its base map (for disasters) and where food may grow. */
 export interface ServerArea {
@@ -56,4 +56,14 @@ export async function loadDisasterConfigs(): Promise<DisasterConfigs> {
   const raw = JSON.parse(await readFile(contentDir("disasters.json"), "utf-8")) as Partial<DisasterConfigs>;
   for (const k of DISASTER_KINDS) if (!raw[k]) throw new Error(`disasters.json has no "${k}"`);
   return raw as DisasterConfigs;
+}
+
+/** What lives in the caves and how many balls a visit gives (shared/content/caves.json); undefined = no caves. */
+export async function loadCaveConfig(): Promise<CaveConfig | undefined> {
+  try {
+    return JSON.parse(await readFile(contentDir("caves.json"), "utf-8")) as CaveConfig;
+  } catch (error) {
+    console.warn("No caves.json, so no caves:", (error as Error).message);
+    return undefined;
+  }
 }

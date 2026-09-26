@@ -1,0 +1,11 @@
+{
+  "id": "hulepadde",
+  "navn": "Hulepadde",
+  "type": "vand",
+  "baseStats": { "hp": 40, "angreb": 11, "forsvar": 10, "fart": 9 },
+  "moveIds": ["vandpist", "boelgebrus", "kloer"],
+  "spriteFront": "creatures/hulepadde_front.png",
+  "spriteBack": "creatures/hulepadde_back.png",
+  "sound": "creatures/hulepadde.wav",
+  "catchRate": 0.45
+}

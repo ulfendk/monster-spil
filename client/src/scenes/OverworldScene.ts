@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAdjacent, secondsLeft } from "@shared";
-import type { CreatureInstance, CreatureSpecies, AreaMeta, LobbyPlayer, BossDefinition, BeastView, DisasterMessage } from "@shared";
+import type { CreatureInstance, CreatureSpecies, AreaMeta, LobbyPlayer, BossDefinition, BeastView, CaveView, CaveVisit, DisasterMessage } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
 import { persist } from "../save/game-state";
 import type { BattleSceneData } from "./BattleScene";
+import type { CaveSceneData } from "./CaveScene";
 import type { MonsterbogSceneData } from "./MonsterbogScene";
 import type { InteractSceneData } from "./InteractScene";
 import { multiplayerEnabled } from "../net/lobby";
@@ -15,9 +16,10 @@ import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import { beastsById } from "../content/load-beasts";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, foodIcon } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, CAVE_ICON, foodIcon } from "../ui/icons";
 import { WorldLayer } from "../gfx/world-layer";
 import { BeastLayer } from "../gfx/beast-layer";
+import { CaveLayer } from "../gfx/cave-layer";
 import { disasterConfigs } from "../content/load-disasters";
 import { currentGame } from "../save/games";
 import { t } from "../i18n/da";
@@ -56,6 +58,8 @@ const STICK_RADIUS = 56;
 const DRAGON_MEET = "__dragon__";
 /** `pendingMeet` prefix meaning "I'm walking over to this visiting beast". */
 const BEAST_MEET = "__beast__:";
+/** `pendingMeet` prefix meaning "I'm walking over to this cave". */
+const CAVE_MEET = "__cave__:";
 
 /** How another player is drawn on the map. */
 interface OtherView {
@@ -109,6 +113,7 @@ export class OverworldScene extends Phaser.Scene {
   /** What natural disasters did to this map, and warnings of the next one. */
   private world!: WorldLayer;
   private beasts!: BeastLayer;
+  private caves!: CaveLayer;
 
   constructor() {
     super("Overworld");
@@ -149,6 +154,8 @@ export class OverworldScene extends Phaser.Scene {
       if (view.x === this.playerTile.x && view.y === this.playerTile.y) this.ensureFreeTile();
     });
     this.events.once("shutdown", () => this.beasts.destroy());
+    this.caves = new CaveLayer(this, TILE_SIZE, () => this.showToast(`${ic(CAVE_ICON)} ${t("cave_open")}`, 4000));
+    this.events.once("shutdown", () => this.caves.destroy());
 
     // (0,0) sits inside the border wall, so it can never be a real position —
     // use it as the "no saved position yet" sentinel for this map. A saved spot that
@@ -389,6 +396,8 @@ export class OverworldScene extends Phaser.Scene {
     if (boss && tile.x === boss.lair.x && tile.y === boss.lair.y) return this.onTapDragon(boss);
     const beast = this.beasts.beastAt(tile.x, tile.y);
     if (beast) return this.onTapBeast(beast);
+    const cave = this.caves.caveAt(tile.x, tile.y);
+    if (cave) return this.onTapCave(cave);
     const spawn = this.world.spawnAt(tile.x, tile.y);
     if (spawn) this.onTapSpawn(spawn.id, tile);
   }
@@ -473,6 +482,7 @@ export class OverworldScene extends Phaser.Scene {
     const boss = this.visibleBoss();
     if (boss) dots.push({ x: boss.lair.x, y: boss.lair.y, colour: 0, kind: "dragon", dim: presence.raid?.defeated });
     for (const { view, def } of this.beasts.views()) dots.push({ x: view.x, y: view.y, colour: 0, kind: BEAST_ICONS[def.habitat] });
+    for (const cave of this.caves.views()) dots.push({ x: cave.x, y: cave.y, colour: 0, kind: "cave" });
     // My dot follows the sprite while it walks, not just the tile it left.
     dots.push({
       x: (this.player.x - TILE_SIZE / 2) / TILE_SIZE,
@@ -506,9 +516,13 @@ export class OverworldScene extends Phaser.Scene {
       else if (reason === "resting") this.showToast(`${ic(REST_ICON)} ${t("raid_resting")}`);
       else if (reason === "a team is already at the dragon" || reason === "a team is already there" || reason === "team is full" || reason === "team has already started") this.showToast(`${ic(TEAM_ICON)} ${t("meet_busy")}`);
       else if (reason === "beast gone") this.showToast(t("beast_gone"));
+      else if (reason === "cave closed") this.showToast(`${ic(CAVE_ICON)} ${t("cave_closed")}`);
+      else if (reason === "cave visited") this.showToast(`${ic(CAVE_ICON)} ${t("cave_visited")}`);
     };
     const onRaid = () => this.syncDragon();
     const onBeasts = () => this.beasts.sync(presence.beasts, this.save.position.areaId);
+    const onCaves = () => this.caves.sync(presence.caves, this.save.position.areaId);
+    const onCaveVisit = (visit: CaveVisit) => this.startCave(visit);
     const onFood = () => this.syncFood();
     const onTerrain = (areaId: string) => {
       if (areaId === this.save.position.areaId) this.applyTerrain();
@@ -537,6 +551,8 @@ export class OverworldScene extends Phaser.Scene {
     const onRaidBattle = (update: RaidBattleUpdate) => this.startRaidBattle(update);
     presence.events.on("raid", onRaid);
     presence.events.on("beasts", onBeasts);
+    presence.events.on("caves", onCaves);
+    presence.events.on("caveVisit", onCaveVisit);
     presence.events.on("raidBattle", onRaidBattle);
     presence.events.on("players", onPlayers);
     presence.events.on("moved", onMoved);
@@ -557,6 +573,8 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("problem", onProblem);
       presence.events.off("raid", onRaid);
       presence.events.off("beasts", onBeasts);
+      presence.events.off("caves", onCaves);
+      presence.events.off("caveVisit", onCaveVisit);
       presence.events.off("food", onFood);
       presence.events.off("foodTaken", onFoodTaken);
       presence.events.off("raidBattle", onRaidBattle);
@@ -574,6 +592,7 @@ export class OverworldScene extends Phaser.Scene {
     this.syncDragon();
     // Coming back to the map: the beasts are just there (no arrivals replayed).
     this.beasts.sync(presence.beasts, this.save.position.areaId, false);
+    this.caves.sync(presence.caves, this.save.position.areaId, false);
     this.syncFood();
     // Coming back from a menu or a battle (onResume): show anyone who moved meanwhile, and anything waiting for me.
     this.syncOthers(true);
@@ -814,6 +833,23 @@ export class OverworldScene extends Phaser.Scene {
     if (!gathering) buttons.push({ label: `${ic(TEAM_ICON)}${ic("sword")}`, colour: C.button, onTap: () => presence.send("teamCreate", { seat: seat(), targetId }) });
     buttons.push({ label: "✗", colour: C.buttonQuiet, onTap: () => {} });
     this.showPopup(`${ic(BEAST_ICONS[def.habitat])} ${def.navn}  ${ic("heart")} ${beast.hp}`, buttons);
+  }
+
+  /** An open cave: walk up to it, then go in (once per opening). */
+  private onTapCave(cave: CaveView): void {
+    if (cave.visitedBy.includes(this.save.player.id)) return this.showToast(`${ic(CAVE_ICON)} ${t("cave_visited")}`);
+    if (!isAdjacent(this.myPosition(), cave)) return this.walkNextTo(cave, CAVE_MEET + cave.id);
+    presence.send("caveEnter", { caveId: cave.id });
+  }
+
+  /** The server let me in: the cave minigame takes over the screen. */
+  private startCave(visit: CaveVisit): void {
+    if (!this.scene.isActive()) return;
+    this.closePopup();
+    this.pendingPath = [];
+    this.savePosition();
+    const data: CaveSceneData = { save: this.save, content: this.content, visit };
+    this.scene.start("Cave", data);
   }
 
   /** The server accepted my attack: the battle takes over the screen until the attempt ends. */
@@ -1100,6 +1136,9 @@ export class OverworldScene extends Phaser.Scene {
           const boss = this.visibleBoss();
           if (meet === DRAGON_MEET) {
             if (boss && isAdjacent(this.myPosition(), boss.lair)) this.onTapDragon(boss);
+          } else if (meet.startsWith(CAVE_MEET)) {
+            const cave = presence.caves.find((c) => c.id === meet.slice(CAVE_MEET.length));
+            if (cave && isAdjacent(this.myPosition(), cave)) this.onTapCave(cave);
           } else if (meet.startsWith(BEAST_MEET)) {
             const beast = presence.beasts.find((b) => b.id === meet.slice(BEAST_MEET.length));
             if (beast && isAdjacent(this.myPosition(), beast)) this.onTapBeast(beast);

@@ -15,8 +15,8 @@ export interface MinimapDot {
 }
 
 type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood" | "sand";
-/** Bosses shown on the overview map as their icon. */
-const BOSS_MARKERS = ["dragon", "serpent", "eagle"] as const;
+/** Bosses (and an open cave) shown on the overview map as their icon. */
+const BOSS_MARKERS = ["dragon", "serpent", "eagle", "cave"] as const;
 export type BossMarker = (typeof BOSS_MARKERS)[number];
 const COLOURS: Record<Kind | "ground" | "grass", number> = {
   ground: KANAGAWA.autumnGreen,

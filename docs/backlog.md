@@ -7,9 +7,9 @@ Ideas agreed on but not scheduled yet. Newest at the bottom.
   code changes to add a monster) is a core rule, so this would need a way to keep
   both in step.
 - **Omarchy plugin.** Play the game in its own window on the Omarchy desktop.
-- **Caves.** Caves on the map the player can walk into, opening a 3D minigame where
-  the player throws balls to capture monsters.
 - **Player levels and badges.** Each player starts at level 1 and levels up the more
   (and the better) they play. Achievement badges to earn along the way.
 - **Serve the whole game from Docker.** The server image also serves the built client,
   so one deploy updates both at the same time.
+- **Small animations in 3D minigames.** Monsters in the cave come alive: blinking
+  eyes, moving mouths and the like.
