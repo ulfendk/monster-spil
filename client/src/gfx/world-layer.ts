@@ -187,6 +187,15 @@ export class WorldLayer {
     this.scene.tweens.add({ targets: burst, scale: burst.scale * 3, alpha: 0, duration: 900, ease: "Cubic.out", onComplete: () => burst.destroy() });
   }
 
+  /**
+   * A change only this device sees (the minigames while offline or in a solo game): the
+   * tile is set straight in the tilemap (collisions follow) and lasts until the map is
+   * drawn again.
+   */
+  setLocalTile(x: number, y: number, ground: number): void {
+    this.ground.putTileAt(ground, x, y);
+  }
+
   destroy(): void {
     this.clearWarning();
     for (const o of this.zoneMarks) o.destroy();

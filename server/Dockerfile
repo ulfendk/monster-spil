@@ -35,6 +35,7 @@ COPY shared/content/beasts shared/content/beasts
 COPY shared/content/areas shared/content/areas
 COPY shared/content/disasters.json shared/content/disasters.json
 COPY shared/content/caves.json shared/content/caves.json
+COPY shared/content/minigames.json shared/content/minigames.json
 # Scores, the dragon's HP and unclaimed rewards live here; mount a volume on /data to keep them.
 RUN mkdir -p /data && chown node:node /data
 ENV DATA_DIR=/data

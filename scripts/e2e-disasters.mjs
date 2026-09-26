@@ -60,6 +60,8 @@ check("the map changed: a crater where it hit", o["42,10"]?.ground === 8 && !o["
 check("and burnt ground around it that will heal", Object.values(o).some((t) => t.ground === 7 && t.until));
 check("where Anna stands stays walkable", !o["40,10"] || ![2, 4, 6, 10, 11, 13].includes(o["40,10"].ground));
 check("rare monsters now live in the crater", anna.got.terrain.zones.some((z) => z.speciesId === "stjernesten" && z.tiles.includes("42,10")));
+// Both get the same update, but not necessarily at the same moment: wait for Bo's too.
+await until(() => JSON.stringify(bo.got.terrain) === JSON.stringify(anna.got.terrain));
 check("everyone sees the same map", JSON.stringify(bo.got.terrain) === JSON.stringify(anna.got.terrain));
 
 // The UFO: Bo walks over; the first to claim the alien gets to battle it.

@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { DISASTER_KINDS, type AreaMeta, type BaseArea, type CaveConfig, type DisasterConfigs } from "@monster-spil/shared";
+import { DISASTER_KINDS, type AreaMeta, type BaseArea, type CaveConfig, type DisasterConfigs, type MinigameConfig } from "@monster-spil/shared";
 
 /** An area as the server needs it: its base map (for disasters) and where food may grow. */
 export interface ServerArea {
@@ -66,6 +66,16 @@ export async function loadCaveConfig(): Promise<CaveConfig | undefined> {
     return config;
   } catch (error) {
     console.warn("No caves.json, so no caves:", (error as Error).message);
+    return undefined;
+  }
+}
+
+/** How the minigames work (shared/content/minigames.json): regrowth, digging, how far you can swim and climb. */
+export async function loadMinigameConfig(): Promise<MinigameConfig | undefined> {
+  try {
+    return JSON.parse(await readFile(contentDir("minigames.json"), "utf-8")) as MinigameConfig;
+  } catch (error) {
+    console.warn("No minigames.json, so no cutting or digging:", (error as Error).message);
     return undefined;
   }
 }

@@ -104,7 +104,7 @@ test("a save from before levels gets credit for what it has caught", () => {
 });
 
 test("the content files make sense", () => {
-  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "species", "level"]);
+  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "cut", "climb", "swim", "dig", "gem", "species", "level"]);
   const ids = new Set<string>();
   for (const b of badges) {
     assert.ok(!ids.has(b.id), `badge ids are unique: ${b.id}`);

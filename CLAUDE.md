@@ -446,6 +446,32 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   breathing, blinking, crying, startled jumps — and the tick loop); `CaveStage` and
   `MeadowStage` add their scenery and say where monsters are and how they move.
 
+### Minigames: working the land (protocol v14)
+
+- **Tap a tree, water or a mountain next to you** (further away: you walk over first) for a
+  big button that starts its game: **chopping** (`ChopGame`: tap while the swinging marker is
+  in the green, three good chops fell it), **swimming** (`SwimGame`: tap as the ring meets the
+  circle; misses tire you) and **climbing** (`ClimbGame`: tap the glowing handholds before
+  your strength runs out). A **shovel button** (bottom right) shows only where you can dig
+  (plain ground or sand, no tall grass): **digging** (`DigGame`: tap fast). All in
+  `client/src/scenes/minigames/`, sharing `Minigame` (backdrop, hint below the ✕ row, ✕ to
+  give up, a result, back to the paused map); played by tapping only, restarting on rotation.
+- **What they do:** a felled tree leaves a walkable **stump** (tile 15) that grows back into a
+  tree after `cut.regrowHours`; a **hole** (tile 16) fills in after `dig.healHours` and turns
+  up food (into the bag), a gem (XP), a monster (a wild battle — Gravling lives only here) or
+  nothing (`dig.rewards` by weight); swimming and climbing carry you straight across to the
+  first walkable tile beyond (at most `swim.maxTiles` / `climb.maxTiles`). All numbers in
+  `shared/content/minigames.json`. Each earns XP and counts for a badge (Skovhugger,
+  Svømmer, Bjergbestiger, Skattejæger).
+- **Pure rules** (tested) in `shared/src/world/work.ts`: `canCut`, `canDig`, `applyCut`,
+  `applyDig`, `crossTarget`, `pickDigReward`. Healing (`healTerrain`) never grows anything
+  blocking under a player (`occupied`), and never where it would cut the map in two.
+- **Shared map:** online, cuts and holes go to the server (`work {kind, x, y}` →
+  `workDone`, refused unless you stand next to the tree / on the ground; `WorldEvents.work`),
+  so everyone sees them and they heal like disaster changes; offline or in a solo game they
+  change only this device's map until it's drawn again (`WorldLayer.setLocalTile`).
+  `scripts/e2e-work.mjs` covers the server side.
+
 ### Teaming up (protocol v5)
 
 - **Pure rules in `shared/src/raid/team.ts`** (tested): one team at a time gathers

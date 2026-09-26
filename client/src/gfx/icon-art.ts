@@ -265,6 +265,38 @@ const ART: Record<string, (g: G) => void> = {
     }
     g.fillStyle(K.washi, 1).fillTriangle(54, 88, 62, 88, 58, 98).fillTriangle(66, 88, 74, 88, 70, 98);
   },
+  axe: (g) => {
+    // A woodcutter's axe: a wooden handle and a broad steel head.
+    stroke(g, 34, 118, 86, 22, K.boatYellow1, 12);
+    shape(g, [{ x: 70, y: 16 }, { x: 112, y: 22 }, { x: 118, y: 58 }, { x: 92, y: 50 }, { x: 80, y: 40 }], K.fujiGray);
+    shape(g, [{ x: 104, y: 24 }, { x: 112, y: 22 }, { x: 118, y: 58 }, { x: 110, y: 56 }], K.fujiWhite, 4);
+  },
+  climb: (g) => {
+    // A rope up a grey rock face, with a hand holding on.
+    shape(g, [{ x: 10, y: 122 }, { x: 34, y: 20 }, { x: 70, y: 6 }, { x: 118, y: 30 }, { x: 118, y: 122 }], K.katanaGray);
+    stroke(g, 64, 6, 58, 122, K.boatYellow2, 7);
+    for (const y of [36, 66, 96]) circle(g, 60, y, 5, K.boatYellow1, 4);
+    ellipse(g, 64, 58, 30, 22, K.surimiOrange);
+  },
+  swim: (g) => {
+    // A head above the waves, an arm mid-stroke.
+    circle(g, 60, 52, 22, K.surimiOrange);
+    faceEyes(g, 60, 50, 12);
+    stroke(g, 84, 60, 108, 30, K.surimiOrange, 12);
+    for (const [y, c] of [[80, K.crystalBlue], [104, K.waveBlue2]] as const) {
+      g.lineStyle(9, c, 1);
+      g.beginPath();
+      for (let x = 6; x <= 122; x += 4) g.lineTo(x, y + Math.sin(x / 9) * 6);
+      g.strokePath();
+    }
+  },
+  shovel: (g) => {
+    // A shovel stuck in a heap of earth.
+    ellipse(g, 64, 108, 100, 30, K.boatYellow1);
+    stroke(g, 64, 14, 64, 80, K.boatYellow2, 10);
+    stroke(g, 50, 16, 78, 16, K.boatYellow2, 10);
+    shape(g, [{ x: 44, y: 76 }, { x: 84, y: 76 }, { x: 80, y: 106 }, { x: 64, y: 118 }, { x: 48, y: 106 }], K.fujiGray);
+  },
   cave: (g) => {
     // A mountain with a dark cave mouth and a crystal glowing inside.
     shape(g, [{ x: 64, y: 8 }, { x: 122, y: 118 }, { x: 6, y: 118 }], K.katanaGray);

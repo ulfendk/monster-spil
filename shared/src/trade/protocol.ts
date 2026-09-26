@@ -70,12 +70,13 @@ export const PLAYER_ELSEWHERE = 4000;
  * raidStart/teamCreate/raidBattle/TeamView (absent = the dragon),
  * v12 = caves that open in the mountains: `caves`, `caveEnter` → `caveVisit`,
  * v13 = player levels and badges: `level`/`badges` on join and in `profile`, shown on
- * LobbyPlayer and the scoreboard. The server announces its version with the
+ * LobbyPlayer and the scoreboard,
+ * v14 = the minigames: `work {kind: cut|dig, x, y}` → `workDone`, shared stumps and holes. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -105,6 +106,8 @@ export interface ClientMessages {
   getScores: Record<string, never>;
   /** The reward has been added to my save and persisted; the server may forget it. */
   rewardAck: { rewardId: string };
+  /** I felled the tree next to me, or dug where I stand (v14+): everyone sees the stump or hole. */
+  work: { kind: "cut" | "dig"; x: number; y: number };
   /** My level or badges changed (v13+): everyone sees the new ones. */
   profile: { level: number; badges: string[] };
   /** Go into an open cave I'm standing next to (once per opening; v12+). */
@@ -204,6 +207,8 @@ export interface ServerMessages {
   disaster: DisasterMessage;
   /** The dragon takes off and lands on a new perch: animate the flight (the raid view already has the new lair; v10+). */
   dragonFlight: { from: WorldPosition; to: WorldPosition; ms: number };
+  /** My work is done on the shared map (the terrain update follows); otherwise a `problem`. */
+  workDone: { kind: "cut" | "dig"; x: number; y: number };
   /** Every open cave (v12+): on join and whenever one opens, closes or someone goes in. */
   caves: CaveView[];
   /** I'm in: the monsters in there this time and my balls. The device runs the minigame. */

@@ -3,7 +3,7 @@
 //   node scripts/generate-startskoven.mjs
 // Dependency-free on purpose (own PNG encoder). Writes:
 //   shared/content/areas/startskoven.json          (Tiled-format export)
-//   shared/content/areas/startskoven-tileset.png   (14 tiles: 5 landscape + 8 for natural disasters + sand)
+//   shared/content/areas/startskoven-tileset.png   (16 tiles: 5 landscape + 8 for natural disasters + sand + stump + hole)
 // and updates playerStart in startskoven.meta.json. The map is deterministic
 // (seeded), so re-running gives the same world. Once someone edits the map in
 // Tiled, stop running this — the Tiled file is then the source of truth.
@@ -20,9 +20,10 @@ const T = 64;
 // (shared/src/world/disasters.ts): 7 burnt ground, 8 crater, 9 floodwater (shallow, walkable),
 // 10 fallen tree (blocks), 11 fissure (blocks), 12 rubble, 13 UFO wreck (blocks).
 // 14 sand: dunes and beaches, where sand serpents rise (shared/src/raid/beasts.ts).
+// 15 stump (a felled tree) and 16 hole (dug ground): the minigames (shared/src/world/work.ts).
 const GROUND = 1, TREE = 2, GRASS = 3, WATER = 4, PATH = 5, MOUNTAIN = 6;
-const BURNT = 7, CRATER = 8, FLOOD = 9, LOG = 10, CRACK = 11, RUBBLE = 12, WRECK = 13, SAND = 14;
-const TILE_COUNT = 14;
+const BURNT = 7, CRATER = 8, FLOOD = 9, LOG = 10, CRACK = 11, RUBBLE = 12, WRECK = 13, SAND = 14, STUMP = 15, HOLE = 16;
+const TILE_COUNT = 16;
 const BLOCKING = [TREE, WATER, MOUNTAIN, LOG, CRACK, WRECK];
 
 function rng(seed) {
@@ -248,6 +249,28 @@ function drawTileset() {
     }
   }
   for (const [x, y] of [[20, 16], [46, 33], [12, 47]]) { disc(o, x, y, 2, K.pathDot); set(o + x - 1, y - 1, K.sandLight); }
+  // 15 stump: a felled pine's stump with its rings, on the meadow, a little sawdust around
+  o = 14 * T;
+  ground(o, K.ground);
+  tuft(o, 12, 56, K.groundDot);
+  tuft(o, 52, 58, K.groundDot);
+  ellipse(o, 32, 44, 20, 9, K.ink);
+  line(o, 12, 44, 12, 34, K.ink, 3);
+  line(o, 51, 44, 51, 34, K.ink, 3);
+  for (let y = 34; y <= 44; y++) for (let x = 14; x <= 50; x++) set(o + x, y, K.bark);
+  ellipse(o, 32, 34, 20, 9, K.ink);
+  ellipse(o, 32, 34, 18, 7, K.plume);
+  ellipse(o, 32, 34, 12, 4, K.path);
+  ellipse(o, 32, 34, 6, 2, K.plume);
+  disc(o, 32, 34, 1, K.bark);
+  for (const [x, y] of [[8, 46], [56, 40], [20, 54], [44, 52]]) disc(o, x, y, 2, K.plumeLight);
+  // 16 hole: fresh earth thrown up around a dark pit
+  o = 15 * T;
+  ground(o, K.ground);
+  ellipse(o, 32, 36, 27, 19, K.craterRim);
+  for (const [x, y] of [[10, 22], [54, 26], [12, 52], [52, 50], [30, 14]]) disc(o, x, y, 3, K.pathDot);
+  ellipse(o, 32, 37, 18, 12, K.craterFloor);
+  ellipse(o, 32, 39, 11, 7, K.craterDeep);
   return { width, height: T, px };
 }
 
@@ -563,8 +586,8 @@ const metaPath = path.join(AREAS, "startskoven.meta.json");
 const metaText = readFileSync(metaPath, "utf8")
   .replace(/"collisionGids":\s*\[[^\]]*\]/, `"collisionGids": [${BLOCKING.join(", ")}]`)
   .replace(/"playerStart":\s*\{[^}]*\}/, `"playerStart": { "x": ${START.x}, "y": ${START.y} }`)
-  .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}, ${LOG}], "water": [${WATER}], "path": [${PATH}], "mountain": [${MOUNTAIN}, ${CRACK}, ${WRECK}], "burnt": [${BURNT}], "crater": [${CRATER}, ${RUBBLE}], "flood": [${FLOOD}], "sand": [${SAND}] }`)
-  .replace(/"terrain":\s*\{[^}]*\}/, `"terrain": ${JSON.stringify({ ground: GROUND, tree: TREE, grass: GRASS, water: WATER, path: PATH, mountain: MOUNTAIN, burnt: BURNT, crater: CRATER, flood: FLOOD, log: LOG, crack: CRACK, rubble: RUBBLE, wreck: WRECK, sand: SAND }).replace(/,/g, ", ").replace(/:/g, ": ")}`);
+  .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}, ${LOG}], "water": [${WATER}], "path": [${PATH}], "mountain": [${MOUNTAIN}, ${CRACK}, ${WRECK}], "burnt": [${BURNT}], "crater": [${CRATER}, ${RUBBLE}], "flood": [${FLOOD}], "sand": [${SAND}], "hole": [${HOLE}], "stump": [${STUMP}] }`)
+  .replace(/"terrain":\s*\{[^}]*\}/, `"terrain": ${JSON.stringify({ ground: GROUND, tree: TREE, grass: GRASS, water: WATER, path: PATH, mountain: MOUNTAIN, burnt: BURNT, crater: CRATER, flood: FLOOD, log: LOG, crack: CRACK, rubble: RUBBLE, wreck: WRECK, sand: SAND, stump: STUMP, hole: HOLE }).replace(/,/g, ", ").replace(/:/g, ": ")}`);
 writeFileSync(metaPath, metaText);
 
 console.log(`Startskoven ${W}x${H}: ${reach.size} walkable tiles, ${grassTiles} grass tiles, ${sealed} sealed-off tiles turned to trees, ${heartlandChanged} heartland tiles opened for gates`);

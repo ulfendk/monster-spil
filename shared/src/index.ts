@@ -178,3 +178,5 @@ export {
   xpForLevel,
 } from "./player/progress.js";
 export type { AwardResult, Badge, LevelConfig, Progress, ProgressEvent } from "./player/progress.js";
+export { applyCut, applyDig, canCut, canDig, crossTarget, pickDigMonster, pickDigReward } from "./world/work.js";
+export type { DigReward, MinigameConfig, WorkKind } from "./world/work.js";

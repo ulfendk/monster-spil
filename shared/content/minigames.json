@@ -1,0 +1,19 @@
+{
+  "cut": { "regrowHours": 6 },
+  "dig": {
+    "healHours": 1,
+    "rewards": [
+      { "kind": "food", "weight": 40 },
+      { "kind": "monster", "weight": 25 },
+      { "kind": "gem", "weight": 20, "xp": 15 },
+      { "kind": "nothing", "weight": 15 }
+    ],
+    "monsters": [
+      { "speciesId": "gravling", "weight": 3 },
+      { "speciesId": "stenbid", "weight": 2 },
+      { "speciesId": "lovgro", "weight": 1 }
+    ]
+  },
+  "swim": { "maxTiles": 16 },
+  "climb": { "maxTiles": 10 }
+}

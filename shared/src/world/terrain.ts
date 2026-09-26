@@ -39,6 +39,9 @@ export interface TerrainTileIds {
   wreck: number;
   /** Dunes and beaches, where sand serpents rise (beasts.ts); a map without it has no serpents. */
   sand?: number;
+  /** A felled tree's stump (walkable; grows back into a tree) and a dug hole (walkable; fills in) — work.ts. */
+  stump?: number;
+  hole?: number;
 }
 
 /** An area's base map, as the disaster rules need it. */
@@ -188,17 +191,20 @@ export function setTile(base: BaseArea, terrain: AreaTerrain, key: string, state
 /**
  * Heals what is due by `now`: soft changes go back to what was under them, and zones and
  * spawns run out. A heal that would block a tile and cut the map in two (a tree growing
- * back where the only way through now is) keeps that tile walkable for good instead.
+ * back where the only way through now is) keeps that tile walkable for good instead; one
+ * where someone stands (`occupied`, tile keys) waits until they have stepped off.
  * Returns whether anything changed.
  */
-export function healTerrain(base: BaseArea, terrain: AreaTerrain, now: Date): boolean {
+export function healTerrain(base: BaseArea, terrain: AreaTerrain, now: Date, occupied: ReadonlySet<string> = new Set()): boolean {
   const t = now.getTime();
   let changed = false;
   for (const [key, o] of Object.entries(terrain.overrides)) {
     if (!o.until || Date.parse(o.until) > t) continue;
-    changed = true;
     const { x, y } = fromKey(key);
     const back = o.after ?? baseTile(base, x, y);
+    // Never grow a tree (or anything blocking) under someone's feet: try again later.
+    if (blocks(base, back) && occupied.has(key)) continue;
+    changed = true;
     if (blocks(base, back)) {
       const blocked = new Set([key]);
       if (!staysConnected(base, (bx, by) => walkableNow(base, terrain, bx, by), blocked)) {

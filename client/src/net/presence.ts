@@ -119,6 +119,11 @@ class Presence {
     return typeof this.serverVersion === "number" && this.serverVersion >= 4;
   }
 
+  /** True when the server keeps felled trees and dug holes on the shared map (protocol v14+). */
+  get workSupported(): boolean {
+    return this.status === "online" && typeof this.serverVersion === "number" && this.serverVersion >= 14;
+  }
+
   /** True when the server sends visiting beasts (protocol v11+). */
   get beastsSupported(): boolean {
     return typeof this.serverVersion === "number" && this.serverVersion >= 11;
@@ -322,6 +327,7 @@ class Presence {
       this.events.emit("caves", caves);
     });
     listen(room, "caveVisit", (visit) => this.events.emit("caveVisit", visit));
+    listen(room, "workDone", (done) => this.events.emit("workDone", done));
     listen(room, "beasts", (views) => {
       this.beasts = views;
       this.events.emit("beasts", views);

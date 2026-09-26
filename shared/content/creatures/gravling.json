@@ -1,0 +1,11 @@
+{
+  "id": "gravling",
+  "navn": "Gravling",
+  "type": "sten",
+  "baseStats": { "hp": 42, "angreb": 12, "forsvar": 12, "fart": 8 },
+  "moveIds": ["stenkast", "jordrystelse", "kloer"],
+  "spriteFront": "creatures/gravling_front.png",
+  "spriteBack": "creatures/gravling_back.png",
+  "sound": "creatures/gravling.wav",
+  "catchRate": 0.45
+}

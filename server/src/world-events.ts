@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  applyCut,
+  applyDig,
   applyDisaster,
   blocks,
+  canCut,
+  canDig,
   emptyTerrain,
   healAllNow,
   healTerrain,
@@ -19,7 +23,9 @@ import {
   type DisasterMessage,
   type DisasterNews,
   type DisasterPlan,
+  type MinigameConfig,
   type ServerMessages,
+  type WorkKind,
 } from "@monster-spil/shared";
 import { HISTORY_MAX, type GameStore } from "./game-store.js";
 import type { ServerArea } from "./areas.js";
@@ -99,10 +105,31 @@ export class WorldEvents {
     return !blocks(area.base, t) && !t.grass;
   }
 
+  /**
+   * A player's work on the land (shared/src/world/work.ts): felling a tree next to them, or
+   * digging where they stand. Returns why not, or undefined when done (everyone sees it).
+   */
+  work(kind: WorkKind, player: WorldPlayer, x: number, y: number, config: MinigameConfig, now = new Date()): string | undefined {
+    const area = this.host.areas.find((a) => a.areaId === player.areaId);
+    if (!area?.base) return "no work here";
+    const terrain = this.terrain(area.areaId);
+    if (kind === "cut") {
+      if (!isAdjacent(player, { areaId: player.areaId, x, y }) || !canCut(area.base, terrain, x, y)) return "cannot work here";
+      applyCut(area.base, terrain, x, y, now, config);
+    } else {
+      if (player.x !== x || player.y !== y || !canDig(area.base, terrain, x, y)) return "cannot work here";
+      applyDig(area.base, terrain, x, y, now, config);
+    }
+    this.changed(area.areaId);
+    return undefined;
+  }
+
   /** Called every few seconds: heal what is due, and start the next disaster when it's time. */
   tick(now = new Date()): void {
     for (const area of this.disasterAreas()) {
-      if (healTerrain(area.base, this.terrain(area.areaId), now)) this.changed(area.areaId);
+      // Nothing grows back under anyone's feet.
+      const occupied = new Set(this.host.players().filter((p) => p.areaId === area.areaId).map((p) => tileKey(p.x, p.y)));
+      if (healTerrain(area.base, this.terrain(area.areaId), now, occupied)) this.changed(area.areaId);
     }
     const w = this.host.store.data.world;
     if (!w.settings.enabled || this.active) return;

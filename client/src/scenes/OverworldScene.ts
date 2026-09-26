@@ -36,6 +36,9 @@ import { recordProgress } from "../progress/record";
 import { levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
+import { crossTarget, emptyTerrain, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { minigameConfig } from "../content/load-minigames";
+import type { MinigameData } from "./minigames/Minigame";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -65,6 +68,13 @@ const DRAGON_MEET = "__dragon__";
 const BEAST_MEET = "__beast__:";
 /** `pendingMeet` prefix meaning "I'm walking over to this cave". */
 const CAVE_MEET = "__cave__:";
+/** `pendingMeet` prefix meaning "I'm walking over to work on this tile" (a tree, water, a mountain). */
+const WORK_MEET = "__work__:";
+
+/** What can be done with a blocking tile next to me: fell it, swim across, climb over. */
+type LandWork = "cut" | "swim" | "climb";
+const WORK_ICONS: Record<LandWork, string> = { cut: "axe", swim: "swim", climb: "climb" };
+const WORK_GAMES: Record<LandWork, string> = { cut: "Chop", swim: "Swim", climb: "Climb" };
 
 /** How another player is drawn on the map. */
 interface OtherView {
@@ -422,7 +432,9 @@ export class OverworldScene extends Phaser.Scene {
     const cave = this.caves.caveAt(tile.x, tile.y);
     if (cave) return this.onTapCave(cave);
     const spawn = this.world.spawnAt(tile.x, tile.y);
-    if (spawn) this.onTapSpawn(spawn.id, tile);
+    if (spawn) return this.onTapSpawn(spawn.id, tile);
+    const work = this.workAt(tile);
+    if (work) this.onTapWork(work, tile);
   }
 
   /** Starts the next step in the direction the finger points, unless one is already under way. */
@@ -490,6 +502,11 @@ export class OverworldScene extends Phaser.Scene {
       this.closePopup();
       this.minimap?.open();
     });
+    // The shovel, bottom right: only where I can dig.
+    const digSize = layout.touch(80);
+    this.digButton = this.hudButton(layout.width - layout.safe.right - gap - digSize / 2, layout.height - layout.safe.bottom - gap - digSize / 2, digSize, ic("shovel"), () => this.startDig());
+    this.digButton.setVisible(this.canDigHere());
+    this.hud.push(this.digButton);
     // My level at the top left: tap it for my profile and badges.
     const levelButton = createButton(this, layout.safe.left + gap + size * 0.8, y, `${ic("star")} ${myLevel()}`, () => this.openProfile({ save: this.save }), {
       width: size * 1.6,
@@ -550,12 +567,22 @@ export class OverworldScene extends Phaser.Scene {
       else if (reason === "a team is already at the dragon" || reason === "a team is already there" || reason === "team is full" || reason === "team has already started") this.showToast(`${ic(TEAM_ICON)} ${t("meet_busy")}`);
       else if (reason === "beast gone") this.showToast(t("beast_gone"));
       else if (reason === "cave closed") this.showToast(`${ic(CAVE_ICON)} ${t("cave_closed")}`);
+      else if (reason === "cannot work here" || reason === "no work here") {
+        this.pendingDig = undefined;
+        this.showToast(t("work_refused"));
+      }
       else if (reason === "cave visited") this.showToast(`${ic(CAVE_ICON)} ${t("cave_visited")}`);
     };
     const onRaid = () => this.syncDragon();
     const onBeasts = () => this.beasts.sync(presence.beasts, this.save.position.areaId);
     const onCaves = () => this.caves.sync(presence.caves, this.save.position.areaId);
     const onCaveVisit = (visit: CaveVisit) => this.startCave(visit);
+    const onWorkDone = ({ kind, x, y }: { kind: "cut" | "dig"; x: number; y: number }) => {
+      if (kind === "dig" && this.pendingDig?.x === x && this.pendingDig?.y === y) {
+        this.pendingDig = undefined;
+        this.dug();
+      }
+    };
     const onFood = () => this.syncFood();
     const onTerrain = (areaId: string) => {
       if (areaId === this.save.position.areaId) this.applyTerrain();
@@ -586,6 +613,7 @@ export class OverworldScene extends Phaser.Scene {
     presence.events.on("beasts", onBeasts);
     presence.events.on("caves", onCaves);
     presence.events.on("caveVisit", onCaveVisit);
+    presence.events.on("workDone", onWorkDone);
     presence.events.on("raidBattle", onRaidBattle);
     presence.events.on("players", onPlayers);
     presence.events.on("moved", onMoved);
@@ -608,6 +636,7 @@ export class OverworldScene extends Phaser.Scene {
       presence.events.off("beasts", onBeasts);
       presence.events.off("caves", onCaves);
       presence.events.off("caveVisit", onCaveVisit);
+      presence.events.off("workDone", onWorkDone);
       presence.events.off("food", onFood);
       presence.events.off("foodTaken", onFoodTaken);
       presence.events.off("raidBattle", onRaidBattle);
@@ -868,6 +897,161 @@ export class OverworldScene extends Phaser.Scene {
     this.showPopup(`${ic(BEAST_ICONS[def.habitat])} ${def.navn}  ${ic("heart")} ${beast.hp}`, buttons);
   }
 
+  // ------------------------------------------------------------ the minigames: working the land
+
+  /** What a tap on this tile could do: fell a tree, swim across water, climb a mountain. */
+  private workAt(tile: TileCoord): LandWork | undefined {
+    const ids = this.areaMeta.terrain;
+    if (!ids || tile.x <= 0 || tile.y <= 0 || tile.x >= this.map.width - 1 || tile.y >= this.map.height - 1) return undefined;
+    const index = this.groundLayer.getTileAt(tile.x, tile.y)?.index;
+    if (index === ids.tree && ids.stump !== undefined) return "cut";
+    if (index === ids.water) return "swim";
+    if (index === ids.mountain) return "climb";
+    return undefined;
+  }
+
+  /** Next to it: offer the work (one big button). Further away: walk over first. */
+  private onTapWork(work: LandWork, tile: TileCoord): void {
+    if (this.save.passedOutUntil) return;
+    if (!isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, ...tile })) {
+      return this.walkNextTo(tile, `${WORK_MEET}${work}:${tile.x},${tile.y}`);
+    }
+    this.showPopup(ic(WORK_ICONS[work]), [
+      { label: ic(WORK_ICONS[work]), colour: C.ok, onTap: () => this.startWork(work, tile) },
+      { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
+    ]);
+  }
+
+  /** The map as it is now, in the shape the shared work rules read. */
+  private landView(): { base: BaseArea; terrain: AreaTerrain } {
+    const width = this.map.width;
+    const height = this.map.height;
+    const ground: number[] = [];
+    const grass: number[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        ground.push(this.groundLayer.getTileAt(x, y)?.index ?? 0);
+        grass.push(this.map.getTileAt(x, y, false, this.areaMeta.encounterZoneLayer)?.index ?? 0);
+      }
+    }
+    const base: BaseArea = { id: this.areaMeta.id, width, height, ground, grass, blocking: this.areaMeta.collisionGids, tiles: this.areaMeta.terrain!, start: this.areaMeta.playerStart, fixed: [] };
+    return { base, terrain: emptyTerrain() };
+  }
+
+  private startWork(work: LandWork, tile: TileCoord): void {
+    let crossing: { x: number; y: number; tiles: number } | undefined;
+    if (work !== "cut") {
+      const { base, terrain } = this.landView();
+      crossing = crossTarget(base, terrain, this.playerTile, tile, work, minigameConfig);
+      if (!crossing) return this.showToast(t("work_refused"));
+    }
+    this.launchGame(WORK_GAMES[work], crossing?.tiles, (success) => {
+      if (!success) return;
+      if (work === "cut") this.fell(tile);
+      else this.crossTo(crossing!, work);
+    });
+  }
+
+  private launchGame(key: string, size: number | undefined, done: (success: boolean) => void): void {
+    this.closePopup();
+    this.pendingPath = [];
+    this.drag = undefined;
+    this.stick?.clear();
+    const data: MinigameData = { avatarId: this.save.player.avatarId, farve: this.save.player.farve, size, done };
+    this.scene.launch(key, data);
+    this.scene.pause();
+  }
+
+  /** The tree is down: on the shared map (online) or just on mine (offline). */
+  private fell(tile: TileCoord): void {
+    recordProgress({ kind: "work", work: "cut" });
+    if (presence.workSupported) return presence.send("work", { kind: "cut", x: tile.x, y: tile.y });
+    this.world.setLocalTile(tile.x, tile.y, this.areaMeta.terrain!.stump!);
+    this.minimap?.refresh();
+  }
+
+  /** Swam or climbed across: over the water or the mountain, tile by tile, to the far side. */
+  private crossTo(to: { x: number; y: number; tiles: number }, work: "swim" | "climb"): void {
+    recordProgress({ kind: "work", work });
+    const target = this.tileCentre(to);
+    this.isMoving = true;
+    this.tweens.add({
+      targets: this.player,
+      x: target.x,
+      y: target.y,
+      duration: 260 * (to.tiles + 1),
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        this.isMoving = false;
+        this.playerTile = { x: to.x, y: to.y };
+        this.positionDirty = true;
+        this.savePosition();
+        this.refreshDig();
+        if (multiplayerEnabled) presence.moveTo(this.myPosition());
+      },
+    });
+  }
+
+  /** Whether I can dig right where I stand: plain ground or sand, no tall grass, not dug already. */
+  private canDigHere(): boolean {
+    const ids = this.areaMeta.terrain;
+    if (!ids || ids.hole === undefined || this.save.passedOutUntil) return false;
+    const { x, y } = this.playerTile;
+    const index = this.groundLayer.getTileAt(x, y)?.index;
+    const grass = this.map.getTileAt(x, y, false, this.areaMeta.encounterZoneLayer)?.index ?? 0;
+    return !grass && (index === ids.ground || (ids.sand !== undefined && index === ids.sand));
+  }
+
+  /** The shovel shows only where there's something to dig. */
+  private refreshDig(): void {
+    this.digButton?.setVisible(this.canDigHere());
+  }
+
+  private startDig(): void {
+    if (!this.canDigHere() || this.isMoving) return this.showToast(t("dig_here_not"));
+    const tile = { ...this.playerTile };
+    this.launchGame("Dig", undefined, (success) => {
+      if (!success) return;
+      if (presence.workSupported) {
+        this.pendingDig = tile;
+        presence.send("work", { kind: "dig", x: tile.x, y: tile.y });
+      } else {
+        this.world.setLocalTile(tile.x, tile.y, this.areaMeta.terrain!.hole!);
+        this.dug();
+      }
+    });
+  }
+
+  private pendingDig?: TileCoord;
+
+  /** The hole is dug: what's down there? */
+  private dug(): void {
+    recordProgress({ kind: "work", work: "dig" });
+    this.refreshDig();
+    const reward = pickDigReward(minigameConfig, Math.random);
+    if (reward.kind === "food") {
+      if (this.save.bag.length >= BAG_MAX) return this.showToast(t("dig_food_full"));
+      const kind = pickFoodKind(Math.random);
+      this.save.bag.push(kind);
+      void persist();
+      this.drawBag();
+      return this.showToast(`${ic(foodIcon(kind))} ${t("dig_food")}`, 3000);
+    }
+    if (reward.kind === "gem") {
+      recordProgress({ kind: "gem", xp: reward.xp ?? 10 });
+      return this.showToast(`${ic("sparkle")} ${t("dig_gem")}`, 3000);
+    }
+    if (reward.kind === "monster") {
+      const species = this.content.speciesById[pickDigMonster(minigameConfig, Math.random) ?? ""];
+      if (species) {
+        this.showToast(`${ic("paw")} ${t("dig_monster")}`, 2000);
+        this.time.delayedCall(900, () => this.startWildBattle(species));
+        return;
+      }
+    }
+    this.showToast(`${ic("stone")} ${t("dig_nothing")}`, 2500);
+  }
+
   /** An open cave: walk up to it, then go in (once per opening). */
   private onTapCave(cave: CaveView): void {
     if (cave.visitedBy.includes(this.save.player.id)) return this.showToast(`${ic(CAVE_ICON)} ${t("cave_visited")}`);
@@ -1087,6 +1271,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private celebrating = false;
+  private digButton?: Phaser.GameObjects.Container;
 
   /** Shows the next level-up or badge, if the map is on screen and nothing else is being shown. */
   private celebrateNext(): void {
@@ -1251,7 +1436,10 @@ export class OverworldScene extends Phaser.Scene {
 
         // Still steering: keep walking in the finger's current direction.
         if (this.pendingPath.length === 0 && this.drag?.moved) return this.stepFromDrag();
-        if (this.pendingPath.length === 0) this.savePosition();
+        if (this.pendingPath.length === 0) {
+          this.savePosition();
+          this.refreshDig();
+        }
 
         if (this.pendingPath.length === 0 && this.pendingMeet) {
           // Walked over to someone (or to the dragon): offer the choice if they're still next to me.
@@ -1260,6 +1448,10 @@ export class OverworldScene extends Phaser.Scene {
           const boss = this.visibleBoss();
           if (meet === DRAGON_MEET) {
             if (boss && isAdjacent(this.myPosition(), boss.lair)) this.onTapDragon(boss);
+          } else if (meet.startsWith(WORK_MEET)) {
+            const [work, where] = meet.slice(WORK_MEET.length).split(":") as [LandWork, string];
+            const [x, y] = where.split(",").map(Number) as [number, number];
+            if (isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, x, y })) this.onTapWork(work, { x, y });
           } else if (meet.startsWith(CAVE_MEET)) {
             const cave = presence.caves.find((c) => c.id === meet.slice(CAVE_MEET.length));
             if (cave && isAdjacent(this.myPosition(), cave)) this.onTapCave(cave);

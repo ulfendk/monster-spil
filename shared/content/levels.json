@@ -11,7 +11,11 @@
     "dragonWin": 60,
     "beastWin": 30,
     "caveVisit": 5,
-    "trade": 10
+    "trade": 10,
+    "cut": 5,
+    "climb": 8,
+    "swim": 8,
+    "dig": 3
   },
   "titles": [
     { "level": 1, "navn": "Nybegynder" },

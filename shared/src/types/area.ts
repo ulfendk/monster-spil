@@ -27,7 +27,7 @@ export interface AreaMeta {
    * Which tile ids (on the collision layer) the overview map draws as trees, water or paths.
    * Optional: without it, every blocking tile is drawn as a tree and everything else as ground.
    */
-  minimap?: { tree?: number[]; water?: number[]; path?: number[]; mountain?: number[]; burnt?: number[]; crater?: number[]; flood?: number[] };
+  minimap?: { tree?: number[]; water?: number[]; path?: number[]; mountain?: number[]; burnt?: number[]; crater?: number[]; flood?: number[]; sand?: number[]; stump?: number[]; hole?: number[] };
   /**
    * Which tile ids natural disasters use (see shared/src/world/terrain.ts). Optional:
    * an area without it never has disasters.

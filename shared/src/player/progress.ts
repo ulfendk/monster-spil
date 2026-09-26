@@ -25,6 +25,11 @@ export interface LevelConfig {
     beastWin: number;
     caveVisit: number;
     trade: number;
+    /** The minigames: felling a tree, climbing over a mountain, swimming across water, digging a hole. */
+    cut: number;
+    climb: number;
+    swim: number;
+    dig: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -47,7 +52,7 @@ export interface Badge {
 /** What the save keeps. */
 export interface Progress {
   xp: number;
-  /** Counters: catch, caveCatch, caveVisit, cave:<kind>, wildWin, duel, duelWin, trade, food, bossDamage, dragonWin, beast:<id>. */
+  /** Counters: catch, caveCatch, caveVisit, cave:<kind>, wildWin, duel, duelWin, trade, food, bossDamage, dragonWin, beast:<id>, cut, climb, swim, dig, gem. */
   stats: Record<string, number>;
   /** Badge id → when it was earned (ISO). */
   badges: Record<string, string>;
@@ -64,7 +69,10 @@ export type ProgressEvent =
   | { kind: "bossWin"; boss: "dragon" | { beastId: string } }
   | { kind: "caveVisit"; caveKind: string }
   | { kind: "trade" }
-  | { kind: "food" };
+  | { kind: "food" }
+  | { kind: "work"; work: "cut" | "climb" | "swim" | "dig" }
+  /** A gem dug up: its XP. */
+  | { kind: "gem"; xp: number };
 
 /** XP needed in all to reach `level`. */
 export function xpForLevel(level: number, config: LevelConfig): number {
@@ -129,6 +137,10 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
       return x.trade;
     case "food":
       return 0;
+    case "work":
+      return x[event.work];
+    case "gem":
+      return Math.max(0, Math.round(event.xp));
   }
 }
 
@@ -178,6 +190,12 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
       break;
     case "food":
       count(stats, "food");
+      break;
+    case "work":
+      count(stats, event.work);
+      break;
+    case "gem":
+      count(stats, "gem");
       break;
   }
   const gained = xpFor(event, config);

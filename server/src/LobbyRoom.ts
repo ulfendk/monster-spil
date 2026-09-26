@@ -61,6 +61,7 @@ import type {
   BossDefinition,
   CaveConfig,
   FightBoss,
+  MinigameConfig,
   FightState,
   CreatureInstance,
   DisasterConfigs,
@@ -89,6 +90,8 @@ export interface LobbyDeps {
   beasts?: BeastDefinition[];
   /** What lives in the caves (shared/content/caves.json); without it no caves open. */
   caveConfig?: CaveConfig;
+  /** How cutting and digging work (shared/content/minigames.json); without it, neither. */
+  minigameConfig?: MinigameConfig;
   /** Every area: its food spots and, for disasters, its base map. */
   areas?: ServerArea[];
   disasterConfigs?: DisasterConfigs;
@@ -255,6 +258,7 @@ export class LobbyRoom extends Room {
     this.startRoam();
     if (options.beasts?.length) this.startVisits(options.beasts);
     if (options.caveConfig) this.startCaves(options.caveConfig);
+    this.minigameConfig = options.minigameConfig;
     for (const area of this.areas) for (let i = 0; i < foodPerArea(area); i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
@@ -465,6 +469,19 @@ export class LobbyRoom extends Room {
       const result = submitTeamAction(team, me.info.playerId, clean, foe.state, foe.boss, new Date());
       if (!result.ok) return this.problem(client, result.reason);
       this.afterTeamTurn(key, team, result);
+    });
+
+    this.onMessage("work", (client, msg: ClientMessages["work"]) => {
+      const me = this.playerOf(client);
+      if (!me || !this.world || !this.minigameConfig) return;
+      if (me.info.busy || me.info.away) return this.problem(client, "player is busy");
+      const kind = msg?.kind === "cut" || msg?.kind === "dig" ? msg.kind : undefined;
+      const x = Number(msg?.x);
+      const y = Number(msg?.y);
+      if (!kind || !Number.isInteger(x) || !Number.isInteger(y)) return this.problem(client, "cannot work here");
+      const refusal = this.world.work(kind, this.worldPlayer(me), x, y, this.minigameConfig);
+      if (refusal) return this.problem(client, refusal);
+      this.tell(client, "workDone", { kind, x, y });
     });
 
     this.onMessage("profile", (client, msg: ClientMessages["profile"]) => {
@@ -1060,6 +1077,7 @@ export class LobbyRoom extends Room {
   // ------------------------------------------------------------ caves
 
   private caveConfig?: CaveConfig;
+  private minigameConfig?: MinigameConfig;
 
   private startCaves(config: CaveConfig): void {
     this.caveConfig = config;

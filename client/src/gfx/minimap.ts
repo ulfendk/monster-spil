@@ -14,7 +14,7 @@ export interface MinimapDot {
   dim?: boolean;
 }
 
-type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood" | "sand";
+type Kind = "tree" | "water" | "path" | "mountain" | "burnt" | "crater" | "flood" | "sand" | "stump" | "hole";
 /** Bosses (and an open cave) shown on the overview map as their icon. */
 const BOSS_MARKERS = ["dragon", "serpent", "eagle", "cave"] as const;
 export type BossMarker = (typeof BOSS_MARKERS)[number];
@@ -29,6 +29,8 @@ const COLOURS: Record<Kind | "ground" | "grass", number> = {
   crater: KANAGAWA.boatYellow1,
   flood: KANAGAWA.springBlue,
   sand: KANAGAWA.oldWhite,
+  stump: KANAGAWA.autumnGreen,
+  hole: KANAGAWA.boatYellow1,
 };
 /** Which tile ids (on the ground layer) are drawn as what; anything else is open ground. */
 export type MinimapIds = Partial<Record<Kind, number[]>>;

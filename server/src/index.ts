@@ -6,7 +6,7 @@ import { LobbyRoom } from "./LobbyRoom.js";
 import { KeyGate } from "./key-gate.js";
 import { GameRegistry } from "./games.js";
 import { loadBeasts, loadBosses } from "./bosses.js";
-import { loadAreas, loadCaveConfig, loadDisasterConfigs } from "./areas.js";
+import { loadAreas, loadCaveConfig, loadDisasterConfigs, loadMinigameConfig } from "./areas.js";
 import { handleBackupRequest } from "./backup-http.js";
 import { AdminPortal } from "./admin.js";
 import { existsSync } from "node:fs";
@@ -81,6 +81,7 @@ const gate = new KeyGate();
 const bosses = await loadBosses();
 const beasts = await loadBeasts();
 const caveConfig = await loadCaveConfig();
+const minigameConfig = await loadMinigameConfig();
 // The maps: where food grows (never on a dragon's lair) and what disasters can change.
 const areas = await loadAreas(bosses.map((b) => b.lair));
 const disasterConfigs = await loadDisasterConfigs();
@@ -91,7 +92,7 @@ if (adminPassword && registry.byKey(adminPassword)) {
   console.warn("WARNING: ADMIN_PASSWORD is also a game's spilnøgle — anyone who can play that game can use the admin portal.");
 }
 // One room per game: a client joins with its gameId and must bring that game's key.
-gameServer.define(LOBBY_ROOM, LobbyRoom, { registry, gate, bosses, beasts, caveConfig, areas, disasterConfigs }).filterBy(["gameId"]);
+gameServer.define(LOBBY_ROOM, LobbyRoom, { registry, gate, bosses, beasts, caveConfig, minigameConfig, areas, disasterConfigs }).filterBy(["gameId"]);
 
 /**
  * Every game's room runs from the start (not only once someone joins), so its

@@ -13,6 +13,6 @@
   ],
   "encounterRate": 0.1,
   "playerStart": { "x": 32, "y": 24 },
-  "terrain": {"ground": 1, "tree": 2, "grass": 3, "water": 4, "path": 5, "mountain": 6, "burnt": 7, "crater": 8, "flood": 9, "log": 10, "crack": 11, "rubble": 12, "wreck": 13, "sand": 14},
-  "minimap": { "tree": [2, 10], "water": [4], "path": [5], "mountain": [6, 11, 13], "burnt": [7], "crater": [8, 12], "flood": [9], "sand": [14] }
+  "terrain": {"ground": 1, "tree": 2, "grass": 3, "water": 4, "path": 5, "mountain": 6, "burnt": 7, "crater": 8, "flood": 9, "log": 10, "crack": 11, "rubble": 12, "wreck": 13, "sand": 14, "stump": 15, "hole": 16},
+  "minimap": { "tree": [2, 10], "water": [4], "path": [5], "mountain": [6, 11, 13], "burnt": [7], "crater": [8, 12], "flood": [9], "sand": [14], "hole": [16], "stump": [15] }
 }
