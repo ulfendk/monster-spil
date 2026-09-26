@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { fromKey, tileKey, zoneAt, type AreaTerrain, type DisasterKind, type DisasterMessage, type EventZone, type WorldSpawn } from "@shared";
 import { addIcon } from "./icon-art";
 import { richChip } from "../ui/rich-text";
+import { setMapHint } from "./map-hints";
 import { DISASTER_ICONS } from "../ui/icons";
 import { C, CSS, FONT, KANAGAWA } from "../ui/theme";
 
@@ -112,7 +113,7 @@ export class WorldLayer {
       let views = this.spawnViews.get(spawn.id);
       if (!views) {
         const c = this.centre(spawn.x, spawn.y);
-        const glow = this.scene.add.circle(c.x, c.y, this.tileSize * 0.45, KANAGAWA.springGreen, 0.35).setDepth(DEPTH_SPAWN);
+        const glow = setMapHint(this.scene.add.circle(c.x, c.y, this.tileSize * 0.45, KANAGAWA.springGreen, 0.35).setDepth(DEPTH_SPAWN), { flat: true });
         this.scene.tweens.add({ targets: glow, scale: 1.25, alpha: 0.1, duration: 800, yoyo: true, repeat: -1 });
         // The species' own picture (its spriteFront texture: a drawing, or the placeholder).
         const sprite = this.scene.add.image(c.x, c.y - 6, this.spriteKey(spawn)).setDepth(DEPTH_SPAWN);
@@ -132,22 +133,22 @@ export class WorldLayer {
   /** The warning: danger tiles glow red, the disaster's icon hovers over its centre with a countdown. */
   showWarning(message: DisasterMessage): void {
     this.clearWarning();
-    const g = this.scene.add.graphics().setDepth(DEPTH_WARNING);
-    g.fillStyle(C.danger, 1);
-    for (const key of message.danger) {
+    // One square per tile (not one drawing), so the 3D map can lay each on the ground.
+    const tiles = message.danger.map((key) => {
       const { x, y } = fromKey(key);
-      g.fillRect(x * this.tileSize + 2, y * this.tileSize + 2, this.tileSize - 4, this.tileSize - 4);
-    }
-    g.setAlpha(0.2);
-    this.scene.tweens.add({ targets: g, alpha: 0.5, duration: 450, yoyo: true, repeat: -1 });
+      const c = this.centre(x, y);
+      return this.scene.add.rectangle(c.x, c.y, this.tileSize - 4, this.tileSize - 4, C.danger).setDepth(DEPTH_WARNING).setAlpha(0.2);
+    });
+    this.scene.tweens.add({ targets: tiles, alpha: 0.5, duration: 450, yoyo: true, repeat: -1 });
     const c = this.centre(message.center.x, message.center.y);
     const icon = addIcon(this.scene, c.x, c.y - this.tileSize * 0.6, DISASTER_ICONS[message.kind], this.tileSize * 1.6).setDepth(DEPTH_WARNING + 3);
     this.scene.tweens.add({ targets: icon, y: icon.y - 12, duration: 400, yoyo: true, repeat: -1, ease: "Sine.inOut" });
-    this.warning = [g, icon];
+    this.warning = [...tiles, icon];
+    const countdownAt = this.warning.length;
     const countdown = () => {
       const left = Math.max(0, Math.ceil((Date.parse(message.strikeAt) - Date.now()) / 1000));
-      this.warning[2]?.destroy();
-      this.warning[2] = richChip(this.scene, c.x, c.y + this.tileSize * 0.55, `${left}`, { fontFamily: FONT, fontSize: "30px", color: CSS.accent }).setDepth(DEPTH_WARNING + 3);
+      this.warning[countdownAt]?.destroy();
+      this.warning[countdownAt] = setMapHint(richChip(this.scene, c.x, c.y + this.tileSize * 0.55, `${left}`, { fontFamily: FONT, fontSize: "30px", color: CSS.accent }).setDepth(DEPTH_WARNING + 3), { dy: -this.tileSize * 0.55, lift: 0.3 });
     };
     countdown();
     this.warningTimer = this.scene.time.addEvent({ delay: 250, loop: true, callback: countdown });

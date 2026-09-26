@@ -29,6 +29,8 @@ import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon } from "../gfx/icon-art";
 import { addAvatar, avatarKey } from "../gfx/avatar-sprites";
+import { setMapHint } from "../gfx/map-hints";
+import type { Map3D } from "../world3d/map-3d";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
 import { C, CSS, FONT } from "../ui/theme";
@@ -134,6 +136,8 @@ export class OverworldScene extends Phaser.Scene {
   private world!: WorldLayer;
   private beasts!: BeastLayer;
   private caves!: CaveLayer;
+  /** The map in 3D (world3d/map-3d.ts), once three.js has loaded; without it the 2D map shows. */
+  private map3d?: Map3D;
 
   constructor() {
     super("Overworld");
@@ -288,6 +292,33 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.events.off("resume", onResumeRecovery));
     this.drawBag();
     this.checkPassOut();
+    this.start3d();
+  }
+
+  /**
+   * Shows the map in 3D (three.js, loaded now): the 2D map keeps running underneath — tiles,
+   * walking, everything — and world3d/map-3d.ts draws what it has, seen from above at an
+   * angle. Without WebGL (or offline before the 3D code was cached) the 2D map stays.
+   */
+  private start3d(): void {
+    this.map3d = undefined;
+    let alive = true;
+    this.events.once("shutdown", () => (alive = false));
+    const ids = this.areaMeta.terrain;
+    void import("../world3d/map-3d")
+      .then(({ Map3D }) => {
+        if (!alive) return;
+        this.map3d = new Map3D(this, {
+          ground: this.groundLayer,
+          grass: this.grassLayer,
+          tileset: this.textures.get("area-tileset").getSourceImage() as HTMLImageElement,
+          tileSize: TILE_SIZE,
+          ids: ids ? { ground: ids.ground, grass: ids.grass, tree: ids.tree, mountain: ids.mountain } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
+          focus: () => ({ x: this.player.x, y: this.player.y }),
+        });
+        if (import.meta.env.DEV) (window as unknown as { __map3d?: Map3D }).__map3d = this.map3d;
+      })
+      .catch((error: unknown) => console.warn("3D map unavailable:", error));
   }
 
   // ------------------------------------------------------------ passing out and food
@@ -422,7 +453,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** A tap (no drag): on another player or the dragon, meet them; on the ground, nothing. */
   private onTap(pointer: Phaser.Input.Pointer): void {
-    const tile: TileCoord = { x: Math.floor(pointer.worldX / TILE_SIZE), y: Math.floor(pointer.worldY / TILE_SIZE) };
+    const tile: TileCoord | undefined = this.map3d ? this.map3d.tileAt(pointer.x, pointer.y) : { x: Math.floor(pointer.worldX / TILE_SIZE), y: Math.floor(pointer.worldY / TILE_SIZE) };
+    if (!tile) return;
     const tapped = this.playerAt(tile);
     if (tapped) return this.onTapPlayer(tapped);
     const boss = this.visibleBoss();
@@ -777,7 +809,7 @@ export class OverworldScene extends Phaser.Scene {
     this.dragon.label = undefined;
     if (this.dragonFlying) return; // no HP label on something in the air
     const label = raid.defeated ? ic(SLEEP_ICON) : `${ic("heart")} ${raid.hp}/${raid.maxHp}`;
-    this.dragon.label = richChip(this, centre.x, centre.y - TILE_SIZE * 0.98, label, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(7);
+    this.dragon.label = setMapHint(richChip(this, centre.x, centre.y - TILE_SIZE * 0.98, label, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(7), { dy: TILE_SIZE * 0.98, lift: 2 });
   }
 
   /**
@@ -1110,10 +1142,13 @@ export class OverworldScene extends Phaser.Scene {
         view = {
           circle: this.add.circle(centre.x, centre.y, TILE_SIZE * 0.3, colour).setDepth(4),
           face: addFace(this, centre.x, centre.y, player.avatarId, 4.5, lookFor(player.level ?? 1, levelConfig)),
-          level: this.add
-            .text(centre.x + LEVEL_TAG.dx, centre.y + LEVEL_TAG.dy, "", { fontFamily: FONT, fontSize: "15px", color: CSS.ink, backgroundColor: CSS.accent, padding: { x: 4, y: 1 } })
-            .setOrigin(0.5)
-            .setDepth(7),
+          level: setMapHint(
+            this.add
+              .text(centre.x + LEVEL_TAG.dx, centre.y + LEVEL_TAG.dy, "", { fontFamily: FONT, fontSize: "15px", color: CSS.ink, backgroundColor: CSS.accent, padding: { x: 4, y: 1 } })
+              .setOrigin(0.5)
+              .setDepth(7),
+            { dy: -LEVEL_TAG.dy, lift: 0.62 }
+          ),
           label: this.add
             .text(centre.x, centre.y - TILE_SIZE * 0.55, player.navn, {
               fontFamily: FONT,
@@ -1125,6 +1160,7 @@ export class OverworldScene extends Phaser.Scene {
             .setOrigin(0.5)
             .setDepth(7),
         };
+        setMapHint(view.label, { dy: TILE_SIZE * 0.55, lift: 1.05 });
         this.others.set(player.playerId, view);
       } else if (snap) {
         this.tweens.killTweensOf([view.circle, view.face, view.label, view.level]);

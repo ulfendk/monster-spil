@@ -718,6 +718,36 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   which kinds, trigger now (kind optional), heal soft changes, reset the map, history.
   `scripts/e2e-disasters.mjs` covers it end to end.
 
+## The map in 3D
+
+- **The overworld is shown in 3D** (`client/src/world3d/`, three.js, loaded when the map
+  opens — the same chunk as the caves'): the map seen from the south and above at an angle,
+  following the player. `OverworldScene` keeps running the 2D map underneath unchanged —
+  tiles, collisions, walking, tweens — and without WebGL (or offline before the chunk was
+  cached) that 2D map simply shows.
+- **`map-stage.ts` (`MapStage`)** draws the terrain: the ground is the area's own tile art
+  (the tileset as a padded atlas on per-tile quads, in 16×16-tile chunks so only what the
+  camera sees is drawn); trees are Japanese pines, mountains snow-capped peaks and tall
+  grass susuki tufts on golden meadow — low-poly models in the Kanagawa palette, instanced
+  per chunk. Tiles are compared with what's drawn every 300 ms, and a chunk with a changed
+  tile (a felled tree, a hole, a disaster) is rebuilt.
+- **`map-3d.ts` (`Map3D`) is the bridge**: every frame, just before Phaser draws, it looks at
+  the scene's map objects (scroll factor 1). Pictures and circles (players, monsters, the
+  dragon, food, icons) become upright sprites standing on their spot (hidden from Phaser's
+  camera), the bigger ones with a soft shadow; ellipses and rectangles lie flat on the ground;
+  everything else (names, health labels, the cave mouth) stays Phaser's, moved to where its
+  spot is on screen and scaled with distance for that frame only, then put back — so game
+  code and tweens never notice. The few objects that need it say how they stand with
+  `setMapHint(object, {flat, lift, dy})` (`client/src/gfx/map-hints.ts`): a label drawn above
+  its owner gives `dy` (back to the owner's spot) and `lift` (tiles above the ground).
+  New map objects need nothing: a picture stands, a rectangle lies. A drawing that spans many
+  tiles can't be moved as one piece — use one object per tile (the disaster warning does).
+- **Taps** go through `Map3D.tileAt`: a player, monster or the dragon under the finger first
+  (their sprites), else the ground under it. Dragging to walk is unchanged (the camera never
+  turns, so up on the screen is north). Phaser's camera shake shakes the 3D camera too.
+- **Testing in headless Chromium:** `window.__map3d` in dev builds; start `Overworld`
+  directly with a save (see the battle testing notes) and take screenshots.
+
 ## Overview map
 
 `client/src/gfx/minimap.ts`: the area baked into a one-texel-per-tile texture

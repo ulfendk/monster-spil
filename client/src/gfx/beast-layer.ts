@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { BeastDefinition, BeastView } from "@shared";
 import { beastsById } from "../content/load-beasts";
 import { ic, richChip } from "../ui/rich-text";
+import { setMapHint } from "./map-hints";
 import { CSS, FONT, KANAGAWA } from "../ui/theme";
 
 /** Beasts sit where the dragon does: over the ground and food, under players' labels. */
@@ -170,5 +171,6 @@ export class BeastLayer {
     d.label?.destroy();
     const c = this.centre(d.view);
     d.label = richChip(this.scene, c.x, c.y + 8 - this.tileSize * 0.98, `${ic("heart")} ${d.view.hp}/${d.view.maxHp}`, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(DEPTH_LABEL);
+    setMapHint(d.label, { dy: this.tileSize * 0.98 - 8, lift: 2 });
   }
 }
