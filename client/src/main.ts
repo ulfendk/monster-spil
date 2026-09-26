@@ -13,6 +13,7 @@ import { InteractScene } from "./scenes/InteractScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { ScoreboardScene } from "./scenes/ScoreboardScene";
 import { CaveScene } from "./scenes/CaveScene";
+import { MovedScene } from "./scenes/MovedScene";
 import { keepAppUpToDate } from "./pwa-update";
 import { CSS } from "./ui/theme";
 
@@ -33,7 +34,7 @@ const game = new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene, CaveScene],
+  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene, CaveScene, MovedScene],
 });
 
 // Development only: lets automated checks drive scenes (e.g. at iPhone sizes) without guessing tap positions.

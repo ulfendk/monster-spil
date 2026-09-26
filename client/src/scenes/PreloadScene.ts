@@ -5,11 +5,12 @@ import { contentAssets } from "../content/load-assets";
 import { cryKey } from "../audio/creature-sound";
 import { bossesById } from "../content/load-raid";
 import { beastLook, beastsById } from "../content/load-beasts";
+import { arriveFromMove, movedTo } from "../save/move";
 import { bossSpecies } from "@shared";
 import { generatePlaceholderSprites, type BossLook } from "../gfx/placeholder-sprites";
 import { generateAvatarTextures } from "../gfx/avatar-sprites";
 import { generateIcons } from "../gfx/icon-art";
-import { addGame, loadGames } from "../save/games";
+import { addGame, listGames, loadGames } from "../save/games";
 import { multiplayerEnabled } from "../net/lobby";
 import { gameListRequested, startGame } from "./start-game";
 
@@ -56,6 +57,12 @@ export class PreloadScene extends Phaser.Scene {
    */
   private async openGame(content: GameContent): Promise<void> {
     let games = await loadGames(multiplayerEnabled);
+    // An old build whose game has moved: only the way to the new address.
+    if (movedTo) return void this.scene.start("Moved");
+    // Arriving from the old address with the family's games: bring them in first.
+    if (multiplayerEnabled && (await arriveFromMove()) > 0) {
+      games = listGames();
+    }
     if (!multiplayerEnabled) {
       if (games.length === 0) games = [await addGame({ id: "solo", navn: "Monsterjagt", online: false })];
       return startGame(this, games[0]!.id, content);

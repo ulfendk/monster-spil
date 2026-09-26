@@ -9,6 +9,9 @@ import { loadBeasts, loadBosses } from "./bosses.js";
 import { loadAreas, loadCaveConfig, loadDisasterConfigs } from "./areas.js";
 import { handleBackupRequest } from "./backup-http.js";
 import { AdminPortal } from "./admin.js";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { createStaticHandler } from "./static-files.js";
 
 const port = Number(process.env.PORT ?? 2567);
 
@@ -27,6 +30,10 @@ if (allowedOrigins.length > 0) {
   };
 }
 
+// The built game, served from here too (the Docker image has it): CLIENT_DIR, or client/dist next to the server.
+const clientDir = process.env.CLIENT_DIR ?? fileURLToPath(new URL("../../client/dist/", import.meta.url));
+const serveClient = existsSync(clientDir) ? createStaticHandler(clientDir) : undefined;
+
 // Colyseus adds its /matchmake routes in front of this handler; everything else lands here.
 let backupDeps: Parameters<typeof handleBackupRequest>[2] | undefined;
 let admin: AdminPortal | undefined;
@@ -38,8 +45,13 @@ const httpServer = http.createServer((req, res) => {
     res.end("ok");
     return;
   }
-  res.writeHead(404);
-  res.end();
+  const notFound = () => {
+    if (res.headersSent) return;
+    res.writeHead(404);
+    res.end();
+  };
+  if (!serveClient) return notFound();
+  serveClient(req, res).then((served) => served || notFound(), notFound);
 });
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
@@ -92,6 +104,6 @@ gameServer.onShutdown(() => registry.flush());
 
 await gameServer.listen(port);
 for (const game of registry.list()) await openRoom(game.id);
-console.log(`Monsterjagt server listening on :${port} (${registry.list().length} games, data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"})`);
+console.log(`Monsterjagt server listening on :${port} (${registry.list().length} games, data in ${dataDir}; admin portal ${adminPassword ? "on at /admin" : "off"}; ${serveClient ? `serving the game from ${clientDir}` : "not serving the game (no client build)"})`);
 
 // Colyseus itself handles SIGINT/SIGTERM (docker stop) with a graceful shutdown.

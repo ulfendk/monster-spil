@@ -4,6 +4,4 @@ node_modules
 **/dist-ts
 **/*.tsbuildinfo
 .git
-client
-!client/package.json
 docs

@@ -20,6 +20,7 @@ import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON,
 import { WorldLayer } from "../gfx/world-layer";
 import { BeastLayer } from "../gfx/beast-layer";
 import { CaveLayer } from "../gfx/cave-layer";
+import { takeArrivalNote } from "../save/move";
 import { disasterConfigs } from "../content/load-disasters";
 import { currentGame } from "../save/games";
 import { t } from "../i18n/da";
@@ -156,6 +157,7 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.beasts.destroy());
     this.caves = new CaveLayer(this, TILE_SIZE, () => this.showToast(`${ic(CAVE_ICON)} ${t("cave_open")}`, 4000));
     this.events.once("shutdown", () => this.caves.destroy());
+    if (takeArrivalNote()) this.time.delayedCall(600, () => this.showToast(t("moved_arrived"), 5000));
 
     // (0,0) sits inside the border wall, so it can never be a real position —
     // use it as the "no saved position yet" sentinel for this map. A saved spot that

@@ -1,13 +1,16 @@
 # Self-hosting the family server
 
-The multiplayer server (lobby, trading, duels, the family dragon and the weekly scoreboard) is a small Node/Colyseus container.
-Solo play never needs it — the client only connects (and shows the ⚙ button) when
-it was built with a server URL. Players on the same server see each other walking
-around the shared map and can trade or duel when they stand next to each other.
+One small Node/Colyseus container is the **whole game**: it serves the game itself
+(the PWA the iPads install) and runs everything multiplayer — the lobby, trading,
+duels, the dragon, beasts, caves, disasters and the weekly scoreboard — at the same
+address. One image, one deploy: the game and its server are always the same version.
 
 ```
-iPad (GitHub Pages client) --wss--> Nginx Proxy Manager --ws--> monsterjagt-server container
+iPad --https + wss--> Nginx Proxy Manager --http + ws--> monsterjagt-server container
 ```
+
+The game used to be served from GitHub Pages, talking to this server from there. See
+"6. Moving from GitHub Pages" for taking the family's devices along.
 
 ## Why HTTPS/WSS is required
 
@@ -19,7 +22,9 @@ Manager (NPM) terminates TLS; the container itself speaks plain HTTP/WS.
 
 `.github/workflows/publish-server.yml` builds `server/Dockerfile` (amd64 + arm64)
 and pushes `ghcr.io/ulfendk/monsterjagt-server` (tags `latest` and `sha-<commit>`)
-on every push to `main` that touches `server/` or `shared/`. You can also run it
+on every push to `main` that touches `server/`, `shared/` or `client/` (the image builds
+the game too, with `VITE_BASE=/` and `VITE_SERVER_URL=/` = "the server this page came
+from", and serves it from `client/dist`; set `CLIENT_DIR` to serve another build). You can also run it
 by hand from the Actions tab.
 
 Packages are **private** by default. Either:
@@ -146,15 +151,41 @@ Health check (used by the container's `HEALTHCHECK`): `GET /health` → `ok`.
 
 ## 5. Pointing the client at the server
 
-The client reads the server address at **build time** from `VITE_SERVER_URL`.
+The game is served by the server itself, so it simply talks to the address it came from
+— open `https://monster.example.com` on the iPad and Add to Home Screen. Nothing to set.
 
-- **GitHub Pages:** repo Settings → Secrets and variables → Actions → *Variables* →
-  add `VITE_SERVER_URL` = `wss://monster.example.com`. The deploy workflow passes
-  it to the build. Without the variable the build is solo-only (no ⚙ button, no connection).
+Other builds read the server address at **build time** from `VITE_SERVER_URL`:
+
+- **GitHub Pages** (the old home of the game; still built on every push): repo Settings →
+  Secrets and variables → Actions → *Variables* → `VITE_SERVER_URL` = `wss://monster.example.com`.
+  Without the variable the build is solo-only (no ⚙ button, no connection).
 - **Local dev:** `VITE_SERVER_URL=ws://localhost:2567 npm run dev`, and start the
   server with `npm run build:server && FAMILY_CODE=test ADMIN_PASSWORD=admin npm start -w server`
   (FAMILY_CODE makes a first game, "Familien", with the key `test`)
   (or `npm run dev -w server`).
+
+## 6. Moving from GitHub Pages
+
+Each device keeps its saves in the browser, per address, so at the new address an iPad
+starts empty. The old Pages app can take everyone along in one tap:
+
+1. Deploy the new image and check that `https://monster.example.com` opens the game.
+2. In the repo: Settings → Secrets and variables → Actions → *Variables* → add
+   `VITE_MOVED_TO` = `https://monster.example.com/`, then run the *Deploy to GitHub
+   Pages* workflow (Actions tab → Run workflow).
+3. On each iPad, open the old app (it updates itself on the next start or two). It now
+   only says **"Spillet er flyttet!"** with the new address and a big **Flyt med**
+   button. Tapping it sends each game's save to the server (it becomes that player's
+   backup), gets a one-time code per game (valid 15 minutes, once), and opens the new
+   address with the codes; the new app adds the games with their spilnøgler and restores
+   the players — same player, same monsters, same place on the map.
+4. At the new address: Share → Add to Home Screen, and delete the old icon.
+
+If a device is offline when the button is tapped, nothing is lost: it says so and can
+try again. A device that can't use the button can still get its player back the old
+way: add the game with its spilnøgle at the new address and tap 🔄.
+
+`scripts/e2e-move.mjs` checks the codes and the serving against a running image.
 
 ## Local dev HTTPS
 

@@ -2,7 +2,7 @@ import { Client, type Room } from "colyseus.js";
 import { LOBBY_ROOM } from "@shared";
 import type { ClientMessages, LobbyJoinOptions, ServerMessages } from "@shared";
 
-const serverUrl = import.meta.env.VITE_SERVER_URL;
+import { serverUrl } from "./server-url";
 
 /** False in builds without a server (e.g. plain GitHub Pages) — the game stays purely solo. */
 export const multiplayerEnabled = Boolean(serverUrl);

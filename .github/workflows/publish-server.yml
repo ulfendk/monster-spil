@@ -9,6 +9,7 @@ on:
     paths:
       - "server/**"
       - "shared/**"
+      - "client/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.base.json"

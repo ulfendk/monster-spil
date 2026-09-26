@@ -1,7 +1,7 @@
 import type { SaveData } from "../save/schema";
 import { LEGACY_GAME_ID } from "../save/games";
 
-const serverUrl = import.meta.env.VITE_SERVER_URL;
+import { serverHttp } from "./server-url";
 const TIMEOUT_MS = 8000;
 
 /** One backed-up player, as the restore screen lists them. */
@@ -22,8 +22,8 @@ export type BackupResult<T> = { ok: true; value: T } | { ok: false; reason: "cod
  * the spilnøgle in a header; see server/src/backup-http.ts.
  */
 async function get<T>(path: string, key: string): Promise<BackupResult<T>> {
-  if (!serverUrl) return { ok: false, reason: "offline" };
-  const base = serverUrl.replace(/^ws/, "http").replace(/\/$/, "");
+  if (!serverHttp) return { ok: false, reason: "offline" };
+  const base = serverHttp;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
@@ -64,4 +64,45 @@ export async function fetchBackup(key: string, playerId: string): Promise<Backup
   // Only what the game can actually load: a player and a list of creatures.
   if (!save?.player?.id || !Array.isArray(save.creatures)) return { ok: false, reason: "missing" };
   return { ok: true, value: save };
+}
+
+/**
+ * Moving the game to a new address: sends this game's save (it becomes the player's
+ * backup) and gets a one-time code the new address redeems. See server/src/backup-http.ts.
+ */
+export async function sendMove(key: string, save: SaveData): Promise<BackupResult<string>> {
+  if (!serverHttp) return { ok: false, reason: "offline" };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`${serverHttp}/transfer`, {
+      method: "POST",
+      headers: { "x-game-key": key, "content-type": "application/json" },
+      body: JSON.stringify({ save }),
+      signal: abort.signal,
+    });
+    if (res.status === 401) return { ok: false, reason: "code" };
+    if (!res.ok) return { ok: false, reason: "offline" };
+    const { code } = (await res.json()) as { code?: unknown };
+    return typeof code === "string" ? { ok: true, value: code } : { ok: false, reason: "offline" };
+  } catch {
+    return { ok: false, reason: "offline" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The game, key and player a moving code stands for (once). */
+export async function redeemMove(code: string): Promise<BackupResult<{ gameId: string; navn: string; key: string; playerId: string }>> {
+  if (!serverHttp) return { ok: false, reason: "offline" };
+  try {
+    const res = await fetch(`${serverHttp}/transfer/${encodeURIComponent(code)}`);
+    if (res.status === 404) return { ok: false, reason: "missing" };
+    if (!res.ok) return { ok: false, reason: "offline" };
+    const v = (await res.json()) as { gameId?: unknown; navn?: unknown; key?: unknown; playerId?: unknown };
+    if (typeof v.gameId !== "string" || typeof v.navn !== "string" || typeof v.key !== "string" || typeof v.playerId !== "string") return { ok: false, reason: "missing" };
+    return { ok: true, value: { gameId: v.gameId, navn: v.navn, key: v.key, playerId: v.playerId } };
+  } catch {
+    return { ok: false, reason: "offline" };
+  }
 }

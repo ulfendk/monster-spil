@@ -28,6 +28,10 @@ jobs:
         env:
           # Repo variable (Settings > Variables). Empty = solo-only build without the lobby button.
           VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+          # Repo variable: once the game lives at its new address (served by the game server,
+          # docs/self-hosting.md), set it to that address and run this workflow again: this app
+          # then only says "the game has moved" and takes each player along.
+          VITE_MOVED_TO: ${{ vars.VITE_MOVED_TO }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

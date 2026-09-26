@@ -2,8 +2,12 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
+// Where the game lives: "/monster-spil/" on GitHub Pages (the repo's name), "/" when the
+// game server serves it itself (the Docker image builds it with VITE_BASE=/).
+const base = process.env.VITE_BASE || "/monster-spil/";
+
 export default defineConfig({
-  base: "/monster-spil/",
+  base,
   resolve: {
     alias: {
       "@shared": path.resolve(import.meta.dirname, "../shared/src"),
@@ -21,8 +25,8 @@ export default defineConfig({
         display: "fullscreen",
         // iPad and iPhone, held either way; every screen lays itself out for the current shape.
         orientation: "any",
-        start_url: "/monster-spil/",
-        scope: "/monster-spil/",
+        start_url: base,
+        scope: base,
         background_color: "#1f1f28",
         theme_color: "#1f1f28",
         icons: [

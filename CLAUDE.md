@@ -684,8 +684,21 @@ before calling a feature done; there's no automated UI test suite for `client` y
 
 ## Deployment
 
-The client auto-deploys to GitHub Pages (`https://<user>.github.io/monster-spil/`)
-on push to `main` via `.github/workflows/deploy.yml` — solo/offline play only.
-`client/vite.config.ts`'s `base` must match the repo name for this to work. The
-Colyseus server (Milestone 2+) is deployed separately, self-hosted — GitHub Pages
-never serves it.
+- **The Docker image is the whole game** (`server/Dockerfile`): it builds the client with
+  `VITE_BASE=/` and `VITE_SERVER_URL=/` ("/" = talk to the server this page came from,
+  `client/src/net/server-url.ts`) and the server serves `client/dist` itself
+  (`server/src/static-files.ts`: GET/HEAD only, never outside the folder, `/assets/`
+  cached for good, the page / service worker / manifest never cached, app routes fall
+  back to `index.html`). Published by `.github/workflows/publish-server.yml` on changes to
+  server, shared or client. See `docs/self-hosting.md`.
+- **GitHub Pages** (`https://<user>.github.io/monster-spil/`, `.github/workflows/deploy.yml`)
+  still builds on every push (`VITE_BASE` defaults to `/monster-spil/`, the repo's name).
+  It was the game's first home; with the repo variable `VITE_MOVED_TO` set it becomes
+  only the way to the new address.
+- **Moving devices:** the old app (`MovedScene`) posts each online game's save to
+  `POST /transfer` (spilnøgle; it becomes the backup) for a one-time code (15 min, once,
+  in memory); it opens `<new address>#flyt=<codes>`; the new app redeems them at start
+  (`GET /transfer/<code>` → game, key, player; `client/src/save/move.ts`), adds the games
+  and restores the saves, and the map says welcome. The codes stay in the #fragment,
+  never sent to a server, and are removed from the address at once.
+  `scripts/e2e-move.mjs` covers it against a running image.
