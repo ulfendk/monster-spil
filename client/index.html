@@ -32,6 +32,10 @@
         position: relative;
         z-index: 1;
       }
+      /* Phaser's layer for real text fields (the spilnøgle, names) goes above its canvas. */
+      #game > div {
+        z-index: 2;
+      }
       #game > canvas.cave-stage {
         position: absolute;
         inset: 0;
