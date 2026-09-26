@@ -2,10 +2,5 @@
 
 Ideas agreed on but not scheduled yet. Newest at the bottom.
 
-- **Maps and monsters in the admin portal.** Managing content from the browser
-  instead of as files in the repo. Parked: content as plain files in the repo (no
-  code changes to add a monster) is a core rule, so this would need a way to keep
-  both in step.
-- **Omarchy plugin.** Play the game in its own window on the Omarchy desktop.
 - **Player levels and badges.** Each player starts at level 1 and levels up the more
   (and the better) they play. Achievement badges to earn along the way.

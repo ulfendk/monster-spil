@@ -103,7 +103,7 @@ export class SettingsScene extends Phaser.Scene {
         this.addText(width / 2, height / 2 + 50, `${ic("save")} ${t("backup_saved")} ${at}`, 24, CSS.soft);
       }
     } else if (presence.status === "offline") {
-      this.addText(width / 2, height / 2, t("lobby_offline"), 32, CSS.soft);
+      this.addText(width / 2, height / 2, presence.notice ?? t("lobby_offline"), 32, presence.notice ? CSS.accent : CSS.soft);
     }
     this.addButton(layout.safe.left + 16 + 45, height - layout.safe.bottom - 16 - 36, ic("key"), () => {
       this.enteringCode = true;

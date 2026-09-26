@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import { BAG_MAX, GAME_KEY_REJECTED, applyDelivery } from "@shared";
+import { BAG_MAX, GAME_KEY_REJECTED, PLAYER_ELSEWHERE, applyDelivery } from "@shared";
 import type {
   AreaTerrain,
   DisasterMessage,
@@ -156,6 +156,8 @@ class Presence {
 
   /** Call once the game has a save; safe to call again on every Overworld start. A game played alone never connects. */
   start(position: WorldPosition): void {
+    document.removeEventListener("visibilitychange", this.onVisible);
+    document.addEventListener("visibilitychange", this.onVisible);
     this.position = position;
     if (!multiplayerEnabled || !currentGame()?.online) return;
     if (this.started) return;
@@ -183,8 +185,20 @@ class Presence {
   reconnect(): void {
     this.dropRoom();
     this.notice = undefined;
+    this.elsewhere = false;
     void this.connect();
   }
+
+  /** Thrown out because this player was opened somewhere else; waiting to be used here again. */
+  private elsewhere = false;
+
+  /** Coming back to the front after being replaced elsewhere: this is the one being played now, so take the connection back. */
+  private onVisible = (): void => {
+    if (document.visibilityState !== "visible" || !this.elsewhere) return;
+    this.elsewhere = false;
+    this.notice = undefined;
+    void this.connect();
+  };
 
   private setStatus(status: PresenceStatus): void {
     if (this.status === status) return;
@@ -394,6 +408,15 @@ class Presence {
       if (this.disaster) {
         this.disaster = undefined;
         this.events.emit("disaster", undefined);
+      }
+      // The same player was opened somewhere else (another tab, the old address, a second
+      // iPad): that one has the connection now. Don't take it back by ourselves — the two
+      // would throw each other out forever — but reconnect when this one is used again.
+      if (code === PLAYER_ELSEWHERE) {
+        this.notice = t("lobby_elsewhere");
+        this.elsewhere = true;
+        this.setStatus("offline");
+        return;
       }
       // A parent changed the key or deleted the game: ask for the (new) key instead of retrying.
       if (code === GAME_KEY_REJECTED) {

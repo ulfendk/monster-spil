@@ -45,6 +45,14 @@ export interface LobbyJoinOptions extends Partial<WorldPosition> {
 export const GAME_KEY_REJECTED = 4401;
 
 /**
+ * Close code when the same player joined again from somewhere else (another tab, the old
+ * and the new address, a second iPad with the same player): the newest connection wins,
+ * and the replaced one must not reconnect by itself — or the two would take turns throwing
+ * each other out forever.
+ */
+export const PLAYER_ELSEWHERE = 4000;
+
+/**
  * Bump when a message changes in a way older peers can't handle. v1 = trading
  * only, v2 = trading + duels, v3 = players have positions on a shared map and
  * invites need adjacency, v4 = the family dragon raid and the weekly scoreboard,

@@ -24,6 +24,7 @@ const strings = {
   battle_effective_strong: "Effektivt!",
   battle_effective_weak: "Ikke så effektivt...",
   lobby_offline: "Ingen forbindelse",
+  lobby_elsewhere: "Spillet er åbent et andet sted",
   lobby_code_title: "Spilnøgle",
   lobby_code_wrong: "Forkert spilnøgle",
   game_key_title: "Skriv spilnøglen",

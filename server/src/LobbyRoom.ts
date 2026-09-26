@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { Room, ServerError, type AuthContext, type Client } from "@colyseus/core";
 import {
   GAME_KEY_REJECTED,
+  PLAYER_ELSEWHERE,
   PROTOCOL_VERSION,
   acceptDuel,
   acceptInvite,
@@ -563,9 +564,10 @@ export class LobbyRoom extends Room {
     if (!isText(options?.playerId, 80) || !isText(options.navn, 30) || !isText(options.avatarId) || !isText(options.farve)) {
       throw new Error("invalid player");
     }
-    // The same player joining again (reconnect, second tab) replaces the old connection.
+    // The same player joining again (reconnect, second tab, another iPad) replaces the old
+    // connection; that one is told why, so it doesn't reconnect and throw this one out again.
     const previous = this.online.get(options.playerId);
-    if (previous) previous.client.leave(4000);
+    if (previous) previous.client.leave(PLAYER_ELSEWHERE);
 
     client.userData = { playerId: options.playerId };
     // A parent renamed this player: the device takes the new name (and joins with it next time).
