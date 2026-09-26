@@ -1,0 +1,32 @@
+{
+  "maxLevel": 30,
+  "xpPerLevel": 40,
+  "xp": {
+    "catch": 10,
+    "newSpecies": 25,
+    "wildWin": 5,
+    "duelWin": 20,
+    "duelTry": 5,
+    "bossDamagePerXp": 10,
+    "dragonWin": 60,
+    "beastWin": 30,
+    "caveVisit": 5,
+    "trade": 10
+  },
+  "titles": [
+    { "level": 1, "navn": "Nybegynder" },
+    { "level": 3, "navn": "Spejder" },
+    { "level": 6, "navn": "Sporfinder" },
+    { "level": 10, "navn": "Monsterjæger" },
+    { "level": 15, "navn": "Mester" },
+    { "level": 22, "navn": "Legende" }
+  ],
+  "looks": [
+    { "level": 3, "id": "hachimaki", "navn": "Pandebånd" },
+    { "level": 7, "id": "kasa", "navn": "Stråhat" },
+    { "level": 12, "id": "kabuto", "navn": "Samuraihjelm" },
+    { "level": 20, "id": "krone", "navn": "Krone" }
+  ],
+  "monsterBonusPerLevel": 0.02,
+  "monsterBonusMax": 0.3
+}

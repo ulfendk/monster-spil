@@ -1,4 +1,4 @@
-import type { CreatureInstance, FoodKind } from "@shared";
+import type { CreatureInstance, FoodKind, Progress } from "@shared";
 
 export interface SaveData {
   version: 1;
@@ -15,6 +15,8 @@ export interface SaveData {
   /** While set and in the future, the player has passed out and can't move (ISO timestamp). */
   passedOutUntil?: string;
   position: { areaId: string; x: number; y: number };
+  /** XP, counters and badges (player levels). Older saves get it filled in on load, with credit for what they caught. */
+  progress?: Progress;
   createdAt: string;
   updatedAt: string;
 }

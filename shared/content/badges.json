@@ -1,0 +1,18 @@
+[
+  { "id": "foerste-fangst", "navn": "Første fangst", "icon": "ball", "stat": "catch", "min": 1 },
+  { "id": "samler", "navn": "Samler", "icon": "ball", "stat": "catch", "min": 25 },
+  { "id": "storsamler", "navn": "Storsamler", "icon": "trophy", "stat": "catch", "min": 100 },
+  { "id": "monsterkender", "navn": "Monsterkender", "icon": "book", "stat": "species", "min": 10 },
+  { "id": "vinder", "navn": "Vinder", "icon": "cheer", "stat": "wildWin", "min": 10 },
+  { "id": "duellant", "navn": "Duellant", "icon": "sword", "stat": "duelWin", "min": 1 },
+  { "id": "duelmester", "navn": "Duelmester", "icon": "shield", "stat": "duelWin", "min": 10 },
+  { "id": "byttemakker", "navn": "Byttemakker", "icon": "trade", "stat": "trade", "min": 1 },
+  { "id": "hulegaenger", "navn": "Hulegænger", "icon": "cave", "stat": "caveVisit", "min": 1 },
+  { "id": "grottemester", "navn": "Grottemester", "icon": "cave", "stat": "caveCatch", "min": 20 },
+  { "id": "dragetaemmer", "navn": "Dragetæmmer", "icon": "dragon", "stat": "dragonWin", "min": 1 },
+  { "id": "slangejaeger", "navn": "Slangejæger", "icon": "serpent", "stat": "beast:sandslange", "min": 1 },
+  { "id": "oernejaeger", "navn": "Ørnejæger", "icon": "eagle", "stat": "beast:kaempeoern", "min": 1 },
+  { "id": "kaempestaerk", "navn": "Kæmpestærk", "icon": "hit", "stat": "bossDamage", "min": 1000 },
+  { "id": "madglad", "navn": "Madglad", "icon": "apple", "stat": "food", "min": 20 },
+  { "id": "niveau-10", "navn": "Niveau 10", "icon": "star", "stat": "level", "min": 10 }
+]

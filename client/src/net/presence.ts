@@ -29,6 +29,9 @@ import { currentGame, updateGame } from "../save/games";
 import { t } from "../i18n/da";
 import { loadContent } from "../content/load-content";
 import { putBackup } from "./backup";
+import { profileOf } from "../content/load-progress";
+import { recordProgress, setProfileListener } from "../progress/record";
+import { beastForBaby } from "../content/load-beasts";
 
 export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "offline";
 
@@ -173,6 +176,7 @@ class Presence {
 
   /** Call once the game has a save; safe to call again on every Overworld start. A game played alone never connects. */
   start(position: WorldPosition): void {
+    setProfileListener(this.sendProfile);
     document.removeEventListener("visibilitychange", this.onVisible);
     document.addEventListener("visibilitychange", this.onVisible);
     this.position = position;
@@ -197,6 +201,12 @@ class Presence {
   send<K extends keyof ClientMessages>(type: K, payload: ClientMessages[K]): void {
     if (this.status === "online" && this.room) say(this.room, type, payload);
   }
+
+  /** My level or badges changed: everyone should see (servers from v13 on). */
+  private sendProfile = (): void => {
+    const save = getState();
+    if (save && typeof this.serverVersion === "number" && this.serverVersion >= 13) this.send("profile", profileOf(save));
+  };
 
   /** Called by the settings screen after a new spilnøgle has been stored. */
   reconnect(): void {
@@ -253,6 +263,7 @@ class Presence {
         gameKey: game.key,
         familyCode: game.key, // for a server from before games
         ...this.position,
+        ...profileOf(save),
       });
       this.room = room;
       this.retryMs = RETRY_MIN_MS;
@@ -450,7 +461,9 @@ class Presence {
   private async receive(delivery: TradeDelivery): Promise<void> {
     const save = getState();
     if (!save) return;
+    const already = save.creatures.some((c) => c.instanceId === delivery.receive.instanceId);
     save.creatures = applyDelivery(save.creatures, delivery);
+    if (!already) recordProgress({ kind: "trade" }, true);
     if (!save.seenSpeciesIds.includes(delivery.receive.speciesId)) {
       save.seenSpeciesIds.push(delivery.receive.speciesId);
     }
@@ -531,6 +544,8 @@ class Presence {
     const species = loadContent().speciesById[reward.creature.speciesId];
     if (!save.creatures.some((c) => c.instanceId === reward.creature.instanceId)) {
       save.creatures.push({ ...reward.creature, currentHp: species?.baseStats.hp ?? reward.creature.currentHp });
+      const beast = reward.reason === "beast" ? beastForBaby(reward.creature.speciesId) : undefined;
+      recordProgress({ kind: "bossWin", boss: beast ? { beastId: beast.id } : "dragon" }, true);
     }
     if (!save.seenSpeciesIds.includes(reward.creature.speciesId)) save.seenSpeciesIds.push(reward.creature.speciesId);
     try {

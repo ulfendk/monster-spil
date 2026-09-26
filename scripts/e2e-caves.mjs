@@ -47,7 +47,7 @@ async function join(id, pos) {
 const alice = await join("alice", at(32, 24));
 const bob = await join("bob", at(33, 24));
 await until(() => alice.got.caves && bob.got.caves);
-check("hello says protocol 12", alice.got.hello?.protocolVersion === 12);
+check("hello says protocol 12 or newer", alice.got.hello?.protocolVersion >= 12);
 check("no cave at first (they're off)", alice.got.caves.length === 0);
 
 check("a parent can open a cave", (await caves({ action: "open" })).status === 200);

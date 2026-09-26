@@ -18,7 +18,7 @@ import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
 import { beastsById } from "../content/load-beasts";
 import { playCreatureSound } from "../audio/creature-sound";
-import { makeParticipant } from "../battle-participant";
+import { makeParticipant, mySpecies } from "../battle-participant";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { passOut, persist } from "../save/game-state";
@@ -47,6 +47,7 @@ import { ic, richText } from "../ui/rich-text";
 import { addIcon, iconKey } from "../gfx/icon-art";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { C, CSS, FONT } from "../ui/theme";
+import { recordProgress } from "../progress/record";
 
 /** A player-vs-player battle: the server resolves every turn, this scene only shows it and sends move choices. */
 export interface DuelSceneData {
@@ -149,7 +150,7 @@ export class BattleScene extends Phaser.Scene {
     } else {
       this.myId = "player";
       const playerSpecies = data.content.speciesById[data.save.creatures[0].speciesId];
-      const player = makeParticipant("player", data.save.creatures[0], playerSpecies, data.content);
+      const player = makeParticipant("player", data.save.creatures[0], mySpecies(data.save, playerSpecies), data.content);
       const wild = makeParticipant("wild", data.wildInstance!, data.wildSpecies!, data.content);
       this.battleState = createBattle(Date.now(), player, wild);
     }
@@ -208,6 +209,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (next.outcome !== "ongoing") {
       this.finished = true;
+      recordProgress({ kind: "duel", won: outcomeFor(next, this.myId) === "won" });
       // Losing a duel by fainting (not by running away) means passing out.
       if (outcomeFor(next, this.myId) === "lost" && this.me().active.currentHp <= 0) {
         this.startPassOut(closenessFromFoe(this.foe().active.currentHp, this.foe().species.baseStats.hp));
@@ -270,6 +272,7 @@ export class BattleScene extends Phaser.Scene {
       const dealt = next.log
         .filter((e) => e.kind === "damage" && e.actorPlayerId === this.myId && e.targetPlayerId === BOSS_PLAYER_ID)
         .reduce((sum, e) => sum + (e.amount ?? 0), 0);
+      if (dealt > 0) recordProgress({ kind: "bossDamage", amount: dealt });
       if (view.outcome === "won") this.say(this.bossWonText(), OUTCOME_ICONS.won);
       else this.say(this.bossDealtText(dealt), LOG_ICONS.damage);
       this.time.delayedCall(2600, () => this.endBattle());
@@ -342,6 +345,7 @@ export class BattleScene extends Phaser.Scene {
     const dealt = next.log
       .filter((e) => e.kind === "damage" && e.targetPlayerId === BOSS_PLAYER_ID)
       .reduce((sum, e) => sum + (e.amount ?? 0), 0);
+    if (dealt > 0) recordProgress({ kind: "bossDamage", amount: dealt });
     if (next.winnerId === this.myId) this.say(this.bossWonText(), OUTCOME_ICONS.won);
     else this.say(this.bossDealtText(dealt), LOG_ICONS.damage);
     if (next.outcome === "lost") this.startPassOut(0, "dragon");
@@ -668,10 +672,12 @@ export class BattleScene extends Phaser.Scene {
         this.battleState.outcome === "lost" ? player.species.baseStats.hp : player.active.currentHp;
     }
 
+    if (this.battleState.outcome === "won") recordProgress({ kind: "wildWin" }, true);
     if (this.battleState.outcome === "caught") {
       const wild = this.battleState.participants[1];
       this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
       const counts = this.battleData.save.caughtCounts;
+      recordProgress({ kind: "catch", newSpecies: !counts[wild.species.id] }, true);
       counts[wild.species.id] = (counts[wild.species.id] ?? 0) + 1;
       // Counted on the family scoreboard when the server has acknowledged it (now, or once back online).
       this.battleData.save.pendingScore.push({ id: crypto.randomUUID(), kind: "catch", at: new Date().toISOString() });

@@ -34,8 +34,8 @@ clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 
 Since then: a shared 160×120 world where players see each other, a weekly family
 dragon raid, visiting sand serpents and giant eagles, caves with a 3D ball-throwing
-minigame, a weekly scoreboard, an overview map, save backups, a parent's admin portal
-and several games per server (sections below). Ideas not yet scheduled live
+minigame, player levels and badges, a weekly scoreboard, an overview map, save backups,
+a parent's admin portal and several games per server (sections below). Ideas not yet scheduled live
 in `docs/backlog.md`.
 
 ## Monorepo layout
@@ -440,6 +440,37 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   👥⚔️ (gather; not plain 👥, which is the connection button), or ✓ to join a
   gathering team. `InteractScene` shows the waiting screen; `BattleScene` has a
   `team` mode with an allies row. `scripts/e2e-team.mjs` covers it end to end.
+
+## Player levels and badges (protocol v13)
+
+- **XP for playing, more for playing well** (`shared/content/levels.json`): catches (+ a
+  bonus for a new species; cave catches count), wild wins, duels (a win is worth much more
+  than trying), damage to the dragon and beasts, beating one, cave visits, trades. Level n
+  needs `xpPerLevel × n(n−1)/2` XP (max level 30). Titles at set levels (Nybegynder →
+  Legende); headwear for the figure (`looks`: hachimaki, kasa, kabuto, krone — drawn in
+  `avatar-sprites.ts`, baked per figure) everyone sees on the map, the scoreboard and the
+  profile; and **stronger monsters**: attack and defence +2% per level, up to +30%
+  (`boostStats`, applied to my monster in every battle via `mySpecies`/`seatFor` in
+  `client/src/battle-participant.ts`; HP is untouched so health bars and saves stay right).
+- **Badges** (`shared/content/badges.json`): `{id, navn, icon, stat, min}` — earned when a
+  counter reaches `min`. Counters: catch, caveCatch, caveVisit, cave:<kind>, wildWin, duel,
+  duelWin, trade, food, bossDamage, dragonWin, beast:<id>, plus "species" and "level". A
+  test checks the file only uses those.
+- **Pure rules** (tested) in `shared/src/player/progress.ts`: `award(progress, event)` →
+  XP, counters, level-up and new badges; `levelForXp`, `titleFor`, `lookFor`,
+  `monsterBonus`, `progressFromHistory` (a save from before levels gets credit for its
+  catches, filled in on load by `normalise` — nobody starts over).
+- **The save** keeps `progress {xp, stats, badges}` (the device is the source of truth).
+  `client/src/progress/record.ts` `recordProgress(event)` is called where things happen
+  (BattleScene, CaveScene, presence for rewards and trades, the map for food); level-ups
+  and badges queue up and the map shows them as a banner (`celebrateNext`).
+- **Server:** the device sends `level`/`badges` when joining and `profile` when they
+  change; `LobbyPlayer.level/badges` and the scoreboard rows (`ScorePlayer.level`) carry
+  them (cleaned: level 1–100, badge ids as slugs). `scripts/e2e-levels.mjs` covers it.
+- **Client:** a ★ level button at the top left of the map opens `ProfileScene` (figure
+  with headwear, level, title, XP bar, next unlock, monster bonus, the badge wall; portrait
+  stacks, landscape puts the player on the left). Other players show a level tag on the map;
+  tapping one offers a medal button that opens their profile.
 
 ## Passing out and food (protocol v6)
 

@@ -143,6 +143,14 @@ function cleanPosition(raw: unknown): WorldPosition | undefined {
   return { areaId: p.areaId, x: p.x, y: p.y };
 }
 
+/** A level (1–100) and badge ids (short slugs, at most 64) from a client, or nothing. */
+function cleanProfile(raw: unknown): { level?: number; badges?: string[] } {
+  const p = raw as { level?: unknown; badges?: unknown } | null;
+  if (!p || typeof p !== "object" || !Number.isInteger(p.level) || (p.level as number) < 1 || (p.level as number) > 100) return {};
+  const badges = Array.isArray(p.badges) ? p.badges.filter((b): b is string => typeof b === "string" && /^[a-z0-9-]{1,40}$/.test(b)).slice(0, 64) : [];
+  return { level: p.level as number, badges };
+}
+
 /** Rebuilds an offered creature from known fields only, so junk from a client never gets stored or forwarded. */
 function cleanCreature(raw: unknown): CreatureInstance | undefined {
   const c = raw as Partial<CreatureInstance> | null;
@@ -459,6 +467,17 @@ export class LobbyRoom extends Room {
       this.afterTeamTurn(key, team, result);
     });
 
+    this.onMessage("profile", (client, msg: ClientMessages["profile"]) => {
+      const me = this.playerOf(client);
+      const profile = cleanProfile(msg);
+      if (!me || !profile.level) return;
+      Object.assign(me.info, profile);
+      const stored = this.store.data.players[me.info.playerId];
+      if (stored) stored.level = profile.level;
+      this.store.changed();
+      this.broadcastPlayers();
+    });
+
     this.onMessage("caveEnter", (client, msg: ClientMessages["caveEnter"]) => {
       const me = this.playerOf(client);
       if (!me || !this.caves) return;
@@ -582,11 +601,12 @@ export class LobbyRoom extends Room {
       away: false,
       // Without a valid position (an older client) you are nowhere, so never adjacent to anyone.
       ...(cleanPosition(options) ?? { areaId: "", x: 0, y: 0 }),
+      ...cleanProfile(options),
     };
     this.online.set(info.playerId, { client, info });
 
     // Remember every player, so the scoreboard lists them even while they are offline.
-    this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, avatarId: info.avatarId, lastSeen: new Date().toISOString() };
+    this.store.data.players[info.playerId] = { navn: info.navn, farve: info.farve, avatarId: info.avatarId, ...(info.level ? { level: info.level } : {}), lastSeen: new Date().toISOString() };
     this.store.changed();
 
     this.tell(client, "hello", { protocolVersion: PROTOCOL_VERSION });

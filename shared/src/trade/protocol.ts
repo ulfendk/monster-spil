@@ -22,6 +22,9 @@ export interface LobbyPlayer extends WorldPosition {
   busy: boolean;
   /** True while they are somewhere they can't be approached, e.g. in a wild battle. */
   away: boolean;
+  /** Their player level and earned badge ids (v13+; absent from older devices). */
+  level?: number;
+  badges?: string[];
 }
 
 /** Options a client passes when joining the lobby room. */
@@ -36,6 +39,9 @@ export interface LobbyJoinOptions extends Partial<WorldPosition> {
   gameKey?: string;
   /** The same key under its pre-v8 name, so an older (single-game) server still lets the client in. */
   familyCode?: string;
+  /** My player level and earned badges, for everyone to see (v13+). */
+  level?: number;
+  badges?: string[];
 }
 
 /**
@@ -62,12 +68,14 @@ export const PLAYER_ELSEWHERE = 4000;
  * v10 = a roaming dragon: it flies to new perches (RaidView.lair, dragonFlight),
  * v11 = visiting beasts (sand serpents, giant eagles): `beasts`, and `targetId` on
  * raidStart/teamCreate/raidBattle/TeamView (absent = the dragon),
- * v12 = caves that open in the mountains: `caves`, `caveEnter` → `caveVisit`. The server announces its version with the
+ * v12 = caves that open in the mountains: `caves`, `caveEnter` → `caveVisit`,
+ * v13 = player levels and badges: `level`/`badges` on join and in `profile`, shown on
+ * LobbyPlayer and the scoreboard. The server announces its version with the
  * "hello" message right after a client joins; an old server never sends one, so
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -97,6 +105,8 @@ export interface ClientMessages {
   getScores: Record<string, never>;
   /** The reward has been added to my save and persisted; the server may forget it. */
   rewardAck: { rewardId: string };
+  /** My level or badges changed (v13+): everyone sees the new ones. */
+  profile: { level: number; badges: string[] };
   /** Go into an open cave I'm standing next to (once per opening; v12+). */
   caveEnter: { caveId: string };
   /** Gather a team at the dragon — or at a visiting beast (`targetId`, v11+) — and lead it; others then see it and can join. */

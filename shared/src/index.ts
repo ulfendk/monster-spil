@@ -164,3 +164,17 @@ export {
 export type { CaveConfig, CaveDecor, CaveKind, CaveLook, CaveParticles, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
 export { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, GRAVITY, HIT_RADIUS, hitPrecision, landingTime } from "./cave/throw.js";
 export type { Vec3 } from "./cave/throw.js";
+export {
+  award,
+  boostStats,
+  earnedBadges,
+  emptyProgress,
+  levelForXp,
+  levelProgress,
+  lookFor,
+  monsterBonus,
+  progressFromHistory,
+  titleFor,
+  xpForLevel,
+} from "./player/progress.js";
+export type { AwardResult, Badge, LevelConfig, Progress, ProgressEvent } from "./player/progress.js";

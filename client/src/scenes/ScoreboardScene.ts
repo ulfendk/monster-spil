@@ -10,6 +10,8 @@ import { addAvatar } from "../gfx/avatar-sprites";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
 import { hasIcons, ic, richText } from "../ui/rich-text";
+import { lookFor } from "@shared";
+import { levelConfig } from "../content/load-progress";
 
 
 /** The family's last 7 days: who caught, duelled and fought the dragon the most. Opened from 🏆 on the map. */
@@ -101,9 +103,9 @@ export class ScoreboardScene extends Phaser.Scene {
       this.text(medalX, y, row.rank <= 3 ? ic(MEDALS[row.rank - 1]!) : String(row.rank), row.rank <= 3 ? 32 : 28, CSS.text, 0);
       this.ui.add(this.add.circle(dotX, y, Math.max(12, layout.px(18)), Phaser.Display.Color.HexStringToColor(row.farve).color));
       if (row.avatarId) {
-        this.ui.add(addAvatar(this, dotX, y, row.avatarId, Math.max(24, layout.px(36)) * 1.5));
+        this.ui.add(addAvatar(this, dotX, y, row.avatarId, Math.max(24, layout.px(36)) * 1.5, lookFor(row.level ?? 1, levelConfig)));
       }
-      this.text(nameX, y, row.navn, 30, CSS.text, 0);
+      this.text(nameX, y, row.level ? `${row.navn}  ${ic("star")} ${row.level}` : row.navn, 30, CSS.text, 0);
       this.text(cols.catches, y, String(row.catches), 30);
       this.text(cols.duels, y, String(row.duels), 30);
       this.text(cols.dragons, y, String(row.dragons), 30);

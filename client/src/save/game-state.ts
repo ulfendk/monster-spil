@@ -1,3 +1,5 @@
+import { progressFromHistory } from "@shared";
+import { badgeList, levelConfig } from "../content/load-progress";
 import type { SaveData } from "./schema";
 import { writeRecords } from "./db";
 import { currentGame, enterGame, saveKey } from "./games";
@@ -69,5 +71,7 @@ function normalise(save: SaveData | undefined): SaveData | undefined {
   }
   if (save && !save.pendingScore) save.pendingScore = [];
   if (save && !save.bag) save.bag = [];
+  // Levels came later: a save from before gets credit for what it has caught, so nobody starts over.
+  if (save && !save.progress) save.progress = progressFromHistory(save.caughtCounts, new Date(), levelConfig, badgeList);
   return save;
 }

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAdjacent, secondsLeft } from "@shared";
+import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAdjacent, lookFor, monsterBonus, secondsLeft, titleFor } from "@shared";
 import type { CreatureInstance, CreatureSpecies, AreaMeta, LobbyPlayer, BossDefinition, BeastView, CaveView, CaveVisit, DisasterMessage } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
@@ -28,10 +28,14 @@ import { createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon } from "../gfx/icon-art";
-import { addAvatar } from "../gfx/avatar-sprites";
+import { addAvatar, avatarKey } from "../gfx/avatar-sprites";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
 import { C, CSS, FONT } from "../ui/theme";
+import { recordProgress } from "../progress/record";
+import { levelConfig } from "../content/load-progress";
+import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
+import type { ProfileSceneData } from "./ProfileScene";
 
 export interface OverworldSceneData {
   save: SaveData;
@@ -65,15 +69,20 @@ const CAVE_MEET = "__cave__:";
 /** How another player is drawn on the map. */
 interface OtherView {
   circle: Phaser.GameObjects.Arc;
-  /** Their chosen animal, on the circle. */
+  /** Their chosen animal, on the circle, wearing the headwear their level has unlocked. */
   face: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
+  /** Their player level, in a small tag by the circle (servers from v13 on). */
+  level: Phaser.GameObjects.Text;
 }
 
 /** The chosen animal drawn on a player's circle. */
-function addFace(scene: Phaser.Scene, x: number, y: number, avatarId: string, depth: number): Phaser.GameObjects.Image {
-  return addAvatar(scene, x, y, avatarId, TILE_SIZE * 0.62).setDepth(depth);
+function addFace(scene: Phaser.Scene, x: number, y: number, avatarId: string, depth: number, look?: string): Phaser.GameObjects.Image {
+  return addAvatar(scene, x, y, avatarId, TILE_SIZE * 0.62, look).setDepth(depth);
 }
+
+/** Where a player's level tag sits: at the top right of their circle. */
+const LEVEL_TAG = { dx: TILE_SIZE * 0.3, dy: -TILE_SIZE * 0.24 };
 
 export class OverworldScene extends Phaser.Scene {
   private save!: SaveData;
@@ -158,6 +167,15 @@ export class OverworldScene extends Phaser.Scene {
     this.caves = new CaveLayer(this, TILE_SIZE, () => this.showToast(`${ic(CAVE_ICON)} ${t("cave_open")}`, 4000));
     this.events.once("shutdown", () => this.caves.destroy());
     if (takeArrivalNote()) this.time.delayedCall(600, () => this.showToast(t("moved_arrived"), 5000));
+    // Level-ups and new badges: shown here, on the map, one after the other.
+    const onCelebrate = () => this.celebrateNext();
+    progressEvents.on("celebrate", onCelebrate);
+    this.events.on("resume", onCelebrate);
+    this.events.once("shutdown", () => {
+      progressEvents.off("celebrate", onCelebrate);
+      this.events.off("resume", onCelebrate);
+    });
+    this.time.delayedCall(900, onCelebrate);
 
     // (0,0) sits inside the border wall, so it can never be a real position —
     // use it as the "no saved position yet" sentinel for this map. A saved spot that
@@ -176,7 +194,7 @@ export class OverworldScene extends Phaser.Scene {
       colour
     );
     this.player.setDepth(6);
-    this.playerFace = addFace(this, this.player.x, this.player.y, this.save.player.avatarId, 6.5);
+    this.playerFace = addFace(this, this.player.x, this.player.y, this.save.player.avatarId, 6.5, lookFor(myLevel(), levelConfig));
     this.others.clear();
     this.popup = [];
     this.toast = undefined;
@@ -326,6 +344,7 @@ export class OverworldScene extends Phaser.Scene {
     const until = this.save.passedOutUntil;
     if (!until || !this.save.bag[index]) return;
     this.save.bag.splice(index, 1);
+    recordProgress({ kind: "food" }, true);
     const next = eatFood(until, new Date());
     if (next) this.save.passedOutUntil = next;
     else delete this.save.passedOutUntil;
@@ -360,7 +379,9 @@ export class OverworldScene extends Phaser.Scene {
     if (this.save.bag.length === 0) return;
     const layout = getLayout(this);
     const content = `${ic(OWNED_ICON)} ${this.save.bag.map((kind) => ic(foodIcon(kind))).join("")}`;
-    this.bagChip = richChip(this, layout.safe.left + 14, layout.safe.top + 14, content, { fontFamily: FONT, fontSize: layout.font(24), color: CSS.text }, 0, 0)
+    // Under the level button.
+    const below = layout.safe.top + layout.px(14) * 2 + layout.touch(64);
+    this.bagChip = richChip(this, layout.safe.left + 14, below, content, { fontFamily: FONT, fontSize: layout.font(24), color: CSS.text }, 0, 0)
       .setScrollFactor(0)
       .setDepth(10);
   }
@@ -469,6 +490,16 @@ export class OverworldScene extends Phaser.Scene {
       this.closePopup();
       this.minimap?.open();
     });
+    // My level at the top left: tap it for my profile and badges.
+    const levelButton = createButton(this, layout.safe.left + gap + size * 0.8, y, `${ic("star")} ${myLevel()}`, () => this.openProfile({ save: this.save }), {
+      width: size * 1.6,
+      height: size,
+      fontSize: `${Math.round(size * 0.4)}px`,
+      backgroundColor: C.button,
+    });
+    levelButton.setScrollFactor(0).setDepth(10);
+    this.hud.push(levelButton);
+    this.drawBag();
   }
 
   update(): void {
@@ -880,6 +911,7 @@ export class OverworldScene extends Phaser.Scene {
         view.circle.destroy();
         view.face.destroy();
         view.label.destroy();
+        view.level.destroy();
         this.others.delete(id);
       }
     }
@@ -890,7 +922,11 @@ export class OverworldScene extends Phaser.Scene {
         const colour = Phaser.Display.Color.HexStringToColor(player.farve).color;
         view = {
           circle: this.add.circle(centre.x, centre.y, TILE_SIZE * 0.3, colour).setDepth(4),
-          face: addFace(this, centre.x, centre.y, player.avatarId, 4.5),
+          face: addFace(this, centre.x, centre.y, player.avatarId, 4.5, lookFor(player.level ?? 1, levelConfig)),
+          level: this.add
+            .text(centre.x + LEVEL_TAG.dx, centre.y + LEVEL_TAG.dy, "", { fontFamily: FONT, fontSize: "15px", color: CSS.ink, backgroundColor: CSS.accent, padding: { x: 4, y: 1 } })
+            .setOrigin(0.5)
+            .setDepth(7),
           label: this.add
             .text(centre.x, centre.y - TILE_SIZE * 0.55, player.navn, {
               fontFamily: FONT,
@@ -904,15 +940,20 @@ export class OverworldScene extends Phaser.Scene {
         };
         this.others.set(player.playerId, view);
       } else if (snap) {
-        this.tweens.killTweensOf([view.circle, view.face, view.label]);
+        this.tweens.killTweensOf([view.circle, view.face, view.label, view.level]);
         view.circle.setPosition(centre.x, centre.y);
         view.face.setPosition(centre.x, centre.y);
         view.label.setPosition(centre.x, centre.y - TILE_SIZE * 0.55);
+        view.level.setPosition(centre.x + LEVEL_TAG.dx, centre.y + LEVEL_TAG.dy);
       }
+      // A level (and so a hat) can change while they play.
+      view.face.setTexture(avatarKey(player.avatarId, lookFor(player.level ?? 1, levelConfig)));
+      view.level.setText(player.level ? String(player.level) : "").setVisible(Boolean(player.level));
       const dim = player.busy || player.away ? 0.4 : 1;
       view.circle.setAlpha(dim);
       view.face.setAlpha(dim);
       view.label.setAlpha(dim);
+      view.level.setAlpha(dim);
     }
   }
 
@@ -923,6 +964,7 @@ export class OverworldScene extends Phaser.Scene {
     const centre = this.tileCentre(player);
     this.tweens.add({ targets: [view.circle, view.face], x: centre.x, y: centre.y, duration: MOVE_DURATION_MS });
     this.tweens.add({ targets: view.label, x: centre.x, y: centre.y - TILE_SIZE * 0.55, duration: MOVE_DURATION_MS });
+    this.tweens.add({ targets: view.level, x: centre.x + LEVEL_TAG.dx, y: centre.y + LEVEL_TAG.dy, duration: MOVE_DURATION_MS });
   }
 
   private playerAt(tile: TileCoord): LobbyPlayer | undefined {
@@ -963,7 +1005,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Small 🤝 / ⚔️ / ✗ choice, fixed on screen, for the player I'm standing next to. */
   private showMeeting(player: LobbyPlayer): void {
-    this.showPopup(player.navn, [
+    this.showPopup(player.level ? `${player.navn}  ${ic("star")} ${player.level}` : player.navn, [
+      ...(player.level ? [{ label: ic("medal1"), colour: C.button, onTap: () => this.openProfile({ player }) }] : []),
       { label: ic("trade"), colour: C.ok, onTap: () => presence.send("invite", { toPlayerId: player.playerId }) },
       { label: ic("sword"), colour: C.danger, onTap: () => presence.send("duelInvite", { toPlayerId: player.playerId, seat: seatFor(this.save, this.content) }) },
       { label: "✗", colour: C.buttonQuiet, onTap: () => {} },
@@ -1040,6 +1083,85 @@ export class OverworldScene extends Phaser.Scene {
   private openOverlay(key: string): void {
     this.closePopup();
     this.scene.launch(key);
+    this.scene.pause();
+  }
+
+  private celebrating = false;
+
+  /** Shows the next level-up or badge, if the map is on screen and nothing else is being shown. */
+  private celebrateNext(): void {
+    if (this.celebrating || !this.scene.isActive()) return;
+    const next = nextCelebration();
+    if (!next) return;
+    this.celebrating = true;
+    this.showCelebration(next, () => {
+      this.celebrating = false;
+      this.celebrateNext();
+    });
+  }
+
+  /**
+   * A banner across the top: for a level-up a big star, the new level and title, and what
+   * it brought (a new hat, stronger monsters); for badges, each new one with its icon.
+   * Tap it or wait, and the next one comes.
+   */
+  private showCelebration(c: Celebration, done: () => void): void {
+    const layout = getLayout(this);
+    const { width } = layout;
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const panelW = Math.min(width - layout.safe.left - layout.safe.right - 24, layout.px(620));
+    const lines: string[] = [];
+    let newLook: string | undefined;
+    if (c.levelUp) {
+      const to = c.levelUp.to;
+      lines.push(`${ic("star")} ${t("level_up")} ${to}!   ${titleFor(to, levelConfig)}`);
+      const before = lookFor(c.levelUp.from, levelConfig);
+      newLook = lookFor(to, levelConfig);
+      const unlocked = newLook !== before ? levelConfig.looks.find((l) => l.id === newLook) : undefined;
+      if (unlocked) lines.push(`${t("level_new_look")} ${unlocked.navn}`);
+      lines.push(`${ic("sword")} +${Math.round(monsterBonus(to, levelConfig) * 100)}%`);
+      if (!unlocked) newLook = undefined;
+      // My figure puts on its new hat, and the level button shows the new level.
+      this.playerFace?.setTexture(avatarKey(this.save.player.avatarId, lookFor(to, levelConfig)));
+      this.buildHud();
+    }
+    for (const b of c.badges) lines.push(`${ic(b.icon)} ${t("badge_new")} ${b.navn}`);
+    const lineH = layout.px(48);
+    const panelH = lines.length * lineH + layout.px(40) + (newLook ? layout.px(90) : 0);
+    const top = layout.safe.top + layout.touch(64) + layout.px(24);
+    const panel = this.add.rectangle(width / 2, top, panelW, panelH, C.overlay, 0.94).setOrigin(0.5, 0).setStrokeStyle(4, C.accent).setScrollFactor(0).setDepth(30);
+    panel.setInteractive();
+    objects.push(panel);
+    let y = top + layout.px(20) + lineH / 2;
+    if (newLook) {
+      objects.push(this.add.circle(width / 2, y + layout.px(20), layout.px(38), Phaser.Display.Color.HexStringToColor(this.save.player.farve).color).setScrollFactor(0).setDepth(31));
+      objects.push(addAvatar(this, width / 2, y + layout.px(20), this.save.player.avatarId, layout.px(66), newLook).setScrollFactor(0).setDepth(32));
+      y += layout.px(90);
+    }
+    lines.forEach((line, i) => {
+      objects.push(
+        richText(this, width / 2, y + i * lineH, line, { fontFamily: FONT, fontSize: layout.font(i === 0 && c.levelUp ? 34 : 26), color: i === 0 && c.levelUp ? CSS.accent : CSS.text })
+          .setScrollFactor(0)
+          .setDepth(32)
+      );
+    });
+    // A little pop as it appears.
+    for (const o of objects) (o as Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject).setScale?.(0.9);
+    this.tweens.add({ targets: objects, scale: 1, duration: 220, ease: "Back.easeOut" });
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      for (const o of objects) o.destroy();
+      done();
+    };
+    panel.on("pointerup", close);
+    this.time.delayedCall(4200, close);
+  }
+
+  private openProfile(data: ProfileSceneData): void {
+    this.closePopup();
+    this.scene.launch("Profile", data);
     this.scene.pause();
   }
 

@@ -16,13 +16,18 @@ const K = KANAGAWA;
 type G = Phaser.GameObjects.Graphics;
 type Point = { x: number; y: number };
 
-export function avatarKey(id: string | undefined): string {
-  return AVATARS.some((a) => a.id === id) ? `avatar-${id}` : "avatar-unknown";
+/** Headwear a figure can wear, unlocked by player level (levels.json "looks"). */
+export const LOOKS = ["hachimaki", "kasa", "kabuto", "krone"] as const;
+
+/** The texture of a figure, wearing `look` if it's one we can draw. */
+export function avatarKey(id: string | undefined, look?: string): string {
+  const base = AVATARS.some((a) => a.id === id) ? `avatar-${id}` : "avatar-unknown";
+  return look && (LOOKS as readonly string[]).includes(look) ? `${base}-${look}` : base;
 }
 
-/** A player's figure, `size` pixels across. */
-export function addAvatar(scene: Phaser.Scene, x: number, y: number, id: string | undefined, size: number): Phaser.GameObjects.Image {
-  return scene.add.image(x, y, avatarKey(id)).setScale(size / AVATAR_SIZE);
+/** A player's figure, `size` pixels across, wearing their headwear (if any). */
+export function addAvatar(scene: Phaser.Scene, x: number, y: number, id: string | undefined, size: number, look?: string): Phaser.GameObjects.Image {
+  return scene.add.image(x, y, avatarKey(id, look)).setScale(size / AVATAR_SIZE);
 }
 
 export function generateAvatarTextures(scene: Phaser.Scene): void {
@@ -36,13 +41,54 @@ export function generateAvatarTextures(scene: Phaser.Scene): void {
     unknown: (g) => head(g, K.oldWhite),
   };
   for (const [id, fn] of Object.entries(draw)) {
-    const key = `avatar-${id}`;
-    if (scene.textures.exists(key)) continue;
-    const g = scene.add.graphics();
-    fn(g);
-    if (id === "unknown") face(g, 64, 70, false);
-    g.generateTexture(key, AVATAR_SIZE, AVATAR_SIZE);
-    g.destroy();
+    for (const look of [undefined, ...LOOKS]) {
+      const key = look ? `avatar-${id}-${look}` : `avatar-${id}`;
+      if (scene.textures.exists(key)) continue;
+      const g = scene.add.graphics();
+      fn(g);
+      if (id === "unknown") face(g, 64, 70, false);
+      if (look) drawLook(g, look);
+      g.generateTexture(key, AVATAR_SIZE, AVATAR_SIZE);
+      g.destroy();
+    }
+  }
+}
+
+// ------------------------------------------------------------ headwear (unlocked by level)
+
+function drawLook(g: G, look: (typeof LOOKS)[number]): void {
+  if (look === "hachimaki") {
+    // A red headband across the brow, knotted at the side with two tails.
+    g.fillStyle(K.autumnRed, 1).fillRect(20, 42, 88, 12);
+    g.lineStyle(3, INK, 1).strokeRect(20, 42, 88, 12);
+    g.fillStyle(K.washi, 1).fillCircle(64, 48, 4);
+    outlinedShape(g, [{ x: 104, y: 44 }, { x: 124, y: 34 }, { x: 120, y: 46 }], K.autumnRed);
+    outlinedShape(g, [{ x: 104, y: 50 }, { x: 124, y: 60 }, { x: 116, y: 50 }], K.autumnRed);
+  } else if (look === "kasa") {
+    // A wide conical straw hat with woven rings.
+    outlinedShape(g, [{ x: 64, y: 4 }, { x: 122, y: 40 }, { x: 6, y: 40 }], K.boatYellow2);
+    g.lineStyle(2, K.boatYellow1, 1);
+    for (const k of [0.35, 0.6, 0.85]) g.lineBetween(64 - 58 * k, 4 + 36 * k, 64 + 58 * k, 4 + 36 * k);
+    g.fillStyle(INK, 1).fillCircle(64, 6, 3);
+  } else if (look === "kabuto") {
+    // A samurai helmet: a dark dome, side flaps and a golden crescent crest.
+    outlinedShape(g, [{ x: 16, y: 44 }, { x: 22, y: 22 }, { x: 44, y: 10 }, { x: 84, y: 10 }, { x: 106, y: 22 }, { x: 112, y: 44 }], K.sumiInk5);
+    outlinedShape(g, [{ x: 10, y: 42 }, { x: 30, y: 40 }, { x: 24, y: 58 }, { x: 8, y: 54 }], K.autumnRed);
+    outlinedShape(g, [{ x: 118, y: 42 }, { x: 98, y: 40 }, { x: 104, y: 58 }, { x: 120, y: 54 }], K.autumnRed);
+    g.lineStyle(7, K.carpYellow, 1);
+    g.beginPath();
+    g.arc(64, 26, 30, Math.PI * 1.15, Math.PI * 1.85, false);
+    g.strokePath();
+    g.fillStyle(K.carpYellow, 1).fillCircle(64, 20, 7);
+    g.lineStyle(2, INK, 1).strokeCircle(64, 20, 7);
+  } else {
+    // A golden crown with three points and red jewels.
+    outlinedShape(g, [{ x: 30, y: 40 }, { x: 30, y: 16 }, { x: 46, y: 28 }, { x: 64, y: 6 }, { x: 82, y: 28 }, { x: 98, y: 16 }, { x: 98, y: 40 }], K.carpYellow);
+    for (const [x, y] of [[30, 16], [64, 6], [98, 16]] as const) {
+      g.fillStyle(K.waveRed, 1).fillCircle(x, y, 4.5);
+      g.lineStyle(2, INK, 1).strokeCircle(x, y, 4.5);
+    }
+    g.fillStyle(K.crystalBlue, 1).fillCircle(64, 32, 4.5);
   }
 }
 

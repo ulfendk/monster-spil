@@ -15,6 +15,7 @@ import { C, CSS, FONT } from "../ui/theme";
 import { CAVE_ICON, POINTS_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
 import type { CaveStage } from "../cave/cave-stage";
+import { recordProgress } from "../progress/record";
 
 export interface CaveSceneData {
   save: SaveData;
@@ -62,6 +63,7 @@ export class CaveScene extends Phaser.Scene {
 
   create(): void {
     if (multiplayerEnabled) presence.setAway(true); // nobody can invite me while I'm in here
+    recordProgress({ kind: "caveVisit", caveKind: caveKindFor(this.caveData.visit.kind)?.id ?? "krystal" });
     const layout = getLayout(this);
     const loading = this.add.text(layout.width / 2, layout.height / 2, t("cave_loading"), { fontFamily: FONT, fontSize: layout.font(30), color: CSS.soft }).setOrigin(0.5);
     this.events.once("shutdown", () => this.teardown());
@@ -192,6 +194,7 @@ export class CaveScene extends Phaser.Scene {
       caughtAt: new Date().toISOString(),
     };
     save.creatures.push(creature);
+    recordProgress({ kind: "catch", newSpecies: !save.caughtCounts[speciesId], cave: true }, true);
     save.caughtCounts[speciesId] = (save.caughtCounts[speciesId] ?? 0) + 1;
     // Counted on the family scoreboard when the server has acknowledged it.
     save.pendingScore.push({ id: crypto.randomUUID(), kind: "catch", at: creature.caughtAt });
