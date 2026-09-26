@@ -482,9 +482,12 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
 - **Caves and catching throw with a slingshot**: touch anywhere, pull back (down, towards
   yourself) and let go. The pouch with the ball follows the finger and white dots show the
   first half of the throw; a longer pull throws further and higher, and the ball goes the
-  opposite way of the pull (pull down-right → aim left, at most ~35°). A pull shorter than
+  opposite way of the pull (pull down-right → aim left, at most ~35°; within ~5° of straight
+  back it throws straight ahead, so a wobbly finger still hits what's in front). A pull shorter than
   `MIN_PULL` just lets the band go. The longest pull that counts depends on the screen
-  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same.
+  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same. On a tall screen the view
+  is moved so the slingshot sits near the bottom (`ThrowStage.resize`); the meadow uses a
+  narrower view than the caves (`sideView`), so its one monster is bigger.
 - **Pure rule** (tested): `slingshotToThrow(dx, dy, maxPull)` in `shared/src/cave/throw.ts`;
   tests check that every place a cave monster can peek out, and every place the meadow
   monster sways to, can be hit with some pull. `client/src/ui/slingshot-input.ts` turns
@@ -795,7 +798,8 @@ BFS pathfinding if needed); on the ground it does nothing.
   sprites/bars/buttons from the live battle state; the map rebuilds its HUD.
 - **Arrangements:** portrait phones stack what landscape shows side by side (battle:
   foe above, player below, a grid of buttons; monster info; trade screen). Grids pick
-  their column count to fit (`wrapGrid`, the monster book's best-fit search).
+  their column count to fit (`wrapGrid`); the monster book keeps its entries a readable size
+  and scrolls (drag up and down; a drag is never a tap on a monster).
 - **Overlays** get their close button from `addCloseButton` (top-right, clear of the
   notch). The map HUD is a right-aligned row: 🗺️ (overview map overlay) 🏆 ⚙ 📖.
 - **Testing:** in dev builds `window.__game` exposes the Phaser game, so a headless

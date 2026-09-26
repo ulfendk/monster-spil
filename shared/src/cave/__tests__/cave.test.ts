@@ -151,6 +151,7 @@ test("a short pull or one that doesn't pull back is no throw; a long pull throws
   assert.deepEqual(slingshotToThrow(0, 900, 300), far, "pulling past the longest pull adds nothing");
   assert.ok(slingshotToThrow(80, 200, 300)!.x < 0, "pulling to the right aims left");
   assert.ok(slingshotToThrow(-80, 200, 300)!.x > 0, "pulling to the left aims right");
+  assert.equal(slingshotToThrow(12, 200, 300)!.x, 0, "a finger wobbling a little off straight back still throws straight");
   const wide = slingshotToThrow(290, 20, 300)!;
   assert.ok(Math.abs(wide.x / wide.z) <= 0.7 + 1e-9, "never aims further to the side than about 35°");
 });

@@ -27,11 +27,15 @@ export interface MonsterbogSceneData {
   position: Tile;
 }
 
-/** The iPad design size of one book entry; smaller screens scale it down to fit every monster. */
+/** The iPad design size of one book entry; small screens scale it down a little, and the book scrolls. */
 const CELL_SIZE = 170;
+/** A finger that moves further than this (px) is scrolling, not tapping a monster. */
+const TAP_SLOP = 10;
 
 export class MonsterbogScene extends Phaser.Scene {
   private bookData!: MonsterbogSceneData;
+  /** The finger scrolling the book: where it pressed, the scroll then, and whether it has moved (so it's no tap). */
+  private scroll?: { y: number; from: number; moved: boolean };
 
   constructor() {
     super("Monsterbog");
@@ -43,32 +47,31 @@ export class MonsterbogScene extends Phaser.Scene {
     const layout = getLayout(this);
     const { width, height, safe } = layout;
 
-    const overlay = this.add.rectangle(0, 0, width, height, C.overlay, 0.94).setOrigin(0, 0);
-    addSeigaiha(this, 0, height * 0.66, width, height * 0.34);
+    // The backdrop and the header stay put (scroll factor 0) while the monsters scroll under them.
+    const overlay = this.add.rectangle(0, 0, width, height, C.overlay, 0.94).setOrigin(0, 0).setScrollFactor(0);
+    addSeigaiha(this, 0, height * 0.66, width, height * 0.34).setScrollFactor(0);
     overlay.setInteractive(); // swallow taps so they don't reach the paused Overworld underneath
 
     const closeSize = layout.touch(64);
     const headerH = safe.top + closeSize + layout.px(20);
-    this.add.text(width / 2, safe.top + layout.px(10) + closeSize / 2, t("monsterbog_title"), { fontFamily: FONT, fontSize: layout.font(36), color: CSS.text }).setOrigin(0.5);
+    this.add.rectangle(0, 0, width, headerH, C.overlay, 1).setOrigin(0, 0).setScrollFactor(0).setDepth(10);
+    this.add.text(width / 2, safe.top + layout.px(10) + closeSize / 2, t("monsterbog_title"), { fontFamily: FONT, fontSize: layout.font(36), color: CSS.text }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
     const speciesList = Object.values(data.content.speciesById);
     const owned = new Map<string, number>();
     for (const c of data.save.creatures) owned.set(c.speciesId, (owned.get(c.speciesId) ?? 0) + 1);
 
-    // Pick the column count that gives the biggest entries while every monster still fits.
+    // Entries at a readable size (a little smaller on a phone), as many per row as fit; the rest scrolls.
     const areaW = width - safe.left - safe.right - 16;
     const areaH = height - headerH - safe.bottom - 8;
-    let best = { cols: 1, cell: 0 };
-    for (let cols = 1; cols <= speciesList.length; cols++) {
-      const rows = Math.ceil(speciesList.length / cols);
-      const cell = Math.min(CELL_SIZE * Math.max(1, layout.s), areaW / cols, areaH / rows);
-      if (cell >= best.cell) best = { cols, cell }; // on a tie, more columns: a flatter grid reads better
-    }
-    const { cols, cell } = best;
+    const target = CELL_SIZE * Phaser.Math.Clamp(layout.s, 0.72, 1.2);
+    const cols = Math.max(2, Math.min(speciesList.length, Math.floor(areaW / target)));
+    const cell = Math.min(areaW / cols, CELL_SIZE * Math.max(1, layout.s));
     const k = cell / CELL_SIZE; // everything inside an entry scales with it
     const rows = Math.ceil(speciesList.length / cols);
     const startX = width / 2 - (cols * cell) / 2 + cell / 2;
-    const startY = headerH + (areaH - rows * cell) / 2 + cell * 0.36;
+    const startY = headerH + Math.max(0, (areaH - rows * cell) / 2) + cell * 0.36;
+    this.setUpScrolling(Math.max(0, headerH + rows * cell + layout.px(16) + safe.bottom - height));
     const label = (px: number) => `${Math.max(13, Math.round(px * k))}px`;
 
     speciesList.forEach((species, i) => {
@@ -90,10 +93,13 @@ export class MonsterbogScene extends Phaser.Scene {
           richText(this, x, y + 97 * k, `${ic(CAUGHT_ICON)} ${caughtCount}   ${ic(OWNED_ICON)} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: CSS.text });
         }
         // Tapping a known monster opens its page (and plays its cry).
+        const open = () => {
+          if (!this.scroll?.moved) this.openInfo(species, caught, ownedCount, caughtCount);
+        };
         ring.setInteractive({ useHandCursor: true });
-        ring.on("pointerup", () => this.openInfo(species, caught, ownedCount, caughtCount));
+        ring.on("pointerup", open);
         image.setInteractive({ useHandCursor: true });
-        image.on("pointerup", () => this.openInfo(species, caught, ownedCount, caughtCount));
+        image.on("pointerup", open);
       } else {
         this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: CSS.faint }).setOrigin(0.5);
         const hint = this.hintFor(species);
@@ -130,7 +136,26 @@ export class MonsterbogScene extends Phaser.Scene {
       height: closeSize,
       fontSize: layout.font(28),
       backgroundColor: C.buttonQuiet,
+    })
+      .setScrollFactor(0)
+      .setDepth(11);
+  }
+
+  /** Dragging up and down scrolls the book (up to `maxScroll` px); a drag is never a tap on a monster. */
+  private setUpScrolling(maxScroll: number): void {
+    const camera = this.cameras.main;
+    camera.setScroll(0, 0);
+    this.scroll = undefined;
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => (this.scroll = { y: p.y, from: camera.scrollY, moved: false }));
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      const s = this.scroll;
+      if (!s || !p.isDown) return;
+      if (Math.abs(p.y - s.y) > TAP_SLOP) s.moved = true;
+      if (s.moved) camera.setScroll(0, Phaser.Math.Clamp(s.from - (p.y - s.y), 0, maxScroll));
     });
+    // The tap on a monster is handled first (pointerup on it); forget the drag afterwards.
+    this.input.on("pointerup", () => this.time.delayedCall(0, () => (this.scroll = undefined)));
+    this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => camera.setScroll(0, Phaser.Math.Clamp(camera.scrollY + dy, 0, maxScroll)));
   }
 
   /**

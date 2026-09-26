@@ -22,13 +22,16 @@ export const HIT_RADIUS = 0.75;
 export const MIN_PULL = 0.15;
 /** How far to the side the slingshot can aim: the tangent of its widest angle (about 35°). */
 const MAX_AIM = 0.7;
+/** A pull this close to straight back (tangent, about 5°) throws straight ahead: small wobbles of the finger don't count. */
+const STRAIGHT = 0.09;
 
 /**
  * Pulling the slingshot back and letting go → the ball's launch velocity. `dx`/`dy` is how
  * far the finger pulled from where it pressed, in pixels (screen y grows downwards, so
  * pulling back towards yourself is dy > 0), `maxPull` the longest pull that counts. The
  * longer the pull, the further and higher the ball flies; it goes the opposite way of the
- * pull, so pulling down and to the right aims left. Undefined for a pull too short to throw
+ * pull, so pulling down and to the right aims left (nearly straight back throws straight
+ * ahead, and the aim turns gently from there). Undefined for a pull too short to throw
  * or one that doesn't pull back (downwards) at all.
  */
 export function slingshotToThrow(dx: number, dy: number, maxPull: number): Vec3 | undefined {
@@ -38,8 +41,9 @@ export function slingshotToThrow(dx: number, dy: number, maxPull: number): Vec3 
   // From a gentle lob up to a long, high throw.
   const speed = 0.5 + 3.5 * ((pull - MIN_PULL) / (1 - MIN_PULL));
   const z = -(3 + 3.4 * speed);
-  const aim = Math.max(-MAX_AIM, Math.min(MAX_AIM, -dx / dy));
-  return { x: aim * -z, y: 2.4 + 1.2 * speed, z };
+  const slant = -dx / dy;
+  const aim = Math.sign(slant) * Math.min(MAX_AIM, Math.max(0, Math.abs(slant) - STRAIGHT) * 0.8);
+  return { x: aim * -z || 0, y: 2.4 + 1.2 * speed, z };
 }
 
 /** Where the ball is `t` seconds after the throw. */

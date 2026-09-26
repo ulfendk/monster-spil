@@ -127,9 +127,18 @@ export abstract class ThrowStage<M extends LivingMonster> {
    */
   resize(width: number, height: number, band?: { top: number; bottom: number }): void {
     const bandH = Math.max(1, (band?.bottom ?? height) - (band?.top ?? 0));
-    const vfov = (2 * Math.atan(Math.tan((35 * Math.PI) / 180) / (width / bandH)) * 180) / Math.PI;
-    this.frameView(width, height, band, Math.min(95, Math.max(50, vfov)));
+    const vfov = (2 * Math.atan(Math.tan((this.sideView * Math.PI) / 360) / (width / bandH)) * 180) / Math.PI;
+    const fov = Math.min(95, Math.max(50, vfov));
+    this.frameView(width, height, band, fov);
+    // On a tall screen the slingshot would float in the middle: move the picture down so it
+    // sits near the bottom, where the thumb pulls it (there's sky to spare above).
+    const ball = this.project(BALL_START);
+    const wanted = height * 0.85;
+    if (!band && height > width && ball.y < wanted) this.frameView(width, height, band, fov, { x: 0, y: ball.y - wanted });
   }
+
+  /** How wide (degrees) the view must be at least from side to side: the caves spread out more than the meadow. */
+  protected sideView = 70;
 
   /**
    * Sets the canvas size and the camera: `vfov` degrees of view over the band's height (or

@@ -31,6 +31,8 @@ export interface MeadowMonster extends LivingMonster {
 export class MeadowStage extends ThrowStage<MeadowMonster> {
   /** Where it stands during a battle: a little to the right, facing my monster (battle-stage.ts moves it for tall screens). */
   protected readonly battleSpot = new THREE.Vector3(1.3, STAND_Y, -7);
+  /** One monster, swaying a little: a narrower view than the cave's, so it's bigger on a phone. */
+  protected sideView = 42;
 
   constructor(canvas: HTMLCanvasElement, monster: StageMonster, seed: number, battle = false) {
     super(canvas, seed);
