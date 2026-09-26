@@ -13,8 +13,12 @@ export interface BackupSummary {
 
 /** Player ids are UUIDs made by the devices; anything else is refused (they become file names). */
 const ID = /^[A-Za-z0-9-]{1,80}$/;
-/** Far more than any real save; stops a runaway device filling the disk. */
-export const MAX_BACKUP_BYTES = 256 * 1024;
+/**
+ * A save may be up to 16 MB (as JSON) — about 100,000 monsters: far beyond what a family
+ * will ever catch, while still stopping a runaway upload. Backups travel over plain HTTP
+ * (PUT /backups/<id>, backup-http.ts), streamed, so no websocket message has to hold one.
+ */
+export const MAX_BACKUP_BYTES = 16 * 1024 * 1024;
 
 interface StoredBackup {
   savedAt: string;

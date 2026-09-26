@@ -106,3 +106,31 @@ export async function redeemMove(code: string): Promise<BackupResult<{ gameId: s
     return { ok: false, reason: "offline" };
   }
 }
+
+/**
+ * Backs up this device's save (it's the source of truth; the copy lets a new device get
+ * the player back). Plain HTTP, so any size of save goes: a websocket message has to stay
+ * small. "missing" = the server has no such route (older than this): send it the old way.
+ */
+export async function putBackup(key: string, save: SaveData): Promise<BackupResult<string>> {
+  if (!serverHttp) return { ok: false, reason: "offline" };
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 30_000);
+  try {
+    const res = await fetch(`${serverHttp}/backups/${encodeURIComponent(save.player.id)}`, {
+      method: "PUT",
+      headers: { "x-game-key": key, "content-type": "application/json" },
+      body: JSON.stringify({ save }),
+      signal: abort.signal,
+    });
+    if (res.status === 401) return { ok: false, reason: "code" };
+    if (res.status === 404 || res.status === 405) return { ok: false, reason: "missing" };
+    if (!res.ok) return { ok: false, reason: "offline" };
+    const { savedAt } = (await res.json()) as { savedAt?: unknown };
+    return typeof savedAt === "string" ? { ok: true, value: savedAt } : { ok: false, reason: "offline" };
+  } catch {
+    return { ok: false, reason: "offline" };
+  } finally {
+    clearTimeout(timer);
+  }
+}

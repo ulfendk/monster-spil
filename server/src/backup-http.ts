@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { clientAddress, type KeyGate } from "./key-gate.js";
+import { MAX_BACKUP_BYTES } from "./save-backups.js";
 import type { GameInfo, GameRegistry } from "./games.js";
 
 /**
@@ -9,6 +10,8 @@ import type { GameInfo, GameRegistry } from "./games.js";
  *   GET /game           → { gameId, navn } of the game the key belongs to (adding a game)
  *   GET /backups        → that game's backed-up players (name, colour, figure, …)
  *   GET /backups/<id>   → that player's saved game
+ *   PUT /backups/<id>   {save} → stores it as that player's backup (how devices back up;
+ *                       streamed, up to MAX_BACKUP_BYTES — no websocket message holds a save)
  *   POST /transfer      {save} → stores it as that player's backup and gives a one-time
  *                       code, so the game can move to a new address (see below)
  *   GET /transfer/<code> → { gameId, navn, key, playerId }, once, within TRANSFER_MS
@@ -25,7 +28,8 @@ import type { GameInfo, GameRegistry } from "./games.js";
 
 /** How long a moving code stays valid. */
 export const TRANSFER_MS = 15 * 60_000;
-const MAX_BODY = 300_000;
+/** A body may be a whole save (plus its wrapping): as big as a backup may be. */
+const MAX_BODY = MAX_BACKUP_BYTES + 64 * 1024;
 
 interface Transfer {
   gameId: string;
@@ -34,16 +38,23 @@ interface Transfer {
 }
 const transfers = new Map<string, Transfer>();
 
+/** The JSON body, or "too big" (past MAX_BODY: reading stops), or undefined (not JSON). */
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
     let size = 0;
+    let over = false;
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => {
+      if (over) return;
       size += c.length;
-      if (size > MAX_BODY) req.destroy();
-      else chunks.push(c);
+      if (size > MAX_BODY) {
+        over = true;
+        chunks.length = 0;
+        resolve("too big");
+      } else chunks.push(c);
     });
     req.on("end", () => {
+      if (over) return;
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
       } catch {
@@ -67,7 +78,7 @@ export function handleBackupRequest(
   const allow = deps.allowedOrigins.length === 0 ? "*" : origin && deps.allowedOrigins.includes(origin) ? origin : deps.allowedOrigins[0]!;
   res.setHeader("Access-Control-Allow-Origin", allow);
   res.setHeader("Access-Control-Allow-Headers", "x-game-key, x-family-code, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
   res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") {
     res.writeHead(204).end();
@@ -92,7 +103,8 @@ export function handleBackupRequest(
     send(200, { gameId: game.id, navn: game.navn, key: game.key, playerId: t.playerId });
     return true;
   }
-  const wanted = url.pathname === "/transfer" ? "POST" : "GET";
+  const backupUpload = req.method === "PUT" && url.pathname.startsWith("/backups/");
+  const wanted = url.pathname === "/transfer" ? "POST" : backupUpload ? "PUT" : "GET";
   if (req.method !== wanted) {
     send(405, { error: "method not allowed" });
     return true;
@@ -109,8 +121,22 @@ export function handleBackupRequest(
     send(200, { gameId: game.id, navn: game.navn });
     return true;
   }
+  if (backupUpload) {
+    const id = decodeURIComponent(url.pathname.slice("/backups/".length));
+    void readBody(req).then(async (body) => {
+      if (body === "too big") return send(413, { error: "save too big" });
+      const save = (body as { save?: { player?: { id?: unknown } } } | undefined)?.save;
+      // Each save goes under its own player's id, nowhere else.
+      if (save?.player?.id !== id) return send(400, { error: "not this player's save" });
+      const savedAt = new Date();
+      const problem = await deps.registry.backups(game.id).put(id, save, savedAt);
+      send(problem ? 400 : 200, problem ? { error: problem } : { savedAt: savedAt.toISOString() });
+    }, () => send(500, { error: "could not store" }));
+    return true;
+  }
   if (url.pathname === "/transfer") {
     void readBody(req).then(async (body) => {
+      if (body === "too big") return send(413, { error: "save too big" });
       const save = (body as { save?: { player?: { id?: unknown } } } | undefined)?.save;
       const playerId = save?.player?.id;
       if (typeof playerId !== "string") return send(400, { error: "no save" });

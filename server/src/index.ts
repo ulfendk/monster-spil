@@ -54,7 +54,12 @@ const httpServer = http.createServer((req, res) => {
   serveClient(req, res).then((served) => served || notFound(), notFound);
 });
 
-const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
+// Game messages are small; backups go over plain HTTP (PUT /backups/<id>). 1 MB still lets a
+// device that hasn't updated yet send its backup the old way, over the websocket — the
+// transport's own default of 4 KB closed the connection (1009) for every player with a
+// few dozen monsters, at every backup, so they kept dropping out and reconnecting.
+const MAX_MESSAGE_BYTES = 1024 * 1024;
+const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer, maxPayload: MAX_MESSAGE_BYTES }) });
 const production = process.env.NODE_ENV === "production";
 const adminPassword = process.env.ADMIN_PASSWORD?.trim() || undefined;
 // Every game (its players, scores, dragon and backups) lives under DATA_DIR (a volume in Docker).

@@ -36,6 +36,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,json,png,svg,mp3,wav,m4a}"],
+        // The game answers every page it doesn't know with itself (offline too) — but not
+        // the game server's own pages at the same address: the admin portal and the
+        // plain-HTTP endpoints must always reach the server.
+        navigateFallbackDenylist: [/^\/(admin|backups|transfer|game|health|matchmake)(\/|\?|$)/],
       },
     }),
   ],

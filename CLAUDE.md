@@ -465,9 +465,19 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
 - **The device's save stays the source of truth**, but a copy lives on the game
   server so a reinstalled or new device can get its player back. `persist()` notifies
   `onPersist` listeners; `presence` backs up 5 s after the last save (and once after
-  connecting) with the `backup` message. The server (`server/src/save-backups.ts`)
+  connecting) over **plain HTTP**: `PUT /backups/<playerId>` with the spilnøgle, streamed,
+  up to 16 MB (`MAX_BACKUP_BYTES`; about 100,000 monsters). A save must never travel as a
+  websocket message: those stay small (the server allows 1 MB, only so devices not yet
+  updated can still use the old `backup` message, which is the fallback for an older
+  server). The transport's default limit of 4 KB once closed the connection (1009) of
+  everyone with a few dozen monsters at every backup. The server (`server/src/save-backups.ts`)
   keeps one file per player in `DATA_DIR/games/<gameId>/saves/<playerId>.json` (atomic writes; ids
-  must match `[A-Za-z0-9-]`, max 256 KB; you can only back up your own save).
+  must match `[A-Za-z0-9-]`; a save only goes under its own player's id).
+  `scripts/e2e-bigsave.mjs` checks saves up to ~12 MB.
+- **The game's service worker** answers every page navigation with the game (offline too),
+  except the server's own paths (`navigateFallbackDenylist` in `client/vite.config.ts`:
+  `/admin`, `/backups`, `/transfer`, `/game`, `/health`, `/matchmake`) — without that, a
+  browser that had opened the game got the game instead of the admin portal.
 - **Restore** happens before the device has a player, so it is plain HTTP on the same
   server (`server/src/backup-http.ts`): `GET /backups` and `GET /backups/<id>`, with
   the spilnøgle in `X-Game-Key` (older clients: `X-Family-Code`) choosing the game,

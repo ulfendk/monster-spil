@@ -28,6 +28,7 @@ import { joinLobby, listen, multiplayerEnabled, say } from "./lobby";
 import { currentGame, updateGame } from "../save/games";
 import { t } from "../i18n/da";
 import { loadContent } from "../content/load-content";
+import { putBackup } from "./backup";
 
 export type PresenceStatus = "off" | "connecting" | "needCode" | "online" | "offline";
 
@@ -125,13 +126,29 @@ class Presence {
     return typeof this.serverVersion === "number" && this.serverVersion >= 7;
   }
 
-  /** Sends a copy of the save to the family server soon (debounced), if connected. */
+  /**
+   * Sends a copy of the save to the family server soon (debounced), if connected. Over
+   * plain HTTP (a save can be big, and a websocket message has to stay small); a server
+   * without that route gets it the old way, as a websocket message.
+   */
   scheduleBackup(delay = BACKUP_DELAY_MS): void {
     clearTimeout(this.backupTimer);
-    this.backupTimer = setTimeout(() => {
-      const save = getState();
-      if (save && this.backupSupported) this.send("backup", { save });
-    }, delay);
+    this.backupTimer = setTimeout(() => void this.backup(), delay);
+  }
+
+  private async backup(): Promise<void> {
+    const save = getState();
+    const key = currentGame()?.key;
+    if (!save || !key || !this.backupSupported) return;
+    const result = await putBackup(key, save);
+    if (result.ok) {
+      this.lastBackupAt = result.value;
+      this.events.emit("backup");
+    } else if (result.reason !== "code") {
+      // An older server (no such route, or CORS refusing the method): the old way. Offline,
+      // this sends nothing, and the next save or connection tries again.
+      this.send("backup", { save });
+    }
   }
 
   /** True when the server lets players team up against the dragon (protocol v5+). */
