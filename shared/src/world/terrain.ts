@@ -124,26 +124,43 @@ export function walkableNow(base: BaseArea, terrain: AreaTerrain, x: number, y: 
  * one can be stranded or spawn in a pocket.
  */
 export function staysConnected(base: BaseArea, isWalkable: (x: number, y: number) => boolean, blocked: Set<string>): boolean {
-  const open = (x: number, y: number) => inside(base, x, y) && !blocked.has(tileKey(x, y)) && isWalkable(x, y);
+  // Asks about each tile once, then searches over plain indexes: this runs for every tile a
+  // disaster wants to change, so it has to stay quick on a big map.
+  const { width: w, height: h } = base;
+  const open = new Uint8Array(w * h);
   let total = 0;
-  for (let y = 0; y < base.height; y++) for (let x = 0; x < base.width; x++) if (open(x, y)) total++;
-  const { x: sx, y: sy } = base.start;
-  if (!open(sx, sy)) return false;
-  const seen = new Set([tileKey(sx, sy)]);
-  const queue = [base.start];
-  while (queue.length) {
-    const { x, y } = queue.pop()!;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const nx = x + dx;
-      const ny = y + dy;
-      const k = tileKey(nx, ny);
-      if (!seen.has(k) && open(nx, ny)) {
-        seen.add(k);
-        queue.push({ x: nx, y: ny });
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (isWalkable(x, y)) {
+        open[y * w + x] = 1;
+        total++;
       }
     }
   }
-  return seen.size === total;
+  for (const key of blocked) {
+    const { x, y } = fromKey(key);
+    if (inside(base, x, y) && open[y * w + x]) {
+      open[y * w + x] = 0;
+      total--;
+    }
+  }
+  const { x: sx, y: sy } = base.start;
+  if (!inside(base, sx, sy) || !open[sy * w + sx]) return false;
+  open[sy * w + sx] = 2; // 2 = reached
+  let reached = 1;
+  const queue = [sy * w + sx];
+  while (queue.length) {
+    const i = queue.pop()!;
+    const x = i % w;
+    for (const n of [x + 1 < w ? i + 1 : -1, x > 0 ? i - 1 : -1, i + w < w * h ? i + w : -1, i - w]) {
+      if (n >= 0 && open[n] === 1) {
+        open[n] = 2;
+        reached++;
+        queue.push(n);
+      }
+    }
+  }
+  return reached === total;
 }
 
 const same = (a: TileState, b: TileState) => a.ground === b.ground && a.grass === b.grass;

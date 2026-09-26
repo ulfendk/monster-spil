@@ -287,6 +287,11 @@ export function planDisaster(kind: DisasterKind, base: BaseArea, terrain: AreaTe
     const w = wanted.get(tileKey(x, y));
     return w ? !blocks(base, w.state) : walkableNow(base, terrain, x, y);
   };
+  // What `opened` says for every tile, worked out once: checking that a map stays connected
+  // asks about every tile, once per blocking change, so lookups must be cheap on a big map.
+  const openGrid = new Uint8Array(base.width * base.height);
+  for (let y = 0; y < base.height; y++) for (let x = 0; x < base.width; x++) if (opened(x, y)) openGrid[y * base.width + x] = 1;
+  const openFast = (x: number, y: number) => openGrid[y * base.width + x] === 1;
   const blocked = new Set<string>();
   for (const change of wanted.values()) {
     if (!blocks(base, change.state)) continue;
@@ -297,10 +302,11 @@ export function planDisaster(kind: DisasterKind, base: BaseArea, terrain: AreaTe
       continue;
     }
     const tryBlocked = new Set([...blocked, change.key]);
-    if (!protectedTiles.has(change.key) && staysConnected(base, (bx, by) => !tryBlocked.has(tileKey(bx, by)) && opened(bx, by), tryBlocked)) {
+    if (!protectedTiles.has(change.key) && staysConnected(base, openFast, tryBlocked)) {
       blocked.add(change.key);
     } else {
       change.state = { ground: walkableAlt[change.state.ground] ?? T.ground, grass: 0 };
+      openGrid[y * base.width + x] = blocks(base, change.state) ? 0 : 1;
     }
   }
   // A tile opened up where nobody can get to (a tree torn out deep inside a grove) stays as it was.

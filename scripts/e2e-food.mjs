@@ -24,16 +24,17 @@ const a = await join("anna", 32, 24);
 const b = await join("bo", 10, 10);
 await wait(400);
 check("hello carries protocol version 6 or newer", a.got.hello?.protocolVersion >= 6);
-check("food is sent on join (14 on the map)", a.got.food.length === 14 && a.got.food.every((f) => f.areaId === "startskoven"));
+check("food is sent on join (a lot on the big map)", a.got.food.length >= 50 && a.got.food.every((f) => f.areaId === "startskoven"));
+const onMap = a.got.food.length;
 const apple = a.got.food[0];
 
 b.room.send("foodTake", { foodId: apple.id }); await wait(200);
-check("food far away can't be taken", b.got.taken.length === 0 && a.got.food.length === 14);
+check("food far away can't be taken", b.got.taken.length === 0 && a.got.food.length === onMap);
 
 a.room.send("move", { areaId: "startskoven", x: apple.x, y: apple.y }); await wait(150);
 a.room.send("foodTake", { foodId: apple.id }); await wait(250);
 check("stepping onto food takes it", a.got.taken[0]?.foodId === apple.id && a.got.taken[0].kind === apple.kind);
-check("everyone sees it gone", b.got.food.length === 13 && !b.got.food.some((f) => f.id === apple.id));
+check("everyone sees it gone", b.got.food.length === onMap - 1 && !b.got.food.some((f) => f.id === apple.id));
 
 b.room.send("move", { areaId: "startskoven", x: apple.x, y: apple.y }); await wait(150);
 b.room.send("foodTake", { foodId: apple.id }); await wait(200);

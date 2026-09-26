@@ -84,8 +84,12 @@ interface Online {
   info: LobbyPlayer;
 }
 
-/** How many pieces of food lie on each map at once, and how long a picked one takes to grow back. */
-const FOOD_PER_AREA = 14;
+/**
+ * How much food lies on a map at once — one piece per this many open tiles, so a big map
+ * isn't bare (Startskoven's first 64×48 had 14) — and how long a picked one takes to grow back.
+ */
+const OPEN_TILES_PER_FOOD = 123;
+const foodPerArea = (area: ServerArea) => Math.max(1, Math.round(area.spots.length / OPEN_TILES_PER_FOOD));
 const FOOD_REGROW_MS = 3 * 60_000;
 
 /** How long a duel waits for both players to pick a move before skipping the silent one. */
@@ -201,7 +205,7 @@ export class LobbyRoom extends Room {
     this.areas = options.areas ?? [];
     if (options.disasterConfigs) this.startWorld(options.disasterConfigs);
     this.startRoam();
-    for (const area of this.areas) for (let i = 0; i < FOOD_PER_AREA; i++) this.growFood(area);
+    for (const area of this.areas) for (let i = 0; i < foodPerArea(area); i++) this.growFood(area);
     this.announcedWeek = this.raid().weekId;
     // A fresh dragon wakes every Monday; tell everyone who is connected across midnight.
     this.clock.setInterval(() => {
@@ -592,11 +596,6 @@ export class LobbyRoom extends Room {
     return this.raid().lair ?? this.boss().lair;
   }
 
-  private isLairTile(areaId: string, x: number, y: number): boolean {
-    const lair = this.lairNow();
-    return lair.areaId === areaId && lair.x === x && lair.y === y;
-  }
-
   private startRoam(): void {
     this.roam = new DragonRoam({
       store: this.store,
@@ -657,7 +656,9 @@ export class LobbyRoom extends Room {
   private growFood(area: ServerArea): void {
     const taken = [...this.food.values()].filter((f) => f.areaId === area.areaId);
     // Not where a disaster has blocked the ground or made tall grass grow.
-    const open = (this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots).filter((p) => !this.isLairTile(area.areaId, p.x, p.y));
+    const lair = this.lairNow(); // once, not per spot: it works out this week's dragon
+    const onLair = (p: { x: number; y: number }) => lair.areaId === area.areaId && lair.x === p.x && lair.y === p.y;
+    const open = (this.world ? area.spots.filter((p) => this.world!.foodSpot(area.areaId, p.x, p.y)) : area.spots).filter((p) => !onLair(p));
     const spot = pickFoodSpot(open, taken, Math.random);
     if (!spot) return;
     const item: FoodItem = { id: randomUUID(), areaId: area.areaId, x: spot.x, y: spot.y, kind: pickFoodKind(Math.random) };

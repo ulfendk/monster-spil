@@ -6,6 +6,9 @@ Ideas agreed on but not scheduled yet. Newest at the bottom.
   instead of as files in the repo. Parked: content as plain files in the repo (no
   code changes to add a monster) is a core rule, so this would need a way to keep
   both in step.
-- **A bigger map.** Increase the map size (more room to explore, and for disasters to
-  reshape).
 - **Omarchy plugin.** Play the game in its own window on the Omarchy desktop.
+- **Sand serpents and giant eagles.** New big beasts in the dragon's mould: sand
+  serpents rise out of sandy ground and sink back after a while; huge eagle-like birds
+  do the same from forests. Battled like the dragon, including teaming up.
+- **Caves.** Caves on the map the player can walk into, opening a 3D minigame where
+  the player throws balls to capture monsters.
