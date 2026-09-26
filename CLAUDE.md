@@ -384,17 +384,31 @@ nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScen
   them — flick speed throws further, sideways aims. A hit rolls `caveCatchChance`
   (catchRate, better near the middle); a catch goes into the save exactly like a wild
   catch (caughtCounts, pendingScore → scoreboard). 10 balls, 5 monsters per visit.
-- **Content:** `shared/content/caves.json` (balls, monsters per visit, weighted species);
-  the cave-only species (`glimtorm`, `dryppesten`, `hulepadde`) are ordinary creature
-  files in no encounter table; the monster book shows a cave icon for them. The server
-  reads caves.json at runtime (the Dockerfile copies it).
+- **Kinds of caves:** each opening is one kind, picked by weight when it opens (stored as
+  `CaveState.kind`; older caves without one count as the first kind): Krystalgrotten,
+  Isgrotten, Lavagrotten, Svampegrotten, Vandgrotten. A kind has its own residents and its
+  own `look` — wall/floor/fog/glow colours as Kanagawa palette *names*, a `decor`
+  (crystals, icicles, lava, mushrooms, pool) and `particles` (none, snow, embers, spores,
+  drips); the mouth on the map glows in its first glow colour. Boulders are laid out from
+  the visit's seed (`caveRocks`: 4–6, spread out, one close by, all within the reachable
+  `ROCK_AREA`). The admin portal can open a particular kind.
+- **Content:** `shared/content/caves.json` (balls, monsters per visit, the kinds); the
+  cave-only species (`glimtorm`, `dryppesten`, `hulepadde`, `istap`, `gloedklump`,
+  `svampling`) are ordinary creature files in no encounter table; the monster book shows a
+  cave icon for them. A new kind can reuse the decor and particle shapes with no code
+  change. The server reads caves.json at runtime (the Dockerfile copies it).
+- **Little animations:** monsters breathe, look about while peeking, blink, sometimes cry
+  out (mouth open, their sound plays) as they pop up, and jump when a ball lands near
+  them. Blinking and crying need face frames, which `placeholder-sprites.ts` bakes
+  (`faceFrameKey(front, "blink" | "talk")`) only for monsters it draws itself — a real
+  picture doesn't say where its eyes and mouth are, so it breathes and moves but doesn't blink.
 - **Pure rules** (tested): `shared/src/cave/caves.ts` (settings, schedule, `caveMouthTile`,
   `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`flickToThrow`,
   `ballAt`, `landingTime`, hit precision, catch chance — a test checks every place a
   monster can peek out can be hit with a reasonable flick).
 - **Server:** `server/src/cave-openings.ts` (`CaveOpenings`, one open cave at a time;
   state in the game store's `caves`). `caveEnter {caveId}` (must stand next to it) →
-  `caveVisit {caveId, seed, speciesIds, balls}`; `caves` goes to everyone on join and
+  `caveVisit {caveId, kind, seed, speciesIds, balls}`; `caves` goes to everyone on join and
   every change; problems `cave closed` / `cave visited`.
 - **Client:** `client/src/gfx/cave-layer.ts` draws the mouth (rocks tumble out as it
   opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, flicks,

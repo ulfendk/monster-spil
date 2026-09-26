@@ -11,20 +11,46 @@ import { inside, tileKey, tileNow, walkableNow, type AreaTerrain, type BaseArea 
  * lives in the caves is content (shared/content/caves.json).
  */
 
-/** shared/content/caves.json: what a cave visit holds. */
+/** shared/content/caves.json: what a cave visit holds, and the kinds of caves there are. */
 export interface CaveConfig {
-  navn: string;
   /** Balls per visit. */
   balls: number;
   /** Monsters in the cave on one visit. */
   monsters: number;
-  /** Who lives in caves, and how often each turns up. */
+  kinds: CaveKind[];
+}
+
+/**
+ * A kind of cave: its name, how often it's the one that opens, who lives in it, and how
+ * it looks inside. Colours are names from the game's Kanagawa palette (client/src/ui/theme.ts);
+ * `decor` and `particles` pick from the shapes the 3D scene knows how to draw.
+ */
+export interface CaveKind {
+  id: string;
+  navn: string;
+  weight: number;
   species: Array<{ speciesId: string; weight: number }>;
+  look: CaveLook;
+}
+
+export type CaveDecor = "crystals" | "icicles" | "lava" | "mushrooms" | "pool";
+export type CaveParticles = "none" | "embers" | "snow" | "spores" | "drips";
+
+export interface CaveLook {
+  walls: string;
+  floor: string;
+  fog: string;
+  /** The colours things glow in (crystals, lava, mushrooms, the water); the first also lights the cave mouth on the map. */
+  glow: string[];
+  decor: CaveDecor;
+  particles: CaveParticles;
 }
 
 /** One open cave on the map. */
 export interface CaveState {
   id: string;
+  /** Which kind of cave (CaveKind.id). Caves stored before kinds existed have none: the first kind. */
+  kind?: string;
   areaId: string;
   /** The cave mouth: a mountain tile with open ground in front of it. */
   x: number;
@@ -41,6 +67,8 @@ export type CaveView = CaveState;
 /** One player's visit: what the server hands the device when they go in. */
 export interface CaveVisit {
   caveId: string;
+  /** Which kind of cave it is (its look, and who lives in it). */
+  kind: string;
   /** Seeds the monsters' hiding and the catch rolls on the device. */
   seed: number;
   /** Which monsters are in there this time (species ids, may repeat). */
@@ -84,9 +112,10 @@ export function nextCaveAt(now: Date, settings: CaveSettings, rand: () => number
   return new Date(now.getTime() + minutes * 60_000);
 }
 
-export function freshCave(id: string, at: WorldPosition, now: Date, settings: CaveSettings): CaveState {
+export function freshCave(id: string, kind: string, at: WorldPosition, now: Date, settings: CaveSettings): CaveState {
   return {
     id,
+    kind,
     areaId: at.areaId,
     x: at.x,
     y: at.y,
@@ -140,14 +169,62 @@ export function chooseCaveSpot(base: BaseArea, terrain: AreaTerrain, opts: CaveS
   return candidates[Math.floor(opts.rand() * candidates.length)];
 }
 
-/** Who is in the cave this time: `config.monsters` picks by weight (a species may turn up twice). */
-export function planCaveVisit(config: CaveConfig, caveId: string, seed: number, rand: () => number): CaveVisit {
-  const total = config.species.reduce((sum, s) => sum + Math.max(0, s.weight), 0);
+/** Picks something by weight (weights of 0 or less never come up). */
+function byWeight<T extends { weight: number }>(items: readonly T[], rand: () => number): T | undefined {
+  const total = items.reduce((sum, s) => sum + Math.max(0, s.weight), 0);
+  if (total <= 0) return undefined;
+  let r = rand() * total;
+  return items.find((s) => (r -= Math.max(0, s.weight)) < 0) ?? items.filter((s) => s.weight > 0).at(-1);
+}
+
+/** Which kind of cave opens: by weight. */
+export function pickCaveKind(config: CaveConfig, rand: () => number): CaveKind | undefined {
+  return byWeight(config.kinds, rand);
+}
+
+/** A cave's kind, falling back to the first one (caves stored before kinds existed, or a kind since removed). */
+export function caveKind(config: CaveConfig, id: string | undefined): CaveKind | undefined {
+  return config.kinds.find((k) => k.id === id) ?? config.kinds[0];
+}
+
+/** Every monster that lives in some kind of cave. */
+export function caveSpeciesIds(config: CaveConfig): Set<string> {
+  return new Set(config.kinds.flatMap((k) => k.species.filter((s) => s.weight > 0).map((s) => s.speciesId)));
+}
+
+/** Who is in the cave this time: `config.monsters` picked by weight from the cave kind's residents (a species may turn up twice). */
+export function planCaveVisit(config: CaveConfig, kind: CaveKind, caveId: string, seed: number, rand: () => number): CaveVisit {
   const speciesIds: string[] = [];
-  for (let i = 0; i < config.monsters && total > 0; i++) {
-    let r = rand() * total;
-    const pick = config.species.find((s) => (r -= Math.max(0, s.weight)) < 0) ?? config.species[config.species.length - 1]!;
-    speciesIds.push(pick.speciesId);
+  for (let i = 0; i < config.monsters; i++) {
+    const pick = byWeight(kind.species, rand);
+    if (pick) speciesIds.push(pick.speciesId);
   }
-  return { caveId, seed, speciesIds, balls: config.balls };
+  return { caveId, kind: kind.id, seed, speciesIds, balls: config.balls };
+}
+
+/** The boulders monsters hide behind: how many, and where — different in every cave. */
+export const ROCK_AREA = { minX: -2.9, maxX: 2.9, minZ: -11.5, maxZ: -5.5 } as const;
+const ROCK_SPACING = 2.3;
+
+/**
+ * Lays out 4–6 boulders from a seed (the visit's): spread over the part of the cave every
+ * flick can reach (see throw.ts), never on top of each other, and at least one close by.
+ */
+export function caveRocks(seed: number): Array<{ x: number; z: number }> {
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const want = 4 + Math.floor(rand() * 3);
+  const rocks: Array<{ x: number; z: number }> = [];
+  // The near one first, so there's always something easy to hit.
+  rocks.push({ x: (rand() - 0.5) * 3, z: ROCK_AREA.maxZ - rand() * 0.8 });
+  for (let tries = 0; rocks.length < want && tries < 400; tries++) {
+    const p = { x: ROCK_AREA.minX + rand() * (ROCK_AREA.maxX - ROCK_AREA.minX), z: ROCK_AREA.minZ + rand() * (ROCK_AREA.maxZ - ROCK_AREA.minZ) };
+    if (rocks.every((r) => Math.hypot(r.x - p.x, r.z - p.z) >= ROCK_SPACING)) rocks.push(p);
+  }
+  return rocks;
 }

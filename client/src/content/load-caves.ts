@@ -1,10 +1,17 @@
-import type { CaveConfig } from "@shared";
+import { caveKind, caveSpeciesIds, type CaveConfig, type CaveKind } from "@shared";
 import config from "../../../shared/content/caves.json";
 
-/** What lives in the caves (shared/content/caves.json) — the server plans visits from the same file. */
+/** The kinds of caves and who lives in them (shared/content/caves.json) — the server plans visits from the same file. */
 export const caveConfig = config as CaveConfig;
 
-/** True for a monster that lives in the caves (the monster book shows a cave icon for it). */
+const residents = caveSpeciesIds(caveConfig);
+
+/** True for a monster that lives in some kind of cave (the monster book shows a cave icon for it). */
 export function livesInCaves(speciesId: string): boolean {
-  return caveConfig.species.some((s) => s.speciesId === speciesId && s.weight > 0);
+  return residents.has(speciesId);
+}
+
+/** A cave's kind (its look and name); caves from before kinds existed get the first. */
+export function caveKindFor(id: string | undefined): CaveKind | undefined {
+  return caveKind(caveConfig, id);
 }

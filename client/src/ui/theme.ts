@@ -81,6 +81,12 @@ export const C: Readonly<Record<
 };
 
 /** The same, as CSS strings for Phaser text. */
+/** A Kanagawa colour by its name (as content files write it, e.g. "waveAqua2"); `fallback` for an unknown name. */
+export function kanagawaColour(name: string | undefined, fallback: number): number {
+  const colours = KANAGAWA as unknown as Record<string, number>;
+  return name && typeof colours[name] === "number" ? colours[name]! : fallback;
+}
+
 export const CSS: Readonly<Record<"text" | "soft" | "muted" | "faint" | "accent" | "ok" | "danger" | "chip" | "ink" | "paper", string>> = {
   text: "#dcd7ba",
   soft: "#c8c093",

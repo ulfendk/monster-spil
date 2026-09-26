@@ -3,13 +3,19 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_CAVE_SETTINGS,
   caveDue,
+  caveKind,
   caveMouthTile,
+  caveRocks,
+  caveSpeciesIds,
   chooseCaveSpot,
   cleanCaveSettings,
   freshCave,
   nextCaveAt,
+  pickCaveKind,
   planCaveVisit,
+  ROCK_AREA,
   type CaveConfig,
+  type CaveKind,
 } from "../caves.js";
 import { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, hitPrecision, landingTime } from "../throw.js";
 import { emptyTerrain, tileKey, type BaseArea } from "../../world/terrain.js";
@@ -78,23 +84,58 @@ test("a cave opens in a mountain face you can walk up to, away from the start an
 });
 
 test("a cave closes after its open time", () => {
-  const cave = freshCave("c1", { areaId: "test", x: 28, y: 6 }, new Date("2026-09-26T12:00:00Z"), { ...DEFAULT_CAVE_SETTINGS, openMinutes: 20 });
+  const cave = freshCave("c1", "krystal", { areaId: "test", x: 28, y: 6 }, new Date("2026-09-26T12:00:00Z"), { ...DEFAULT_CAVE_SETTINGS, openMinutes: 20 });
   assert.equal(cave.closesAt, "2026-09-26T12:20:00.000Z");
   assert.deepEqual(cave.visitedBy, []);
+  assert.equal(cave.kind, "krystal");
   assert.equal(caveDue(cave, new Date("2026-09-26T12:19:59Z")), false);
   assert.equal(caveDue(cave, new Date("2026-09-26T12:20:00Z")), true);
 });
 
-test("a visit picks its monsters by weight", () => {
-  const config: CaveConfig = { navn: "Grotten", balls: 10, monsters: 5, species: [{ speciesId: "a", weight: 3 }, { speciesId: "b", weight: 1 }, { speciesId: "c", weight: 0 }] };
-  const visit = planCaveVisit(config, "c1", 42, seeded(7));
+const look = { walls: "sumiInk6", floor: "sumiInk5", fog: "sumiInk0", glow: ["waveAqua2"], decor: "crystals", particles: "none" } as const;
+const kind = (id: string, weight: number, species: CaveKind["species"]): CaveKind => ({ id, navn: id, weight, species, look: { ...look, glow: [...look.glow] } });
+
+test("a visit picks its monsters by weight from the cave kind's residents", () => {
+  const k = kind("krystal", 1, [{ speciesId: "a", weight: 3 }, { speciesId: "b", weight: 1 }, { speciesId: "c", weight: 0 }]);
+  const config: CaveConfig = { balls: 10, monsters: 5, kinds: [k] };
+  const visit = planCaveVisit(config, k, "c1", 42, seeded(7));
   assert.equal(visit.speciesIds.length, 5);
   assert.equal(visit.balls, 10);
+  assert.equal(visit.kind, "krystal");
   assert.ok(visit.speciesIds.every((id) => id === "a" || id === "b"), "weight 0 never turns up");
   let a = 0;
   const r = seeded(9);
-  for (let i = 0; i < 400; i++) if (planCaveVisit({ ...config, monsters: 1 }, "c", 1, r).speciesIds[0] === "a") a++;
+  for (let i = 0; i < 400; i++) if (planCaveVisit({ ...config, monsters: 1 }, k, "c", 1, r).speciesIds[0] === "a") a++;
   assert.ok(a > 250 && a < 350, `about 3 in 4 are "a" (${a}/400)`);
+});
+
+test("which kind of cave opens is picked by weight; an unknown kind falls back to the first", () => {
+  const config: CaveConfig = { balls: 10, monsters: 5, kinds: [kind("krystal", 3, [{ speciesId: "a", weight: 1 }]), kind("is", 1, [{ speciesId: "b", weight: 1 }]), kind("aldrig", 0, [{ speciesId: "c", weight: 1 }])] };
+  const r = seeded(3);
+  const counts: Record<string, number> = {};
+  for (let i = 0; i < 400; i++) {
+    const id = pickCaveKind(config, r)!.id;
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+  assert.ok(counts.krystal! > 250 && counts.is! > 50 && !counts.aldrig, JSON.stringify(counts));
+  assert.equal(caveKind(config, "is")?.id, "is");
+  assert.equal(caveKind(config, undefined)?.id, "krystal", "a cave from before kinds existed");
+  assert.equal(caveKind(config, "borte")?.id, "krystal", "a kind that was removed");
+  assert.deepEqual([...caveSpeciesIds(config)].sort(), ["a", "b", "c"]);
+});
+
+test("the boulders differ from cave to cave, spread out and within reach", () => {
+  const layouts = new Set<string>();
+  for (let seed = 1; seed <= 60; seed++) {
+    const rocks = caveRocks(seed);
+    layouts.add(JSON.stringify(rocks));
+    assert.ok(rocks.length >= 4 && rocks.length <= 6, `seed ${seed}: ${rocks.length} rocks`);
+    for (const r of rocks) assert.ok(r.x >= ROCK_AREA.minX && r.x <= ROCK_AREA.maxX && r.z >= ROCK_AREA.minZ && r.z <= ROCK_AREA.maxZ);
+    for (let i = 0; i < rocks.length; i++) for (let j = i + 1; j < rocks.length; j++) assert.ok(Math.hypot(rocks[i]!.x - rocks[j]!.x, rocks[i]!.z - rocks[j]!.z) >= 2.3);
+    assert.ok(rocks.some((r) => r.z >= -6.3), "one close by");
+    assert.deepEqual(caveRocks(seed), rocks, "the same seed gives the same cave");
+  }
+  assert.ok(layouts.size === 60, "every cave is laid out differently");
 });
 
 test("a tap or a downward drag is no throw; a flick up throws forward and up", () => {
@@ -116,9 +157,10 @@ test("the ball flies in an arc from the hand and comes down on the floor", () =>
 });
 
 test("every place a monster can peek out can be hit with a reasonable flick", () => {
-  // Where monsters show themselves in the cave scene: 5–12 m away, up to 4 m to the side, 0.6–2.1 m up.
-  for (const z of [-5, -8, -12]) {
-    for (const x of [-4, 0, 4]) {
+  // Where monsters show themselves in the cave scene: behind any boulder (0.9 m back), or
+  // peeking round its side (1.1 m out), 0.6–2.1 m up.
+  for (const z of [ROCK_AREA.maxZ - 0.9, (ROCK_AREA.maxZ + ROCK_AREA.minZ) / 2 - 0.9, ROCK_AREA.minZ - 0.9]) {
+    for (const x of [ROCK_AREA.minX - 1.1, 0, ROCK_AREA.maxX + 1.1]) {
       for (const y of [0.6, 2.1]) {
         let hit = false;
         search: for (let up = 0.1; up <= 0.8; up += 0.05) {

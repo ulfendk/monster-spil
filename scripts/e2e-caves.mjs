@@ -69,7 +69,9 @@ alice.room.send("caveEnter", { caveId: cave.id });
 await until(() => alice.got.visits.length);
 const visit = alice.got.visits[0];
 check("next to it, Alice goes in: monsters and balls from caves.json", visit?.caveId === cave.id && visit.balls === config.balls && visit.speciesIds.length === config.monsters);
-check("only cave monsters are in there", visit.speciesIds.every((id) => config.species.some((s) => s.speciesId === id)));
+const kind = config.kinds.find((k) => k.id === visit.kind);
+check("the visit says which kind of cave it is (the one that opened)", Boolean(kind) && cave.kind === visit.kind);
+check("only that kind's monsters are in there", visit.speciesIds.every((id) => kind.species.some((s) => s.speciesId === id && s.weight > 0)));
 await until(() => alice.got.caves[0]?.visitedBy.includes("alice"));
 check("everyone can see she has been in", bob.got.caves[0]?.visitedBy.includes("alice"));
 alice.room.send("caveEnter", { caveId: cave.id });
@@ -81,12 +83,20 @@ check("Bob gets his own visit", bob.got.visits[0]?.caveId === cave.id && Number.
 
 let state = await (await call(`${G}/state`)).json();
 check("the admin sees it and who has been in", state.caves.active[0]?.id === cave.id && state.caves.active[0].visitedBy.length === 2);
+check("the admin sees its kind by name, and every kind to choose from", state.caves.active[0]?.navn === kind.navn && state.caves.kinds.length === config.kinds.length);
 check("a parent can close it", (await caves({ action: "close", id: cave.id })).status === 200);
 await until(() => alice.got.caves.length === 0);
 check("it's gone for everyone", alice.got.caves.length === 0 && bob.got.caves.length === 0);
 bob.room.send("caveEnter", { caveId: cave.id });
 await until(() => bob.got.problems.length);
 check("a closed cave can't be entered", bob.got.problems.at(-1) === "cave closed");
+
+// A parent can open a particular kind.
+check("a parent can open a lava cave on purpose", (await caves({ action: "open", kind: "lava" })).status === 200);
+await until(() => alice.got.caves.length === 1);
+check("it is a lava cave", alice.got.caves[0]?.kind === "lava");
+check("an unknown kind is refused", (await caves({ action: "close", id: alice.got.caves[0].id }), (await caves({ action: "open", kind: "chokolade" })).status === 400));
+await until(() => alice.got.caves.length === 0);
 
 await caves({ action: "settings", enabled: true, meanMinutes: 1, openMinutes: 9999, randomness: 0.3 });
 state = await (await call(`${G}/state`)).json();

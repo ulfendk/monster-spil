@@ -1,0 +1,11 @@
+{
+  "id": "gloedklump",
+  "navn": "Glødeklump",
+  "type": "ild",
+  "baseStats": { "hp": 40, "angreb": 13, "forsvar": 9, "fart": 9 },
+  "moveIds": ["gloedslag", "varmeboelge", "kloer"],
+  "spriteFront": "creatures/gloedklump_front.png",
+  "spriteBack": "creatures/gloedklump_back.png",
+  "sound": "creatures/gloedklump.wav",
+  "catchRate": 0.4
+}

@@ -178,8 +178,8 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
         </select></label>
         <button id="caveSave" class="quiet">Gem</button>
       </div>
-      <div class="row" style="margin-top:12px"><button id="caveOpenNow">Åbn en grotte nu</button><button id="caveClose" class="quiet">Luk grotten</button></div>
-      <p class="note">En grotte åbner i en bjergside og lukker igen, når tiden er gået. Hver spiller kan gå ind én gang, mens den er åben, og kaste bolde efter monstrene derinde.</p>
+      <div class="row" style="margin-top:12px"><select id="caveKind" aria-label="Slags grotte"></select><button id="caveOpenNow">Åbn en grotte nu</button><button id="caveClose" class="quiet">Luk grotten</button></div>
+      <p class="note">En grotte åbner i en bjergside og lukker igen, når tiden er gået. Der er flere slags (krystal, is, lava, svampe, vand) med hver deres monstre. Hver spiller kan gå ind én gang, mens den er åben, og kaste bolde efter monstrene derinde.</p>
     </section>
 
     <h2>Naturkatastrofer</h2>
@@ -341,7 +341,11 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   function showCaves(c) {
     caveState = c;
     const open = c.active[0];
-    $("caveStatus").textContent = open ? "En grotte er åben" : c.settings.enabled ? "Slået til" : "Stoppet";
+    $("caveStatus").textContent = open ? open.navn + " er åben" : c.settings.enabled ? "Slået til" : "Stoppet";
+    const kindSel = $("caveKind");
+    if (kindSel.options.length !== c.kinds.length + 1) {
+      kindSel.replaceChildren(el("option", { value: "", textContent: "tilfældig slags" }), ...c.kinds.map((k) => el("option", { value: k.id, textContent: k.navn })));
+    }
     $("caveNext").textContent = open
       ? "ved (" + open.x + ", " + open.y + ") · " + open.visitedBy.length + " har været inde · lukker kl. " + new Date(open.closesAt).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })
       : c.nextAt ? "· næste omkring " + when(c.nextAt) : "";
@@ -359,7 +363,7 @@ export const ADMIN_PAGE = /* html */ `<!doctype html>
   }
   $("caveToggle").onclick = () => caveState && caves({ action: "settings", enabled: !caveState.settings.enabled });
   $("caveSave").onclick = () => caves({ action: "settings", meanMinutes: Number($("caveMean").value), openMinutes: Number($("caveOpen").value), randomness: Number($("caveRandom").value) });
-  $("caveOpenNow").onclick = () => caves({ action: "open" });
+  $("caveOpenNow").onclick = () => caves({ action: "open", kind: $("caveKind").value });
   $("caveClose").onclick = () => caveState && caveState.active[0] && caves({ action: "close", id: caveState.active[0].id });
 
   let beastSettings = null;

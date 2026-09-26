@@ -1,0 +1,11 @@
+{
+  "id": "istap",
+  "navn": "Istap",
+  "type": "vand",
+  "baseStats": { "hp": 36, "angreb": 11, "forsvar": 11, "fart": 10 },
+  "moveIds": ["vandpist", "boelgebrus", "kloer"],
+  "spriteFront": "creatures/istap_front.png",
+  "spriteBack": "creatures/istap_back.png",
+  "sound": "creatures/istap.wav",
+  "catchRate": 0.45
+}

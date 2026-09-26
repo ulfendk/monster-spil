@@ -34,7 +34,17 @@ const shade = (colour: number, amount: number): number =>
  */
 export type BossLook = "dragon" | "serpent" | "eagle";
 
+/** A face other than the normal one: eyes shut (a blink) or mouth open (a cry). */
+export type FaceFrame = "blink" | "talk";
+
+/** The texture key of a monster's front picture with this face — only ordinary placeholder monsters have them. */
+export function faceFrameKey(frontKey: string, frame: FaceFrame): string {
+  return `${frontKey}#${frame}`;
+}
+
 export function generatePlaceholderSprites(scene: Phaser.Scene, species: CreatureSpecies[], looks: Readonly<Record<string, BossLook>> = {}): void {
+  // Pictures that were loaded from files (drawn by the kids) rather than drawn here.
+  const realPictures = new Set(species.map((s) => s.spriteFront).filter((key) => scene.textures.exists(key)));
   for (const s of species) {
     const look = looks[s.id];
     for (const [key, isBack] of [[s.spriteFront, false], [s.spriteBack, true]] as const) {
@@ -42,6 +52,14 @@ export function generatePlaceholderSprites(scene: Phaser.Scene, species: Creatur
       if (look === "serpent") drawSerpent(scene, s, key, isBack);
       else if (look === "eagle") drawEagle(scene, s, key, isBack);
       else drawCreature(scene, s, key, isBack, look === "dragon");
+    }
+    // Blinking and crying faces for the little animations in the cave. Only for monsters
+    // drawn here: a real picture doesn't say where its eyes and mouth are.
+    if (!look && !realPictures.has(s.spriteFront)) {
+      for (const frame of ["blink", "talk"] as const) {
+        const key = faceFrameKey(s.spriteFront, frame);
+        if (!scene.textures.exists(key)) drawCreature(scene, s, key, false, false, frame);
+      }
     }
   }
 }
@@ -161,7 +179,7 @@ function speciesShade(id: string): number {
   return (hash % 25) - 12;
 }
 
-function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean, dragon: boolean): void {
+function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string, isBack: boolean, dragon: boolean, face?: FaceFrame): void {
   const g = scene.add.graphics();
   const colour = shade(TYPE_COLOURS[species.type], dragon ? 0 : speciesShade(species.id));
   const { w, h } = bodyShape(species);
@@ -184,18 +202,24 @@ function drawCreature(scene: Phaser.Scene, species: CreatureSpecies, key: string
   g.lineStyle(LINE, INK, 1).strokeEllipse(cx, cy, w, h);
 
   if (dragon) drawDragonHorns(g, cx, top, w);
-  if (!isBack) drawFace(g, cx, cy - h * 0.08, w, species.baseStats.angreb >= 13, dragon);
+  if (!isBack) drawFace(g, cx, cy - h * 0.08, w, species.baseStats.angreb >= 13, dragon, face);
 
   g.generateTexture(key, SPRITE_SIZE, SPRITE_SIZE);
   g.destroy();
 }
 
 /** Kawaii face: ink eyes with a highlight, pink cheeks, a small smile — and a fang for strong attackers. */
-function drawFace(g: Phaser.GameObjects.Graphics, cx: number, eyeY: number, w: number, fang: boolean, dragon: boolean): void {
+function drawFace(g: Phaser.GameObjects.Graphics, cx: number, eyeY: number, w: number, fang: boolean, dragon: boolean, face?: FaceFrame): void {
   const dx = Math.max(12, w * 0.19);
   for (const side of [-1, 1]) {
     const x = cx + side * dx;
-    if (dragon) {
+    if (face === "blink") {
+      // Shut: a happy curve where the eye was.
+      g.lineStyle(3, INK, 1);
+      g.beginPath();
+      g.arc(x, eyeY - 2, 5.5, Math.PI * 0.15, Math.PI * 0.85, false);
+      g.strokePath();
+    } else if (dragon) {
       g.fillStyle(KANAGAWA.carpYellow, 1).fillEllipse(x, eyeY, 13, 15);
       g.fillStyle(INK, 1).fillEllipse(x, eyeY, 4, 12);
     } else {
@@ -203,6 +227,12 @@ function drawFace(g: Phaser.GameObjects.Graphics, cx: number, eyeY: number, w: n
       g.fillStyle(KANAGAWA.washi, 1).fillCircle(x + 2, eyeY - 3, 2.6);
     }
     g.fillStyle(KANAGAWA.sakuraPink, 0.85).fillEllipse(x + side * 8, eyeY + 11, 12, 6);
+  }
+  if (face === "talk") {
+    // Mouth wide open, mid-cry, with a little pink tongue.
+    g.fillStyle(INK, 1).fillEllipse(cx, eyeY + 13, 13, 12);
+    g.fillStyle(KANAGAWA.sakuraPink, 1).fillEllipse(cx, eyeY + 16, 8, 5);
+    return;
   }
   g.lineStyle(2.5, INK, 1);
   g.beginPath();

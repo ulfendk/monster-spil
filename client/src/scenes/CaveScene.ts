@@ -1,5 +1,8 @@
 import Phaser from "phaser";
-import { caveCatchChance, createRng, flickToThrow, type CaveVisit, type CreatureInstance, type Rng } from "@shared";
+import { caveCatchChance, caveRocks, createRng, flickToThrow, type CaveVisit, type CreatureInstance, type Rng } from "@shared";
+import { caveKindFor } from "../content/load-caves";
+import { faceFrameKey } from "../gfx/placeholder-sprites";
+import { playCreatureSound } from "../audio/creature-sound";
 import type { GameContent } from "../content/load-content";
 import type { SaveData } from "../save/schema";
 import { persist } from "../save/game-state";
@@ -68,18 +71,28 @@ export class CaveScene extends Phaser.Scene {
       this.canvas = document.createElement("canvas");
       this.canvas.className = "cave-stage";
       document.getElementById("game")!.prepend(this.canvas);
+      const picture = (key: string) => (this.textures.exists(key) ? (this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement) : undefined);
       const monsters = this.caveData.visit.speciesIds.flatMap((id) => {
-        const species = this.caveData.content.speciesById[id];
-        const key = species?.spriteFront;
-        if (!key || !this.textures.exists(key)) return [];
-        return [{ speciesId: id, image: this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement }];
+        const key = this.caveData.content.speciesById[id]?.spriteFront;
+        const image = key ? picture(key) : undefined;
+        if (!key || !image) return [];
+        return [{ speciesId: id, image, blink: picture(faceFrameKey(key, "blink")), talk: picture(faceFrameKey(key, "talk")) }];
       });
-      this.stage = new CaveStage(this.canvas, monsters, this.caveData.visit.seed);
+      const kind = caveKindFor(this.caveData.visit.kind);
+      const look = kind?.look ?? { walls: "sumiInk6", floor: "sumiInk5", fog: "sumiInk0", glow: ["waveAqua2", "oniViolet"], decor: "crystals" as const, particles: "none" as const };
+      this.stage = new CaveStage(this.canvas, monsters, this.caveData.visit.seed, look, caveRocks(this.caveData.visit.seed));
       this.stage.onSeen = (speciesId) => this.markSeen(speciesId);
+      this.stage.onCry = (speciesId) => {
+        const species = this.caveData.content.speciesById[speciesId];
+        if (species) playCreatureSound(this, species);
+      };
+      if (kind) this.say(`${ic(CAVE_ICON)} ${kind.navn}`, 2200);
       this.fitStage();
       if (import.meta.env.DEV) (window as unknown as { __cave?: CaveScene }).__cave = this;
       this.drawHud();
-      this.say(`${ic("ball")} ${t("cave_throw")}`, 3000);
+      this.time.delayedCall(kind ? 2300 : 0, () => {
+        if (!this.done && this.balls === this.caveData.visit.balls) this.say(`${ic("ball")} ${t("cave_throw")}`, 3000);
+      });
       this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onDown(p));
       this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.onMove(p));
       this.input.on("pointerup", (p: Phaser.Input.Pointer) => this.onUp(p));

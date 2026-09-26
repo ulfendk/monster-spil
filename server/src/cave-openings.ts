@@ -1,6 +1,8 @@
 import { randomInt, randomUUID } from "node:crypto";
 import {
   caveDue,
+  caveKind,
+  pickCaveKind,
   chooseCaveSpot,
   freshCave,
   nextCaveAt,
@@ -75,14 +77,16 @@ export class CaveOpenings {
     if (Date.parse(this.data.nextAt) <= now.getTime() && this.open(now)) this.schedule(now, RETRY_MS);
   }
 
-  /** Opens one now (the admin portal). Returns why not (Danish, for the portal), or undefined. */
-  open(now = new Date()): string | undefined {
+  /** Opens one now: a random kind, or the kind asked for (the admin portal). Returns why not (Danish, for the portal), or undefined. */
+  open(now = new Date(), kindId?: string): string | undefined {
     if (this.data.active.length > 0) return "der er allerede en åben grotte";
+    const kind = kindId ? this.host.config.kinds.find((k) => k.id === kindId) : pickCaveKind(this.host.config, () => this.host.rand());
+    if (!kind) return kindId ? "den slags grotte findes ikke" : "caves.json har ingen slags grotter";
     const order = this.host.areas.filter((a) => a.base).sort(() => this.host.rand() - 0.5);
     for (const area of order) {
       const spot = chooseCaveSpot(area.base!, this.host.terrain(area.areaId), { occupied: this.host.occupied(area.areaId), rand: () => this.host.rand() });
       if (!spot) continue;
-      this.data.active = [freshCave(randomUUID(), { areaId: area.areaId, ...spot }, now, this.data.settings)];
+      this.data.active = [freshCave(randomUUID(), kind.id, { areaId: area.areaId, ...spot }, now, this.data.settings)];
       this.data.nextAt = undefined;
       this.host.store.changed();
       this.host.changed();
@@ -108,7 +112,9 @@ export class CaveOpenings {
     cave.visitedBy.push(playerId);
     this.host.store.changed();
     this.host.changed();
-    return planCaveVisit(this.host.config, cave.id, randomInt(0, 2 ** 31), () => this.host.rand());
+    const kind = caveKind(this.host.config, cave.kind);
+    if (!kind) return "cave closed";
+    return planCaveVisit(this.host.config, kind, cave.id, randomInt(0, 2 ** 31), () => this.host.rand());
   }
 
   /** The parent changed the settings: plan the next opening by them. */

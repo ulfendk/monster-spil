@@ -61,7 +61,9 @@ export async function loadDisasterConfigs(): Promise<DisasterConfigs> {
 /** What lives in the caves and how many balls a visit gives (shared/content/caves.json); undefined = no caves. */
 export async function loadCaveConfig(): Promise<CaveConfig | undefined> {
   try {
-    return JSON.parse(await readFile(contentDir("caves.json"), "utf-8")) as CaveConfig;
+    const config = JSON.parse(await readFile(contentDir("caves.json"), "utf-8")) as CaveConfig;
+    if (!Array.isArray(config.kinds) || config.kinds.length === 0) throw new Error("caves.json has no kinds");
+    return config;
   } catch (error) {
     console.warn("No caves.json, so no caves:", (error as Error).message);
     return undefined;

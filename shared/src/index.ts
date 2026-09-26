@@ -144,7 +144,10 @@ export {
 export type { BeastDefinition, BeastSettings, BeastSpotOptions, BeastState, BeastView, Habitat } from "./raid/beasts.js";
 export {
   caveDue,
+  caveKind,
   caveMouthTile,
+  caveRocks,
+  caveSpeciesIds,
   chooseCaveSpot,
   cleanCaveSettings,
   DEFAULT_CAVE_SETTINGS,
@@ -154,8 +157,10 @@ export {
   MIN_CAVE_GAP_MINUTES,
   MIN_CAVE_OPEN_MINUTES,
   nextCaveAt,
+  pickCaveKind,
   planCaveVisit,
+  ROCK_AREA,
 } from "./cave/caves.js";
-export type { CaveConfig, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
+export type { CaveConfig, CaveDecor, CaveKind, CaveLook, CaveParticles, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
 export { BALL_START, ballAt, caveCatchChance, closestApproach, flickToThrow, GRAVITY, HIT_RADIUS, hitPrecision, landingTime } from "./cave/throw.js";
 export type { Vec3 } from "./cave/throw.js";

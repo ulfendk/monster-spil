@@ -1037,7 +1037,10 @@ export class LobbyRoom extends Room {
 
   // ------------------------------------------------------------ caves
 
+  private caveConfig?: CaveConfig;
+
   private startCaves(config: CaveConfig): void {
+    this.caveConfig = config;
     this.caves = new CaveOpenings({
       store: this.store,
       areas: this.areas,
@@ -1053,6 +1056,11 @@ export class LobbyRoom extends Room {
       rand: Math.random,
     });
     this.clock.setInterval(() => this.caves?.tick(), 5_000);
+  }
+
+  /** The kinds of caves there are (for the admin portal). */
+  caveKinds(): Array<{ id: string; navn: string }> {
+    return (this.caveConfig?.kinds ?? []).map((k) => ({ id: k.id, navn: k.navn }));
   }
 
   private broadcastCaves(): void {

@@ -1,11 +1,62 @@
 {
-  "navn": "Grotten",
   "balls": 10,
   "monsters": 5,
-  "species": [
-    { "speciesId": "glimtorm", "weight": 3 },
-    { "speciesId": "hulepadde", "weight": 3 },
-    { "speciesId": "dryppesten", "weight": 2 },
-    { "speciesId": "stenbid", "weight": 1 }
+  "kinds": [
+    {
+      "id": "krystal",
+      "navn": "Krystalgrotten",
+      "weight": 3,
+      "species": [
+        { "speciesId": "glimtorm", "weight": 3 },
+        { "speciesId": "dryppesten", "weight": 2 },
+        { "speciesId": "hulepadde", "weight": 2 },
+        { "speciesId": "stenbid", "weight": 1 }
+      ],
+      "look": { "walls": "sumiInk6", "floor": "sumiInk5", "fog": "sumiInk0", "glow": ["waveAqua2", "oniViolet"], "decor": "crystals", "particles": "none" }
+    },
+    {
+      "id": "is",
+      "navn": "Isgrotten",
+      "weight": 2,
+      "species": [
+        { "speciesId": "istap", "weight": 3 },
+        { "speciesId": "hulepadde", "weight": 2 },
+        { "speciesId": "boelgehale", "weight": 1 }
+      ],
+      "look": { "walls": "waveBlue2", "floor": "fujiGray", "fog": "waveBlue1", "glow": ["springBlue", "fujiWhite"], "decor": "icicles", "particles": "snow" }
+    },
+    {
+      "id": "lava",
+      "navn": "Lavagrotten",
+      "weight": 2,
+      "species": [
+        { "speciesId": "gloedklump", "weight": 3 },
+        { "speciesId": "ildflagrer", "weight": 2 },
+        { "speciesId": "dryppesten", "weight": 1 }
+      ],
+      "look": { "walls": "sumiInk4", "floor": "sumiInk3", "fog": "sumiInk1", "glow": ["surimiOrange", "autumnRed"], "decor": "lava", "particles": "embers" }
+    },
+    {
+      "id": "svamp",
+      "navn": "Svampegrotten",
+      "weight": 2,
+      "species": [
+        { "speciesId": "svampling", "weight": 3 },
+        { "speciesId": "lovgro", "weight": 2 },
+        { "speciesId": "glimtorm", "weight": 1 }
+      ],
+      "look": { "walls": "winterGreen", "floor": "sumiInk5", "fog": "sumiInk1", "glow": ["springGreen", "oniViolet"], "decor": "mushrooms", "particles": "spores" }
+    },
+    {
+      "id": "vand",
+      "navn": "Vandgrotten",
+      "weight": 2,
+      "species": [
+        { "speciesId": "hulepadde", "weight": 3 },
+        { "speciesId": "dryppel", "weight": 2 },
+        { "speciesId": "istap", "weight": 1 }
+      ],
+      "look": { "walls": "waveBlue1", "floor": "sumiInk5", "fog": "sumiInk0", "glow": ["waveAqua2", "crystalBlue"], "decor": "pool", "particles": "drips" }
+    }
   ]
 }

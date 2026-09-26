@@ -1,0 +1,11 @@
+{
+  "id": "svampling",
+  "navn": "Svampling",
+  "type": "graes",
+  "baseStats": { "hp": 38, "angreb": 10, "forsvar": 10, "fart": 11 },
+  "moveIds": ["bladsving", "tornranke", "kloer"],
+  "spriteFront": "creatures/svampling_front.png",
+  "spriteBack": "creatures/svampling_back.png",
+  "sound": "creatures/svampling.wav",
+  "catchRate": 0.5
+}

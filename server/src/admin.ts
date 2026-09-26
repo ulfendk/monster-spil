@@ -39,7 +39,7 @@ import { ADMIN_PAGE } from "./admin-page.js";
  *   POST /players/<id>/rename  {navn}            the device takes the new name when it connects
  *   POST /dragon  {action:"reset"} | {action:"hp", hp} | {action:"roam", enabled, meanMinutes, randomness} | {action:"fly"}
  *   POST /beasts  {action:"settings", enabled, meanMinutes, stayMinutes, randomness} | {action:"call", beastId?} | {action:"dismiss", id}
- *   POST /caves  {action:"settings", enabled, meanMinutes, openMinutes, randomness} | {action:"open"} | {action:"close", id}
+ *   POST /caves  {action:"settings", enabled, meanMinutes, openMinutes, randomness} | {action:"open", kind?} | {action:"close", id}
  *   POST /scores/clear                           remove this week's points
  *   POST /disasters/settings  {enabled, meanMinutes, randomness, kinds}
  *   POST /disasters/trigger  {kind?, target?}    one now (random kind and place when not given)
@@ -304,7 +304,13 @@ export class AdminPortal {
         contributors: Object.values(b.damageBy).filter((d) => d > 0).length,
       })),
     };
-    const caves = { settings: store.data.caves.settings, nextAt: room?.caves?.nextAt, active: store.data.caves.active };
+    const kinds = room?.caveKinds() ?? [];
+    const caves = {
+      settings: store.data.caves.settings,
+      nextAt: room?.caves?.nextAt,
+      kinds,
+      active: store.data.caves.active.map((c) => ({ ...c, navn: kinds.find((k) => k.id === c.kind)?.navn ?? kinds[0]?.navn ?? "Grotten" })),
+    };
     return { players, dragon: { ...raidView(raid), navn: boss.navn, lair: raid.lair ?? boss.lair, home: boss.lair, roam }, scoreEvents: store.data.events.length, disasters, beasts, caves };
   }
 
@@ -372,7 +378,8 @@ export class AdminPortal {
       store.changed();
       return { ok: true };
     }
-    const problem = body?.action === "open" ? caves.open() : body?.action === "close" ? caves.close(String(body.id)) : "ukendt handling";
+    const kind = typeof body?.kind === "string" && body.kind ? body.kind : undefined;
+    const problem = body?.action === "open" ? caves.open(new Date(), kind) : body?.action === "close" ? caves.close(String(body.id)) : "ukendt handling";
     return problem ? { ok: false, error: problem } : { ok: true };
   }
 

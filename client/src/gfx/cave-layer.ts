@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { CaveView } from "@shared";
-import { KANAGAWA } from "../ui/theme";
+import { KANAGAWA, kanagawaColour } from "../ui/theme";
+import { caveKindFor } from "../content/load-caves";
 
 /** Over the mountain tile, under players' labels. */
 const DEPTH = 5;
@@ -15,8 +16,8 @@ interface Drawn {
 }
 
 /**
- * Open caves on the overworld: a dark arch in the mountain face with a crystal glow
- * breathing inside. Opening, rocks tumble out and the arch grows; closing, it shrinks shut
+ * Open caves on the overworld: a dark arch in the mountain face with a glow breathing
+ * inside, in the colour of its kind (caves.json). Opening, rocks tumble out and the arch grows; closing, it shrinks shut
  * in a puff of dust. The mouth stays a mountain tile, so nothing about walking changes.
  */
 export class CaveLayer {
@@ -64,7 +65,9 @@ export class CaveLayer {
     const mouth = this.scene.add.graphics({ x: c.x, y: c.y + t * 0.42 }).setDepth(DEPTH);
     mouth.fillStyle(KANAGAWA.sumiInk0, 1).fillEllipse(0, -t * 0.3, t * 0.62, t * 0.62).fillRect(-t * 0.31, -t * 0.3, t * 0.62, t * 0.3);
     mouth.lineStyle(3, KANAGAWA.sumiInk4, 1).strokeEllipse(0, -t * 0.3, t * 0.62, t * 0.62);
-    const glow = this.scene.add.ellipse(c.x, c.y + t * 0.18, t * 0.22, t * 0.16, KANAGAWA.waveAqua2, 0.8).setDepth(DEPTH);
+    // The glow inside is the kind's own colour: ice blue, lava orange, mushroom green, …
+    const colour = kanagawaColour(caveKindFor(view.kind)?.look.glow[0], KANAGAWA.waveAqua2);
+    const glow = this.scene.add.ellipse(c.x, c.y + t * 0.18, t * 0.22, t * 0.16, colour, 0.8).setDepth(DEPTH);
     this.scene.tweens.add({ targets: glow, alpha: 0.35, duration: 1100, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
     const d: Drawn = { view, mouth, glow, closing: false };
     this.drawn.set(view.id, d);
