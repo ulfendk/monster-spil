@@ -3,6 +3,7 @@ import { spriteFit } from "../gfx/creature-sprite";
 import type { CreatureSpecies } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { playCreatureSound } from "../audio/creature-sound";
+import { bringToLife } from "../gfx/monster-life";
 import { TYPE_COLOURS } from "../gfx/placeholder-sprites";
 import { createButton } from "../ui/Button";
 import { CAUGHT_ICON, OWNED_ICON, POWER_ICON, SOUND_ICON, STAT_ICONS, TYPE_ICONS } from "../ui/icons";
@@ -61,11 +62,17 @@ export class MonsterInfoScene extends Phaser.Scene {
     const sprite = this.add.image(cx, 160, this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING").setScale(2.2 * spriteFit(this, species.spriteFront));
     if (!caught) sprite.setTint(C.overlay);
     hero.add(sprite);
+    // Alive, like in the caves: it breathes, looks about, blinks — and cries when tapped.
+    const cry = () => {
+      life.cry();
+      playCreatureSound(this, species);
+    };
+    const life = bringToLife(this, sprite, species, cry);
     hero.add(this.add.text(cx, 355, species.navn, { fontFamily: FONT, fontSize: "40px", color: CSS.text }).setOrigin(0.5));
     const badge = this.add.rectangle(cx - 60, 430, 190, 56, TYPE_COLOURS[species.type]).setStrokeStyle(3, C.border);
     hero.add(badge);
     hero.add(richText(this, badge.x, badge.y, `${ic(TYPE_ICONS[species.type])} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: CSS.text }));
-    hero.add(createButton(this, cx + 100, 430, ic(SOUND_ICON), () => playCreatureSound(this, species), { width: 84, height: 64, fontSize: "32px", backgroundColor: C.button }));
+    hero.add(createButton(this, cx + 100, 430, ic(SOUND_ICON), cry, { width: 84, height: 64, fontSize: "32px", backgroundColor: C.button }));
 
     // Stats, moves and counters.
     const details = this.add.container(0, 0);
@@ -101,7 +108,8 @@ export class MonsterInfoScene extends Phaser.Scene {
       backgroundColor: C.buttonQuiet,
     });
 
-    if (!this.info.relayout) playCreatureSound(this, species);
+    // It greets you with its cry when the page opens (not again after a rotation).
+    if (!this.info.relayout) this.time.delayedCall(250, cry);
   }
 
   private drawStats(panel: Phaser.GameObjects.Container, x: number, y: number): void {

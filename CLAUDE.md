@@ -247,6 +247,11 @@ in the current area's encounter table also show "👣 steps + arrow" to the near
 encounter-zone tile (pure logic in `shared/src/world/hint.ts`); starters, which live
 nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScene`
 (stats, moves, counters, and its cry — `playCreatureSound`), launched over the book.
+There the monster is alive (`bringToLife` in `client/src/gfx/monster-life.ts`, reusable
+for any monster picture): it breathes from its feet, sways as it looks about, blinks,
+now and then hops or wiggles, and cries with its mouth open when the page opens and when
+it (or 🔊) is tapped. Blinking and the open mouth use the cave's face frames, so a real
+picture (a kid's drawing) breathes and moves but doesn't blink.
 
 ## Shared world
 
