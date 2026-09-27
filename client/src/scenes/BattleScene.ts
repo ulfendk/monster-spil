@@ -137,6 +137,8 @@ export class BattleScene extends Phaser.Scene {
   private feedbackY = 0;
   /** False once the scene has shut down (a late-loading meadow is then thrown away). */
   private alive = false;
+  /** Scenes under this one hidden while the meadow shows (a duel over the meeting screen and the map). */
+  private hiddenUnder: string[] = [];
 
   constructor() {
     super("Battle");
@@ -152,8 +154,8 @@ export class BattleScene extends Phaser.Scene {
     this.team = data.team;
     this.stage = undefined;
     this.alive = true;
-    // A wild battle is shown in 3D in the meadow, if the device can (tried below).
-    this.stageLoading = !data.duel && !data.raid && !data.team;
+    // Every battle — wild, duel, dragon, team — is shown in 3D in the meadow, if the device can (tried below).
+    this.stageLoading = true;
     this.events.once("shutdown", () => this.teardownStage());
 
     if (data.team) {
@@ -180,8 +182,9 @@ export class BattleScene extends Phaser.Scene {
       this.battleState = createBattle(Date.now(), player, wild);
     }
     // A wild monster says hello (in a duel or a raid the first message comes from the server).
-    this.logTextValue = this.stageLoading ? `${this.nameOf(this.foe())} ${t("battle_appears")}` : "";
-    this.logIconValue = this.stageLoading ? "paw" : "";
+    const wild = !data.duel && !data.raid && !data.team;
+    this.logTextValue = wild ? `${this.nameOf(this.foe())} ${t("battle_appears")}` : "";
+    this.logIconValue = wild ? "paw" : "";
     this.buildUi();
     this.renderActions();
     onRelayout(this, () => this.relayout());
@@ -208,7 +211,9 @@ export class BattleScene extends Phaser.Scene {
         if (!foeImage || !mineImage) throw new Error("no pictures for the 3D battle");
         const canvas = document.createElement("canvas");
         canvas.className = "cave-stage";
-        document.getElementById("game")!.prepend(canvas);
+        // Right under Phaser's canvas: above the overworld's 3D map, when a duel opens over it.
+        const host = document.getElementById("game")!;
+        host.insertBefore(canvas, this.game.canvas.parentElement === host ? this.game.canvas : host.firstChild);
         try {
           this.stage = new BattleStage(
             canvas,
@@ -217,7 +222,8 @@ export class BattleScene extends Phaser.Scene {
               image: foeImage,
               blink: variantPicture(faceFrameKey(foe.spriteFront, "blink"), foeVariant),
               talk: variantPicture(faceFrameKey(foe.spriteFront, "talk"), foeVariant),
-              scale: variantScale(foeVariant),
+              // The dragon and the visiting beasts are bigger than any monster.
+              scale: variantScale(foeVariant) * (this.raid || this.team ? 1.5 : 1),
               sparkly: variantSparkles(foeVariant),
               model: modelSpec(foe, foeVariant),
             },
@@ -231,6 +237,11 @@ export class BattleScene extends Phaser.Scene {
         }
         this.stageCanvas = canvas;
         this.stage.onCry = (id) => playCreatureSound(this, id === foe.id ? foe : mine);
+        // A duel or a team fight opens over the meeting screen and the map: they step aside
+        // while the meadow shows (they'd show through), and this scene's ink backdrop goes.
+        this.hiddenUnder = ["Interact", "Overworld"].filter((key) => this.scene.isVisible(key) && this.scene.isActive(key) === false && key !== this.scene.key);
+        for (const key of this.hiddenUnder) this.scene.setVisible(false, key);
+        this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
         if (import.meta.env.DEV) (window as unknown as { __battle?: BattleScene }).__battle = this;
       })
       .catch((error: unknown) => console.warn("3D battle unavailable:", error))
@@ -243,6 +254,8 @@ export class BattleScene extends Phaser.Scene {
 
   private teardownStage(): void {
     this.alive = false;
+    for (const key of this.hiddenUnder) this.scene.setVisible(true, key);
+    this.hiddenUnder = [];
     this.stage?.destroy();
     this.stage = undefined;
     this.stageCanvas?.remove();
@@ -309,14 +322,16 @@ export class BattleScene extends Phaser.Scene {
     // The server also pushes a view when only the opponent has answered; nothing new to show yet.
     if (next.turn === this.battleState.turn && next.outcome === "ongoing") return;
 
-    const previousLogLength = this.battleState.log.length;
+    const previous = this.battleState;
     this.battleState = next;
     this.busy = true;
-    this.updateHpBars();
-    this.reactToEntries(next.log.slice(previousLogLength));
+    // The finish counts at once; what's shown waits for the moves to play out.
+    if (next.outcome !== "ongoing") this.finished = true;
+    void this.showTurn(previous, next).then(() => this.afterDuelTurn(next));
+  }
 
+  private afterDuelTurn(next: BattleState): void {
     if (next.outcome !== "ongoing") {
-      this.finished = true;
       recordProgress({ kind: "duel", won: outcomeFor(next, this.myId) === "won" });
       // Losing a duel by fainting (not by running away) means passing out.
       if (outcomeFor(next, this.myId) === "lost" && this.me().active.currentHp <= 0) {
@@ -367,15 +382,17 @@ export class BattleScene extends Phaser.Scene {
     const next = view.battle;
     // The server also pushes a view when only someone else has picked; nothing new to show yet.
     if (next.turn === this.battleState.turn && view.phase === "active") return;
-    const previousLogLength = this.battleState.log.length;
+    const previous = this.battleState;
     this.battleState = next;
-    this.updateHpBars();
-    this.reactToEntries(next.log.slice(previousLogLength));
     // My monster fainted: my pass-out wait starts now, even if the team fights on.
     if (this.meInTeam(view)?.status === "fainted") this.startPassOut(0, "dragon");
+    if (view.phase === "done") this.finished = true;
+    this.busy = true;
+    void this.showTurn(previous, next).then(() => this.afterTeamTurn(view, next));
+  }
 
+  private afterTeamTurn(view: TeamView, next: BattleState): void {
     if (view.phase === "done") {
-      this.finished = true;
       this.clearActionButtons();
       const dealt = next.log
         .filter((e) => e.kind === "damage" && e.actorPlayerId === this.myId && e.targetPlayerId === BOSS_PLAYER_ID)
@@ -439,10 +456,14 @@ export class BattleScene extends Phaser.Scene {
     if (update.over === "defeated") return this.abortDuel(this.bossWonText(), OUTCOME_ICONS.won);
     if (update.over === "gone") return this.abortDuel(t("beast_gone"), FLEE_ICON);
     const next = update.battle;
-    const previousLogLength = this.battleState.log.length;
+    const previous = this.battleState;
     this.battleState = next;
-    this.updateHpBars();
-    this.reactToEntries(next.log.slice(previousLogLength));
+    if (next.outcome !== "ongoing") this.finished = true;
+    this.busy = true;
+    void this.showTurn(previous, next).then(() => this.afterRaidTurn(next));
+  }
+
+  private afterRaidTurn(next: BattleState): void {
     if (next.outcome === "ongoing") {
       this.busy = false;
       this.renderActions();
@@ -802,20 +823,35 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** In 3D the turn plays out one thing at a time: each move flies, hits (the health bar drops then), faints sink. */
-  private async presentTurn3d(nextState: BattleState): Promise<void> {
-    const before = this.battleState;
-    const entries = nextState.log.slice(before.log.length);
-    const hp: Record<string, number> = Object.fromEntries(before.participants.map((p) => [p.playerId, p.active.currentHp]));
+  /**
+   * Shows what happened in a turn (from `previous` to `next`, already the battle's state): in
+   * 3D one thing at a time — each move flies and hits (the health bar drops then), fainting
+   * monsters sink — or, in 2D, all at once. Duels, the dragon and team fights come here with the
+   * server's turns, wild battles with their own.
+   */
+  private async showTurn(previous: BattleState, next: BattleState): Promise<void> {
+    const entries = next.log.slice(previous.log.length);
+    if (!this.stage) {
+      this.updateHpBars();
+      this.reactToEntries(entries);
+      return;
+    }
+    const hp: Record<string, number> = Object.fromEntries(previous.participants.map((p) => [p.playerId, p.active.currentHp]));
     this.clearActionButtons();
-    this.battleState = nextState;
     for (const [id, value] of Object.entries(hp)) this.setBar(id, value);
     for (const entry of entries) {
       if (!this.alive) return;
       await this.play3d(entry, hp);
     }
+    if (this.alive) this.updateHpBars();
+  }
+
+  /** A wild battle's turn in 3D: played out, then what comes next. */
+  private async presentTurn3d(nextState: BattleState): Promise<void> {
+    const before = this.battleState;
+    this.battleState = nextState;
+    await this.showTurn(before, nextState);
     if (!this.alive) return;
-    this.updateHpBars();
     if (nextState.outcome !== "ongoing") {
       this.showOutcomeMessage(nextState.outcome);
       this.time.delayedCall(1400, () => this.endBattle());
@@ -830,25 +866,37 @@ export class BattleScene extends Phaser.Scene {
     const stage = this.stage;
     if (!stage) return;
     this.say(entry.text, LOG_ICONS[entry.kind]);
-    const sideOf = (id?: string): Side => (id === this.myId ? "mine" : "wild");
+    // Who's who on the stage: me in front, the opponent (a wild monster, the other player's, the dragon) out there;
+    // in a team fight a teammate isn't on the stage.
+    const foeId = this.foe().playerId;
+    const sideOf = (id?: string): Side | undefined => (id === this.myId ? "mine" : id === foeId ? "wild" : undefined);
     if (entry.kind === "damage" || entry.kind === "miss") {
       const attacker = this.battleState.participants.find((p) => p.playerId === entry.actorPlayerId);
       const move = entry.moveId ? attacker?.moves[entry.moveId] : undefined;
       const type: TypeId = move?.type ?? attacker?.species.type ?? "sten";
       const impact: Impact = entry.kind === "miss" ? "miss" : entry.effectiveness === "strong" ? "strong" : entry.effectiveness === "weak" ? "weak" : "hit";
-      await stage.attack(sideOf(entry.actorPlayerId), type, impact, move ? BattleScene.isCloseMove(move) : false, () => {
+      const onImpact = () => {
         if (entry.kind === "miss") return playMissSound();
         playHitSound();
         const target = entry.targetPlayerId ?? "";
         hp[target] = Math.max(0, (hp[target] ?? 0) - (entry.amount ?? 0));
-        this.setBar(target, hp[target]!);
+        if (sideOf(target)) this.setBar(target, hp[target]!);
         if (entry.effectiveness === "strong") this.flashFeedback(`${ic(STRONG_ICON)} ${t("battle_effective_strong")}`);
         else if (entry.effectiveness === "weak") this.flashFeedback(`${ic(WEAK_ICON)} ${t("battle_effective_weak")}`);
-      });
+      };
+      const from = sideOf(entry.actorPlayerId);
+      const to = sideOf(entry.targetPlayerId);
+      if (from && to && from !== to) await stage.attack(from, type, impact, move ? BattleScene.isCloseMove(move) : false, onImpact);
+      else if (to && entry.kind === "damage") {
+        // A teammate hit the boss: the blow lands on it.
+        await stage.struck(to, type, impact);
+        onImpact();
+      } else onImpact();
     } else if (entry.kind === "faint") {
       playFaintSound();
-      await stage.faint(sideOf(entry.targetPlayerId));
-    } else if (entry.kind === "flee") {
+      const side = sideOf(entry.targetPlayerId);
+      if (side) await stage.faint(side);
+    } else if (entry.kind === "flee" && sideOf(entry.targetPlayerId) === "mine") {
       await stage.flee();
     }
     // Time to read the message (the catching entries were already shown in the meadow).

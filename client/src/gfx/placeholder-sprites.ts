@@ -53,6 +53,11 @@ export function placeholderSpec(key: string): PlaceholderSpec | undefined {
   return drawnHere.get(key);
 }
 
+/** Every picture drawn here (front and back), with what it shows. */
+export function placeholderPictures(): Array<[string, PlaceholderSpec]> {
+  return [...drawnHere.entries()];
+}
+
 /** The texture key of a monster's front picture with this face — only ordinary placeholder monsters have them. */
 export function faceFrameKey(frontKey: string, frame: FaceFrame): string {
   return `${frontKey}#${frame}`;

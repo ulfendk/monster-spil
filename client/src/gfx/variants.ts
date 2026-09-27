@@ -9,6 +9,12 @@ import { variantOf } from "../content/load-variants";
  * are left alone, so it still looks drawn. Sizes are for the scenes (variantScale).
  */
 
+/** Bumped when the monsters' pictures change (they turn 3D after start-up): variants are then baked again. */
+let generation = 0;
+export function picturesChanged(): void {
+  generation++;
+}
+
 /** The texture to show for a monster picture: the variant's, baked on first use, or the picture itself. */
 export function pictureKey(scene: Phaser.Scene, key: string, variant: string | undefined): string {
   const v = variantOf(variant);
@@ -16,7 +22,7 @@ export function pictureKey(scene: Phaser.Scene, key: string, variant: string | u
   if (!v || !look || !scene.textures.exists(key)) return key;
   const colours = look.hue || look.hueTo !== undefined || look.saturation !== undefined || look.lighten || look.darken || look.tint;
   if (!colours) return key;
-  const out = `${key}~${v.id}`;
+  const out = `${key}~${v.id}~${generation}`;
   if (scene.textures.exists(out)) return out;
   const source = scene.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
   const canvas = document.createElement("canvas");

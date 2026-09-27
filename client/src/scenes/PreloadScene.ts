@@ -49,6 +49,17 @@ export class PreloadScene extends Phaser.Scene {
     generateIcons(this);
 
     void this.openGame(content);
+    // The monsters' pictures from their 3D models (cave/model-snapshots.ts), in the background:
+    // the 2D screens show them in 3D once they're done (a picture on screen turns 3D where it
+    // stands). Without WebGL (or offline before the 3D code was cached) the drawn pictures stay.
+    const game = this.game;
+    void import("../cave/model-snapshots")
+      .then(async ({ bakeMonsterPictures }) => {
+        const started = performance.now();
+        const count = await bakeMonsterPictures(game.scene.getScene("Preload"));
+        if (import.meta.env.DEV) console.info(`3D pictures: ${count} in ${Math.round(performance.now() - started)} ms`);
+      })
+      .catch((error: unknown) => console.warn("3D monster pictures unavailable:", error));
   }
 
   /**

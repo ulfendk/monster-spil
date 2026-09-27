@@ -168,6 +168,14 @@ export class BattleStage extends MeadowStage {
     await this.wait(impact === "strong" ? 0.45 : 0.3);
   }
 
+  /** A blow from someone who isn't on the stage (a teammate, in a team fight) lands on a monster. */
+  async struck(side: Side, type: TypeId, impact: Impact): Promise<void> {
+    if (impact === "miss") return;
+    const target = this.monsterOn(side);
+    this.hit(target, target.sprite.position.clone(), type, impact, false);
+    await this.wait(0.45);
+  }
+
   /** A monster faints: it wobbles and sinks into the grass. */
   async faint(side: Side): Promise<void> {
     const m = this.monsterOn(side);

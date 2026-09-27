@@ -165,6 +165,19 @@ any picture size shows like a 128 px placeholder.
   monster in a battle faces the wild one (`lookAt`), so you see its back and tail. On the map
   (`Map3D`) the dragon, visiting beasts and waiting monsters stand as models turned to the
   camera.
+- **The 2D screens show the models too** (the monster book, a monster's page, the starter
+  pick, trades, rewards, the cave summary): after start-up `bakeMonsterPictures`
+  (`client/src/cave/model-snapshots.ts`) renders each drawn monster from its model — front,
+  back, eyes shut, mouth open — and paints it into the placeholder's own canvas texture (same
+  key, same size), a few milliseconds per frame in the background; a picture already on
+  screen turns 3D where it stands, and nothing waits for it. Rare variants' recoloured
+  pictures are made again afterwards (`picturesChanged`). Kids' drawings are left alone.
+- **Every battle is in the 3D meadow** — wild ones, duels, the dragon and beasts (drawn 1.5×)
+  and team fights. `BattleScene.showTurn` plays any turn one entry at a time (the server's
+  turns in duels, raids and teams, the device's own in the wild); in a team fight a teammate
+  isn't on the stage, so their blow lands on the boss (`BattleStage.struck`). A duel or team
+  fight opens over the meeting screen and the map: its canvas goes right under Phaser's, and
+  the scenes underneath are hidden while it runs.
 
 ## Placeholder sprites
 
@@ -523,13 +536,12 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
 - **A wild battle happens in a sunny meadow** (`client/src/cave/battle-stage.ts`, on
   `meadow-stage.ts`: sky, a red rising sun, hills, pines, susuki in a breeze): the wild
   monster stands in the grass, mine (its back picture) close in front. `BattleScene` loads
-  three.js when a wild battle opens and draws only its HUD on top: health bars on ink cards
+  three.js when a battle opens and draws only its HUD on top: health bars on ink cards
   in the free corners (the wild one's top left, mine bottom right), the message on an ink
   card above the buttons. `BattleStage.resize(w, h, band)` picks the narrowest camera view
   that fits both monsters in the strip above the message and centres them there, with the
-  monsters standing closer together on tall screens — so every screen shape works. Duels,
-  raids and teams stay 2D; so does everything when WebGL or the 3D chunk is missing (the
-  2D pictures wait while it loads, then show if it failed).
+  monsters standing closer together on tall screens — so every screen shape works. Without
+  WebGL or the 3D chunk it's 2D (the 2D pictures wait while it loads, then show if it failed).
 - **A turn plays out one thing at a time** (`presentTurn3d`): each move's missile flies by
   its type (fire: a fireball trailing embers, water: a string of droplets, grass: whirling
   leaves, lightning: a bolt from the sky, stone: lobbed rocks); weak stone moves (power ≤ 30:
