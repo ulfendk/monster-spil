@@ -78,7 +78,7 @@ export function resolveTurn(
       const opponent = otherParticipant(participants, participant);
       if (action.throw && !action.throw.hit) {
         // The ball missed: no roll. Like a failed catch, that's the turn.
-        log.push({ turn, kind: "catch-miss", text: "Bolden ramte ikke!", targetPlayerId: opponent.playerId });
+        log.push({ turn, kind: "catch-miss", text: "Lassoen ramte ikke!", targetPlayerId: opponent.playerId });
         return { ...state, turn, log: [...state.log, ...log], outcome: "ongoing" };
       }
       const precision = action.throw?.hit ? Math.max(0, Math.min(1, action.throw.precision)) : 0.5;

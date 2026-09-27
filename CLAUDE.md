@@ -697,6 +697,23 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   (`performTurn({kind:"move", moveId})`, `performCatch()`) and `window.__catch` the catch
   scene (`aimAndFire(x, y)`).
 
+### Lassos instead of a ball
+
+- **You throw a lasso made of the monster's element** (`client/src/cave/lasso.ts`, used by
+  `ThrowStage` in caves and catching): fire — a glowing loop licked by flame tongues, trailing
+  embers; water — a clear blue ring with droplets racing round it; grass — a twisted vine with
+  leaves and blossoms, shedding leaves; lightning — a crackling loop that re-zaps itself,
+  throwing sparks; stone — a chain of tumbling stones raising dust. The element is the type of
+  the monster nearest where you aim (`typeNear`; a stage monster's `type`, from its model's
+  species), so in a cave it changes as you aim from one to another.
+- It twirls in the hand while you aim, flies open along the throw's arc with a rope of beads
+  back to the hand, and on a hit drops over the monster and pulls tight; the monster struggles
+  three times, then the lasso blazes up and the monster shrinks away into it (caught) or it
+  bursts apart and the monster breaks free. A miss lands open on the ground and is reeled
+  back. **The rules are unchanged** — the same flight, hit test, precision and catch roll
+  (`shared/src/cave/throw.ts`, the engine's catch); only the look is new. Texts say "lasso"
+  ("Lassoen ramte ikke!").
+
 ### Crosshairs and trigger
 
 - **Caves and catching throw with crosshairs and a trigger**: put a finger on the screen and

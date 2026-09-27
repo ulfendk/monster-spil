@@ -1,14 +1,16 @@
 import * as THREE from "three";
-import { BALL_START, HIT_RADIUS, aimToThrow, ballAt, createRng, hitPrecision, landingTime, type Rng, type Vec3 } from "@shared";
+import { BALL_START, HIT_RADIUS, aimToThrow, ballAt, createRng, hitPrecision, landingTime, type Rng, type TypeId, type Vec3 } from "@shared";
+import { Lasso } from "./lasso";
 import { KANAGAWA } from "../ui/theme";
 import { buildMonsterModel, setMonsterEnvironment, type MonsterModel, type MonsterModelSpec } from "./monster-model";
 
 /**
  * What every 3D throwing scene shares (three.js, loaded only when one opens): the camera,
- * the temari ball in your hand, aiming (a point in the scene under the crosshairs, and dots
- * showing the arc the ball will fly to it), the ball's flight (the shared, tested physics in
- * shared/src/cave/throw.ts) with a hit test fine enough that a fast ball can't skip through
- * a monster, the catch animation, and monsters that feel alive — they breathe, blink, cry
+ * the lasso in your hand (lasso.ts: made of the element of the monster aimed at), aiming (a
+ * point in the scene under the crosshairs, and dots showing the arc it will fly to it), its
+ * flight (the shared, tested physics in shared/src/cave/throw.ts — the same as the old ball's)
+ * with a hit test fine enough that a fast throw can't skip through a monster, the catch
+ * animation (the lasso pulls tight, the monster struggles, then it's caught or breaks free), and monsters that feel alive — they breathe, blink, cry
  * with their mouth open and jump when startled. A scene (the cave, the meadow) adds the
  * scenery and says where its monsters are and how they move.
  *
@@ -30,6 +32,8 @@ export interface StageMonster {
   sparkly?: boolean;
   /** A monster the game draws itself: shown as a 3D model (monster-model.ts) instead of its picture. */
   model?: MonsterModelSpec;
+  /** Its type (the lasso thrown at it is of its element); a model's species says it anyway. */
+  type?: TypeId;
 }
 
 export interface ThrowResult {
@@ -59,6 +63,8 @@ export interface LivingMonster {
   size: number;
   /** A rare variant that twinkles now and then. */
   sparkly?: boolean;
+  /** Its type: the lasso thrown at it is made of its element. */
+  type?: TypeId;
   phase: string;
 }
 
@@ -75,7 +81,8 @@ export abstract class ThrowStage<M extends LivingMonster> {
   protected readonly camera = new THREE.PerspectiveCamera(60, 1, 0.1, 80);
   /** Where the camera stands (resize moves it up on a tall screen; a scene may shake it about this point). */
   protected readonly cameraBase = new THREE.Vector3(0, 1.6, 1.5);
-  protected ball!: THREE.Mesh;
+  /** The lasso in the hand (lasso.ts): of the element of the monster aimed at. */
+  protected lasso!: Lasso;
   /** Dots along the arc the ball would fly to where the crosshairs point. */
   private aimDots: THREE.Mesh[] = [];
   private readonly raycaster = new THREE.Raycaster();
@@ -104,8 +111,9 @@ export abstract class ThrowStage<M extends LivingMonster> {
 
   /** Call at the end of the scene's constructor, once its scenery and monsters are in. */
   protected start(): void {
-    this.ball = this.makeBall();
-    this.scene.add(this.ball);
+    this.lasso = new Lasso(new THREE.Vector3(BALL_START.x, BALL_START.y, BALL_START.z));
+    this.lasso.setType(this.defaultType());
+    this.scene.add(this.lasso.root);
     this.makeAimDots();
     this.holdBall();
     // The first frame waits for the next animation frame, so a subclass's constructor finishes first.
@@ -202,7 +210,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
 
   /** Whether a ball is ready to throw (none in the air, nothing playing). */
   get ready(): boolean {
-    return !this.flight && !this.busy && this.ball.visible;
+    return !this.flight && !this.busy && this.lasso.visible;
   }
 
   /**
@@ -227,12 +235,33 @@ export abstract class ThrowStage<M extends LivingMonster> {
   /** Aiming: dots show the arc the ball would fly to the point under the crosshairs; undefined hides them. */
   aimAt(sx?: number, sy?: number): void {
     if (sx === undefined || sy === undefined || !this.ready) return this.showAim(undefined);
-    this.showAim(aimToThrow(this.pointAt(sx, sy)).v);
+    const point = this.pointAt(sx, sy);
+    // The lasso in the hand turns to the element of what's aimed at.
+    this.lasso.setType(this.typeNear(point));
+    this.showAim(aimToThrow(point).v);
   }
 
-  /** The trigger: the ball flies to the point under the crosshairs. */
+  /** The trigger: the lasso flies to the point under the crosshairs. */
   throwAt(sx: number, sy: number): Promise<ThrowResult> {
-    return this.throwBall(aimToThrow(this.pointAt(sx, sy)).v);
+    const point = this.pointAt(sx, sy);
+    if (this.ready) this.lasso.setType(this.typeNear(point));
+    return this.throwBall(aimToThrow(point).v);
+  }
+
+  /** The element for a throw at `point`: the type of the monster nearest it (of those out), else the scene's. */
+  private typeNear(point: THREE.Vector3): TypeId {
+    let best: { type: TypeId; d: number } | undefined;
+    for (const m of this.monsters) {
+      if (m.phase === "caught" || !m.sprite.visible || !m.type || !this.canBeHit(m)) continue;
+      const d = m.sprite.position.distanceTo(point);
+      if (!best || d < best.d) best = { type: m.type, d };
+    }
+    return best?.type ?? this.defaultType();
+  }
+
+  /** The lasso's element when nobody's aimed at: the first monster's (a meadow has only one). */
+  private defaultType(): TypeId {
+    return this.monsters.find((m) => m.type && m.phase !== "caught")?.type ?? this.monsters.find((m) => m.type)?.type ?? "sten";
   }
 
   /** Throws the ball; resolves when it hits a monster or comes to rest. */
@@ -245,48 +274,70 @@ export abstract class ThrowStage<M extends LivingMonster> {
   }
 
   /**
-   * After a hit: the monster is drawn into the ball, which drops and wobbles three times,
-   * then either glows (caught) or bursts open and the monster gets away (the scene says how).
+   * After a hit: the lasso drops over the monster and pulls tight; the monster struggles three
+   * times, then either the lasso glows and the monster shrinks away into it (caught) or the
+   * lasso bursts apart and the monster breaks free (the scene says how it gets away).
    */
   async catchAnimation(index: number, success: boolean): Promise<void> {
     const m = this.monsters[index]!;
     this.busy = true;
-    const at = this.ball.position.clone();
-    const start = m.sprite.position.clone();
     m.phase = "caught"; // stops its own movement while this plays
-    await this.tween(0.35, (k) => {
-      m.sprite.position.lerpVectors(start, at, k);
-      m.sprite.scale.setScalar(m.size * (1 - k));
-    });
-    m.sprite.visible = false;
-    const top = this.ball.position.y;
-    await this.tween(0.35, (k) => (this.ball.position.y = top + (0.2 - top) * k * k));
+    if (m.type) this.lasso.setType(m.type);
+    const centre = m.sprite.position.clone();
+    const from = this.lasso.position.clone();
+    const fit = m.size * 0.3;
+    // Over it from above, then down round its middle, pulling tight.
+    await this.tween(0.3, (k) => this.lasso.wrap(from.clone().lerp(centre.clone().add(new THREE.Vector3(0, m.size * 0.45, 0)), k), 0.58 + (fit * 1.4 - 0.58) * k));
+    await this.tween(0.22, (k) => this.lasso.wrap(centre.clone().add(new THREE.Vector3(0, m.size * 0.45 * (1 - k), 0)), fit * (1.4 - 0.4 * k * k)));
+    this.lasso.pulse();
+    // Three struggles: it wriggles and hops against the lasso; the lasso flashes as it holds.
+    const size = m.size;
     for (let i = 0; i < 3; i++) {
-      await this.tween(0.32, (k) => (this.ball.rotation.z = Math.sin(k * Math.PI * 2) * 0.45));
-      await this.wait(0.18);
+      await this.tween(0.34, (k) => {
+        const s = Math.sin(k * Math.PI * 2);
+        m.sprite.rotation.z = s * 0.28;
+        m.sprite.position.set(centre.x + s * 0.08, centre.y + Math.abs(Math.sin(k * Math.PI)) * 0.12, centre.z);
+        m.sprite.scale.set(size * (1 + Math.abs(s) * 0.06), size * (1 - Math.abs(s) * 0.05), m.model ? size : 1);
+        this.lasso.wrap(m.sprite.position, fit * (1 + Math.abs(s) * 0.08));
+      });
+      this.lasso.pulse();
+      await this.wait(0.14);
     }
+    m.sprite.rotation.z = 0;
+    m.sprite.position.copy(centre);
     if (success) {
-      this.sparkle(this.ball.position.clone(), KANAGAWA.carpYellow);
-      await this.tween(0.6, (k) => ((this.ball.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.2 + k * 1.2));
-      await this.wait(0.3);
+      // Caught: the lasso blazes up in its element and the monster shrinks away into it.
+      this.sparkle(centre.clone(), KANAGAWA.carpYellow);
+      await this.tween(0.6, (k) => {
+        this.lasso.glow(k);
+        m.sprite.scale.setScalar(size * (1 - k * k));
+        if (!m.model) (m.sprite as THREE.Sprite).scale.z = 1;
+        this.lasso.wrap(centre, fit * (1 - 0.7 * k));
+      });
+      m.sprite.visible = false;
+      this.lasso.burst(false);
+      this.lasso.hideLoop();
+      await this.wait(0.35);
     } else {
-      this.sparkle(this.ball.position.clone(), KANAGAWA.sumiInk6);
-      m.sprite.visible = true;
-      m.sprite.scale.setScalar(m.size);
-      this.breakFree(m, this.ball.position.clone());
+      // It breaks free: the lasso bursts apart.
+      this.lasso.burst(true);
+      this.lasso.hideLoop();
+      m.sprite.scale.set(size, size, m.model ? size : 1);
+      this.breakFree(m, centre);
+      await this.wait(0.25);
     }
     this.holdBall();
     this.busy = false;
   }
 
-  /** A new ball in the hand (trying again). */
+  /** A new lasso in the hand (trying again). */
   readyBall(): void {
     if (!this.flight && !this.busy) this.holdBall();
   }
 
   /** No ball in the hand any more (the visit or the throw is over). */
   end(): void {
-    this.ball.visible = false;
+    this.lasso.visible = false;
     this.showAim(undefined);
   }
 
@@ -312,6 +363,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.time += dt;
     this.updateMonsters(dt, this.time);
     this.updateFlight(dt);
+    this.lasso.update(dt, this.time);
     this.updateScenery(dt, this.time);
     for (const a of this.animated) a(this.time);
     for (let i = this.effects.length - 1; i >= 0; i--) if (!this.effects[i]!(dt)) this.effects.splice(i, 1);
@@ -320,39 +372,10 @@ export abstract class ThrowStage<M extends LivingMonster> {
 
   // ------------------------------------------------------------ the ball
 
-  /** A temari ball: red, with white and gold thread in bands. */
-  private makeBall(): THREE.Mesh {
-    const c = document.createElement("canvas");
-    c.width = 256;
-    c.height = 128;
-    const g = c.getContext("2d")!;
-    const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
-    g.fillStyle = hex(KANAGAWA.waveRed);
-    g.fillRect(0, 0, 256, 128);
-    g.lineWidth = 6;
-    for (let i = 0; i < 8; i++) {
-      g.strokeStyle = hex(i % 2 ? KANAGAWA.carpYellow : KANAGAWA.fujiWhite);
-      g.beginPath();
-      g.moveTo(i * 32, 0);
-      g.lineTo(i * 32 + 32, 64);
-      g.lineTo(i * 32, 128);
-      g.stroke();
-    }
-    g.fillStyle = hex(KANAGAWA.fujiWhite);
-    g.fillRect(0, 60, 256, 8);
-    const texture = new THREE.CanvasTexture(c);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return new THREE.Mesh(
-      new THREE.SphereGeometry(0.17, 24, 16),
-      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, emissive: KANAGAWA.carpYellow, emissiveIntensity: 0.2 })
-    );
-  }
-
+  /** The lasso back in the hand, twirling, of the element of what's out now. */
   protected holdBall(): void {
-    this.ball.position.set(BALL_START.x, BALL_START.y, BALL_START.z);
-    this.ball.rotation.set(0, 0, 0);
-    (this.ball.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.2;
-    this.ball.visible = true;
+    this.lasso.setType(this.defaultType());
+    this.lasso.hold();
   }
 
   // ------------------------------------------------------------ aiming
@@ -390,8 +413,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     for (let i = 0; i < steps; i++) {
       f.t = Math.min(f.end, f.t + dt / steps);
       const p = ballAt(f.v, f.t);
-      this.ball.position.set(p.x, p.y, p.z);
-      this.ball.rotation.x -= (dt / steps) * 14;
+      this.lasso.fly(new THREE.Vector3(p.x, p.y, p.z), f.t / Math.max(0.01, f.end));
       const hit = this.hitTest(p);
       if (hit) {
         this.flight = undefined;
@@ -400,13 +422,14 @@ export abstract class ThrowStage<M extends LivingMonster> {
       }
       if (f.t >= f.end) {
         this.flight = undefined;
-        // A miss: it bumps along the ground and fades, then a new ball is in my hand.
-        const at = this.ball.position.clone();
+        // A miss: it lands on the ground, lies there a moment, and is pulled back to my hand.
+        const at = this.lasso.position.clone().setY(0.05);
         this.ballLanded(at);
         this.busy = true;
-        void this.tween(0.5, (k) => {
-          this.ball.position.set(at.x + f.v.x * 0.08 * k, 0.17 + Math.sin(k * Math.PI) * 0.25, at.z + f.v.z * 0.08 * k);
-        }).then(() => {
+        const hand = new THREE.Vector3(BALL_START.x, BALL_START.y, BALL_START.z);
+        void this.tween(0.25, () => this.lasso.lie(at))
+          .then(() => this.tween(0.45, (k) => this.lasso.lie(at.clone().lerp(hand, k * k).setY(0.05 + (hand.y - 0.05) * k * k * k))))
+          .then(() => {
           this.holdBall();
           this.busy = false;
           f.resolve({});
@@ -438,9 +461,10 @@ export abstract class ThrowStage<M extends LivingMonster> {
   }
 
   /** A monster — its 3D model, or its picture as a sprite with its faces — added to the scene (hidden until the scene shows it). */
-  protected makeLiving(m: StageMonster, baseSize = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "model" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size" | "sparkly"> {
+  protected makeLiving(m: StageMonster, baseSize = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "model" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size" | "sparkly" | "type"> {
     const size = baseSize * (m.scale ?? 1);
-    const common = { nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size, sparkly: m.sparkly };
+    const type = m.type ?? m.model?.species.type;
+    const common = { nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size, sparkly: m.sparkly, ...(type ? { type } : {}) };
     if (m.model) {
       const model = buildMonsterModel(m.model);
       model.root.scale.setScalar(size);
