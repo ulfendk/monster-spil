@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { spriteFit } from "../gfx/creature-sprite";
 import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
 import { nameWithVariant } from "../content/load-variants";
+import { sceneKind } from "../content/load-scenes";
 import type { Room } from "colyseus.js";
 import type {
   PassOutKind,
@@ -83,6 +84,8 @@ export interface BattleSceneData {
   wildSpecies?: CreatureSpecies;
   /** The wild monster is a single one waiting on the map (the UFO's alien): tell the server how it went. */
   spawnId?: string;
+  /** Where a wild battle takes place (a scene id: the meadow, a forest glade, a lake shore…). */
+  scene?: string;
   duel?: DuelSceneData;
   raid?: RaidSceneData;
   team?: TeamSceneData;
@@ -218,7 +221,8 @@ export class BattleScene extends Phaser.Scene {
               sparkly: variantSparkles(foeVariant),
             },
             { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant), sparkly: variantSparkles(mineVariant) },
-            Math.floor(this.rng.next() * 2 ** 31)
+            Math.floor(this.rng.next() * 2 ** 31),
+            sceneKind(this.battleData.scene).look
           );
         } catch (error) {
           canvas.remove();
@@ -682,6 +686,7 @@ export class BattleScene extends Phaser.Scene {
     const data: CatchSceneData = {
       species: wild.species,
       variant: wild.active.variant,
+      scene: this.battleData.scene,
       seed: Math.floor(this.rng.next() * 2 ** 31),
       ...(this.stage ? { stage: this.stage } : {}),
       decide: (thrown) => {

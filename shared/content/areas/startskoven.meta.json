@@ -34,6 +34,7 @@
     },
     {
       "id": "storsoeen",
+      "scene": "strand",
       "navn": "Storsøen",
       "rects": [{ "x": 100, "y": 28, "w": 46, "h": 34 }],
       "encounterTable": [
@@ -48,6 +49,7 @@
     },
     {
       "id": "sandklitterne",
+      "scene": "klit",
       "navn": "Sandklitterne",
       "rects": [{ "x": 118, "y": 0, "w": 42, "h": 24 }],
       "encounterTable": [
@@ -59,6 +61,7 @@
     },
     {
       "id": "hoejfjeldet",
+      "scene": "fjeld",
       "navn": "Højfjeldet",
       "rects": [{ "x": 112, "y": 76, "w": 48, "h": 44 }],
       "encounterTable": [
@@ -73,6 +76,7 @@
     },
     {
       "id": "dybskoven",
+      "scene": "skov",
       "navn": "Dybskoven",
       "rects": [{ "x": 0, "y": 80, "w": 64, "h": 40 }],
       "encounterTable": [

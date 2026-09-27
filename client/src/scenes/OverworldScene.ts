@@ -38,9 +38,10 @@ import { recordProgress } from "../progress/record";
 import { levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
-import { crossTarget, emptyTerrain, encounterTableAt, rollVariant, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { crossTarget, emptyTerrain, encounterTableAt, rollVariant, sceneAt, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import { variantConfig } from "../content/load-variants";
+import { sceneConfig } from "../content/load-scenes";
 import type { MinigameData } from "./minigames/Minigame";
 
 export interface OverworldSceneData {
@@ -1647,6 +1648,7 @@ export class OverworldScene extends Phaser.Scene {
       content: this.content,
       wildInstance,
       wildSpecies: species,
+      scene: sceneAt(this.areaMeta, this.playerTile.x, this.playerTile.y, sceneConfig).id,
       ...(spawnId ? { spawnId } : {}),
     };
     this.closePopup();

@@ -15,6 +15,8 @@ export interface EncounterRegion {
   navn: string;
   rects: Array<{ x: number; y: number; w: number; h: number }>;
   encounterTable: EncounterTableEntry[];
+  /** Where battles here take place (a scene id from shared/content/scenes.json). */
+  scene?: string;
 }
 
 /**
@@ -34,6 +36,8 @@ export interface AreaMeta {
   encounterTable: EncounterTableEntry[];
   /** Parts of the map with their own wild monsters; the first one a tile lies in wins. */
   regions?: EncounterRegion[];
+  /** Where battles on this map take place, outside regions that name their own (shared/content/scenes.json). */
+  scene?: string;
   /** 0-1 chance per step taken inside the encounter zone */
   encounterRate: number;
   playerStart: { x: number; y: number };

@@ -6,6 +6,7 @@ import { CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
 import { faceFrameKey } from "../gfx/placeholder-sprites";
 import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
+import { sceneKind } from "../content/load-scenes";
 import { playCreatureSound } from "../audio/creature-sound";
 import type { MeadowStage } from "../cave/meadow-stage";
 import type { BattleStage } from "../cave/battle-stage";
@@ -18,6 +19,8 @@ export interface CatchSceneData {
   species: CreatureSpecies;
   /** A rare variant: its colours and size. */
   variant?: string;
+  /** Where it stands (a scene id). */
+  scene?: string;
   seed: number;
   /** A 3D battle's meadow: catch in it (my monster steps aside) instead of opening a new one. */
   stage?: BattleStage;
@@ -95,7 +98,9 @@ export class CatchScene extends Phaser.Scene {
             scale: variantScale(variant),
             sparkly: variantSparkles(variant),
           },
-          this.catchData.seed
+          this.catchData.seed,
+          false,
+          sceneKind(this.catchData.scene).look
         );
         this.stage.onCry = () => playCreatureSound(this, species);
         this.fitStage();

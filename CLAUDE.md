@@ -481,6 +481,17 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   slingshot comes up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
   kind `catch-miss`); a hit lets the engine roll the catch, and the ball glows or bursts
   open accordingly. Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
+- **Scenes:** a wild battle (and its catching) takes place in a scene that fits where you
+  stand — the meadow, Dybskoven's forest glade, Storsøen's shore, Højfjeldet's mountains,
+  Sandklitterne's dunes, and snow, volcano and cherry-blossom scenes for other worlds.
+  `shared/content/scenes.json` holds each look: sky/fog/ground/hills/sun colours by palette
+  name, `light` and `lightTint`, fog distances, `decor` (pines, susuki, water, reeds, rocks,
+  peaks, dunes, bamboo, sakura, snowPines, lava, mushrooms, ferns) and `particles` (snow,
+  petals, embers, leaves). A map region (or a whole map) names its `scene` in the area's
+  `.meta.json`; `sceneAt` (`shared/src/world/scenes.ts`, tested) picks it and
+  `OverworldScene.startWildBattle` passes it on (`BattleSceneData.scene`). The shapes are
+  drawn by `client/src/cave/scenery.ts`, always clear of where the monsters stand and of the
+  view of them; a new scene can mix them freely with no code change.
 - **The engine decides** (`shared/src/battle/engine.ts`): the catch action carries
   `throw?: {hit:false} | {hit:true, precision}`; a hit's chance is the old one ×
   `catchBonus(precision)` (0.8 at the edge, 1.2 dead centre, exactly 1 at 0.5 — so a catch

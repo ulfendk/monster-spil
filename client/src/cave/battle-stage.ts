@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { TypeId } from "@shared";
+import type { SceneLook, TypeId } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 import { MeadowStage, STAND_Y, type MeadowMonster } from "./meadow-stage";
 import type { LivingMonster, StageMonster } from "./throw-stage";
@@ -48,8 +48,8 @@ export class BattleStage extends MeadowStage {
   private readonly fainting = new Set<LivingMonster>();
   private shake = 0;
 
-  constructor(canvas: HTMLCanvasElement, wild: StageMonster, mine: StageMonster, seed: number) {
-    super(canvas, wild, seed, true);
+  constructor(canvas: HTMLCanvasElement, wild: StageMonster, mine: StageMonster, seed: number, look?: SceneLook) {
+    super(canvas, wild, seed, true, look);
     const living = this.makeLiving(mine, MINE_SIZE);
     this.mineSize = living.size;
     living.sprite.visible = true;

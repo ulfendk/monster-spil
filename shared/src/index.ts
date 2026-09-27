@@ -183,3 +183,5 @@ export { applyCut, applyDig, canCut, canDig, crossTarget, pickDigMonster, pickDi
 export type { DigReward, MinigameConfig, WorkKind } from "./world/work.js";
 export { isVariantId, rollVariant, variantById, variantName } from "./creature/variants.js";
 export type { VariantConfig, VariantDef, VariantLook } from "./creature/variants.js";
+export { SCENE_DECOR, SCENE_PARTICLES, sceneAt } from "./world/scenes.js";
+export type { SceneConfig, SceneDecor, SceneKind, SceneLook, SceneParticles } from "./world/scenes.js";

@@ -1,0 +1,13 @@
+{
+  "default": "eng",
+  "kinds": [
+    { "id": "eng", "navn": "Engen", "look": { "sky": "springBlue", "fog": "springBlue", "ground": "autumnGreen", "hills": "winterGreen", "sun": "autumnRed", "decor": ["pines", "susuki"] } },
+    { "id": "skov", "navn": "Skovlysningen", "look": { "sky": "waveAqua2", "fog": "winterGreen", "fogNear": 10, "fogFar": 38, "ground": "winterGreen", "hills": "winterGreen", "light": 0.8, "decor": ["pines", "ferns", "mushrooms"], "particles": "leaves" } },
+    { "id": "strand", "navn": "Søbredden", "look": { "sky": "springBlue", "fog": "springBlue", "ground": "boatYellow2", "hills": "winterGreen", "sun": "autumnRed", "decor": ["water", "reeds", "rocks"] } },
+    { "id": "fjeld", "navn": "Fjeldet", "look": { "sky": "crystalBlue", "fog": "fujiWhite", "fogNear": 25, "fogFar": 80, "ground": "fujiGray", "hills": "katanaGray", "decor": ["peaks", "rocks", "pines"] } },
+    { "id": "klit", "navn": "Klitterne", "look": { "sky": "carpYellow", "fog": "carpYellow", "ground": "boatYellow2", "hills": "boatYellow1", "sun": "autumnRed", "light": 1.15, "decor": ["dunes", "rocks"] } },
+    { "id": "sne", "navn": "Sneen", "look": { "sky": "springBlue", "fog": "washi", "fogNear": 14, "fogFar": 50, "ground": "washi", "hills": "washi", "light": 1.25, "lightTint": "springBlue", "decor": ["snowPines", "rocks"], "particles": "snow" } },
+    { "id": "vulkan", "navn": "Vulkanen", "look": { "sky": "sumiInk5", "fog": "sumiInk4", "fogNear": 16, "fogFar": 55, "ground": "sumiInk4", "hills": "sumiInk3", "sun": "autumnRed", "light": 0.85, "decor": ["lava", "rocks"], "particles": "embers" } },
+    { "id": "kirsebaer", "navn": "Kirsebærhaven", "look": { "sky": "springBlue", "fog": "sakuraPink", "fogNear": 20, "fogFar": 70, "ground": "springGreen", "hills": "autumnGreen", "sun": "autumnRed", "decor": ["sakura", "bamboo"], "particles": "petals" } }
+  ]
+}

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import type { AreaMeta } from "../../types/area.js";
 import { encounterTableAt, livesAt, livesInArea, regionAt } from "../regions.js";
+import { SCENE_DECOR, SCENE_PARTICLES, sceneAt, type SceneConfig } from "../scenes.js";
 
 const content = new URL("../../../content/", import.meta.url);
 const meta: AreaMeta = JSON.parse(readFileSync(new URL("areas/startskoven.meta.json", content), "utf8"));
@@ -47,4 +48,24 @@ test("Startskoven: every region has tall grass and only known monsters", () => {
     for (const e of region.encounterTable) assert.ok(speciesIds.has(e.speciesId), `${region.id}: unknown ${e.speciesId}`);
     for (const b of "rects" in region ? region.rects : []) assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= map.width && b.y + b.h <= map.height, `${region.id} is off the map`);
   }
+});
+
+test("battles take place in the scene of the region, else the map's, else the default", () => {
+  const scenes: SceneConfig = JSON.parse(readFileSync(new URL("scenes.json", content), "utf8"));
+  const map = { ...small, regions: [{ ...small.regions![0]!, scene: "skov" }, small.regions![1]!], scene: "strand" };
+  assert.equal(sceneAt(map, 1, 1, scenes).id, "skov");
+  assert.equal(sceneAt(map, 12, 12, scenes).id, "strand", "a region without a scene: the map's");
+  assert.equal(sceneAt({}, 0, 0, scenes).id, scenes.default);
+  assert.equal(sceneAt({ scene: "findes-ikke" }, 0, 0, scenes).id, scenes.default, "an unknown scene: the default");
+});
+
+test("the scenes file only uses scenery the game can draw", () => {
+  const scenes: SceneConfig = JSON.parse(readFileSync(new URL("scenes.json", content), "utf8"));
+  assert.ok(scenes.kinds.some((k) => k.id === scenes.default));
+  for (const k of scenes.kinds) {
+    assert.ok(/^[a-z0-9-]+$/.test(k.id), k.id);
+    for (const d of k.look.decor) assert.ok(SCENE_DECOR.includes(d), `${k.id}: ${d}`);
+    assert.ok(!k.look.particles || SCENE_PARTICLES.includes(k.look.particles), `${k.id}: ${k.look.particles}`);
+  }
+  for (const r of meta.regions ?? []) if (r.scene) assert.ok(scenes.kinds.some((k) => k.id === r.scene), `${r.id}: unknown scene ${r.scene}`);
 });
