@@ -7,5 +7,6 @@
   "spriteFront": "creatures/aakandefroe_front.png",
   "spriteBack": "creatures/aakandefroe_back.png",
   "sound": "creatures/aakandefroe.wav",
+  "evolutions": ["Åkandetudse"],
   "catchRate": 0.45
 }

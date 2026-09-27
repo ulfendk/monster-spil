@@ -7,5 +7,6 @@
   "spriteFront": "creatures/stenbid_front.png",
   "spriteBack": "creatures/stenbid_back.png",
   "sound": "creatures/stenbid.wav",
+  "evolutions": ["Stenbider", "Klippebid"],
   "catchRate": 0.35
 }

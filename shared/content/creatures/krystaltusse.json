@@ -7,5 +7,6 @@
   "spriteFront": "creatures/krystaltusse_front.png",
   "spriteBack": "creatures/krystaltusse_back.png",
   "sound": "creatures/krystaltusse.wav",
+  "evolutions": ["Krystalpadde"],
   "catchRate": 0.4
 }

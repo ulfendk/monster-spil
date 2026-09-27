@@ -31,6 +31,8 @@
   {"id": "ildbjerget", "navn": "Ildbjerget", "icon": "volcano", "stat": "world:ildbjerget", "min": 1},
   {"id": "skatteleder", "navn": "Skattefinder", "icon": "potion", "stat": "item", "min": 10},
   {"id": "aeggepasser", "navn": "Æggepasser", "icon": "egg", "stat": "hatch", "min": 1},
+  {"id": "plejer", "navn": "Monsterven", "icon": "heart", "stat": "evolve", "min": 1},
+  {"id": "trofae-udvikler", "navn": "Udviklingskronen", "icon": "sparkle", "stat": "evolve", "min": 10, "trophy": "star"},
   {"id": "trofae-drage", "navn": "Dragetrofæet", "icon": "dragon", "stat": "dragonWin", "min": 1, "trophy": "dragon"},
   {"id": "trofae-monstermester", "navn": "Monstermester", "icon": "trophy", "stat": "species", "min": 40, "trophy": "cup"},
   {"id": "trofae-globus", "navn": "Verdensglobussen", "icon": "globe", "stat": "worlds", "min": 3, "trophy": "globe"},

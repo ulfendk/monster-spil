@@ -7,5 +7,6 @@
   "spriteFront": "creatures/lysmanet_front.png",
   "spriteBack": "creatures/lysmanet_back.png",
   "sound": "creatures/lysmanet.wav",
+  "evolutions": ["Lysgople"],
   "catchRate": 0.4
 }

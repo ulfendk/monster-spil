@@ -24,7 +24,8 @@ export interface CreatureSpecies {
    */
   sound?: string;
   /** Base catch-rate modifier, 0-1 */
-  catchRate: number;
+  catchRate: number;  /** The names of its later evolution stages (none: it doesn't evolve). */
+  evolutions?: string[];
 }
 
 /**
@@ -41,4 +42,10 @@ export interface CreatureInstance {
   caughtAt: string;
   /** A rare look (golden, giant…), see shared/src/creature/variants.ts; absent for an ordinary one. */
   variant?: string;
+  /** Its evolution stage (1 = as caught; up to 3), see shared/src/creature/evolution.ts. */
+  stage?: number;
+  /** How close it is to its player (care and battles together): what lets it evolve. */
+  bond?: number;
+  /** Today's care so far (petting and playing are limited per day). */
+  care?: { day: string; pet: number; play: number };
 }

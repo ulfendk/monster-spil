@@ -7,5 +7,6 @@
   "spriteFront": "creatures/gnistrot_front.png",
   "spriteBack": "creatures/gnistrot_back.png",
   "sound": "creatures/gnistrot.wav",
+  "evolutions": ["Lynrotte", "Tordenrotte"],
   "catchRate": 0.45
 }

@@ -7,5 +7,6 @@
   "spriteFront": "creatures/kulsnude_front.png",
   "spriteBack": "creatures/kulsnude_back.png",
   "sound": "creatures/kulsnude.wav",
+  "evolutions": ["Kulgris", "Ildgalt"],
   "catchRate": 0.5
 }

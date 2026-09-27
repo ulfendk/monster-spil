@@ -4,6 +4,7 @@ import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
 import { nameWithVariant } from "../content/load-variants";
 import { sceneKind } from "../content/load-scenes";
 import { itemById, itemConfig } from "../content/load-items";
+import { nurtureConfig } from "../content/load-nurture";
 import type { Room } from "colyseus.js";
 import type {
   PassOutKind,
@@ -18,7 +19,7 @@ import type {
   Move,
   TypeId,
 } from "@shared";
-import { createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
+import { bondFromWin, createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
 import { listen, say } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
@@ -226,9 +227,9 @@ export class BattleScene extends Phaser.Scene {
               // The dragon and the visiting beasts are bigger than any monster.
               scale: variantScale(foeVariant) * (this.raid || this.team ? 1.5 : 1),
               sparkly: variantSparkles(foeVariant),
-              model: modelSpec(foe, foeVariant),
+              model: modelSpec(foe, foeVariant, this.foe().active.stage),
             },
-            { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant), sparkly: variantSparkles(mineVariant), model: modelSpec(mine, mineVariant) },
+            { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant) * (1 + 0.1 * ((this.me().active.stage ?? 1) - 1)), sparkly: variantSparkles(mineVariant), model: modelSpec(mine, mineVariant, this.me().active.stage) },
             Math.floor(this.rng.next() * 2 ** 31),
             sceneKind(this.battleData.scene).look
           );
@@ -1062,7 +1063,12 @@ export class BattleScene extends Phaser.Scene {
         this.battleState.outcome === "lost" ? player.species.baseStats.hp : player.active.currentHp;
     }
 
-    if (this.battleState.outcome === "won") recordProgress({ kind: "wildWin" }, true);
+    if (this.battleState.outcome === "won") {
+      recordProgress({ kind: "wildWin" }, true);
+      // Winning together grows my monster's bond.
+      const index = this.battleData.save.creatures.findIndex((c) => c.instanceId === player.active.instanceId);
+      if (index >= 0) this.battleData.save.creatures[index] = bondFromWin(this.battleData.save.creatures[index]!, nurtureConfig);
+    }
     if (this.battleState.outcome === "caught") {
       const wild = this.battleState.participants[1];
       this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
@@ -1085,9 +1091,9 @@ export class BattleScene extends Phaser.Scene {
 }
 
 /** A monster the game draws itself is shown as a 3D model; a kid's drawing stays its picture. */
-function modelSpec(species: CreatureSpecies, variant: string | undefined) {
+function modelSpec(species: CreatureSpecies, variant: string | undefined, stage?: number) {
   const spec = placeholderSpec(species.spriteFront);
-  return spec ? { ...spec, ...(variant ? { variant } : {}) } : undefined;
+  return spec ? { ...spec, ...(variant ? { variant } : {}), ...(stage && stage > 1 ? { stage } : {}) } : undefined;
 }
 
 function pickWildMoveId(species: CreatureSpecies): string {

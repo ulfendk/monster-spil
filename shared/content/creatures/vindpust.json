@@ -7,5 +7,6 @@
   "spriteFront": "creatures/vindpust_front.png",
   "spriteBack": "creatures/vindpust_back.png",
   "sound": "creatures/vindpust.wav",
+  "evolutions": ["Vindhvirvel", "Stormånd"],
   "catchRate": 0.4
 }

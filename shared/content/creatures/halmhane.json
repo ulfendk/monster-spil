@@ -7,5 +7,6 @@
   "spriteFront": "creatures/halmhane_front.png",
   "spriteBack": "creatures/halmhane_back.png",
   "sound": "creatures/halmhane.wav",
+  "evolutions": ["Ildhane"],
   "catchRate": 0.45
 }

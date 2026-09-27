@@ -7,5 +7,6 @@
   "spriteFront": "creatures/taagetrold_front.png",
   "spriteBack": "creatures/taagetrold_back.png",
   "sound": "creatures/taagetrold.wav",
+  "evolutions": ["Mosetrold"],
   "catchRate": 0.35
 }

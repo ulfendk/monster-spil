@@ -1,7 +1,8 @@
-import { boostStats, type BattleParticipant, type CreatureInstance, type CreatureSpecies, type Move } from "@shared";
+import { boostStats, stageName, stageOf, stageStats, type BattleParticipant, type CreatureInstance, type CreatureSpecies, type Move } from "@shared";
 import { levelConfig, levelOf } from "./content/load-progress";
 import type { GameContent } from "./content/load-content";
 import type { SaveData } from "./save/schema";
+import { nurtureConfig } from "./content/load-nurture";
 
 /** The moves a species knows, resolved against the flat move table (unknown ids are skipped). */
 export function resolveMoves(species: CreatureSpecies, movesById: Record<string, Move>): Record<string, Move> {
@@ -13,9 +14,15 @@ export function resolveMoves(species: CreatureSpecies, movesById: Record<string,
   return result;
 }
 
-/** Everything the battle engine needs about one side, so it does no content lookups itself. */
+/**
+ * Everything the battle engine needs about one side, so it does no content lookups itself —
+ * as the monster is now: an evolved one fights under its stage's name, stronger all round.
+ */
 export function makeParticipant(playerId: string, creature: CreatureInstance, species: CreatureSpecies, content: GameContent): BattleParticipant {
-  return { playerId, active: { ...creature }, species, moves: resolveMoves(species, content.movesById) };
+  const stage = stageOf(creature, species);
+  const staged = stage > 1 ? { ...species, navn: stageName(species, stage), baseStats: stageStats(species.baseStats, stage, nurtureConfig) } : species;
+  const active = { ...creature, currentHp: Math.min(creature.currentHp, staged.baseStats.hp) };
+  return { playerId, active, species: staged, moves: resolveMoves(species, content.movesById) };
 }
 
 /**

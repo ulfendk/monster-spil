@@ -7,5 +7,6 @@
   "spriteFront": "creatures/kvistugle_front.png",
   "spriteBack": "creatures/kvistugle_back.png",
   "sound": "creatures/kvistugle.wav",
+  "evolutions": ["Grenugle", "Skovugle"],
   "catchRate": 0.45
 }

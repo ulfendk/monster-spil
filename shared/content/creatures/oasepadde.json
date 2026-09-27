@@ -7,5 +7,6 @@
   "spriteFront": "creatures/oasepadde_front.png",
   "spriteBack": "creatures/oasepadde_back.png",
   "sound": "creatures/oasepadde.wav",
+  "evolutions": ["Oasetudse"],
   "catchRate": 0.45
 }

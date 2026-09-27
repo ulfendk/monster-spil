@@ -547,6 +547,17 @@ const ART: Record<string, (g: G) => void> = {
     ellipse(g, 64, 62, 116, 32, K.oldWhite);
     for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
   },
+  garden: (g) => {
+    // A little garden: a green hill with a cherry tree and a red torii gate.
+    ellipse(g, 64, 104, 116, 40, K.springGreen);
+    stroke(g, 34, 100, 34, 60, K.autumnRed, 7);
+    stroke(g, 70, 100, 70, 60, K.autumnRed, 7);
+    stroke(g, 24, 58, 80, 58, K.autumnRed, 8);
+    stroke(g, 28, 70, 76, 70, K.autumnRed, 5);
+    stroke(g, 98, 98, 98, 64, K.sumiInk5, 6);
+    circle(g, 98, 50, 20, K.sakuraPink, 5);
+    circle(g, 86, 60, 12, K.sakuraPink, 4);
+  },
   egg: (g) => {
     // A speckled egg.
     ellipse(g, 64, 70, 70, 88, K.washi);

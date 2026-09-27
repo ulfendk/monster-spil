@@ -191,3 +191,5 @@ export { carryItem, eggSpot, itemDay, itemSpots } from "./world/items.js";
 export type { ItemConfig, ItemDef, ItemSpot } from "./world/items.js";
 export { eggProgress, nestHasRoom, newEgg, walkEggs } from "./creature/eggs.js";
 export type { Egg, EggConfig } from "./creature/eggs.js";
+export { bondForNext, bondFromWin, canEvolve, care, evolve, stageCount, stageName, stageOf, stageStats } from "./creature/evolution.js";
+export type { CareKind, NurtureConfig } from "./creature/evolution.js";

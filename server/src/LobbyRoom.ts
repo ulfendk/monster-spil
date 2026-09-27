@@ -169,6 +169,8 @@ function cleanCreature(raw: unknown): CreatureInstance | undefined {
     currentHp: c.currentHp,
     caughtAt: c.caughtAt,
     ...(isVariantId(c.variant) ? { variant: c.variant } : {}),
+    ...(Number.isInteger(c.stage) && c.stage! >= 2 && c.stage! <= 3 ? { stage: c.stage } : {}),
+    ...(isCount(c.bond) ? { bond: Math.min(100000, c.bond as number) } : {}),
   };
 }
 

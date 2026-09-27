@@ -7,5 +7,6 @@
   "spriteFront": "creatures/muldmus_front.png",
   "spriteBack": "creatures/muldmus_back.png",
   "sound": "creatures/muldmus.wav",
+  "evolutions": ["Muldvarp", "Jordkonge"],
   "catchRate": 0.5
 }

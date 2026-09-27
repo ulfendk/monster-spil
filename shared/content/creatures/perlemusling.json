@@ -7,5 +7,6 @@
   "spriteFront": "creatures/perlemusling_front.png",
   "spriteBack": "creatures/perlemusling_back.png",
   "sound": "creatures/perlemusling.wav",
+  "evolutions": ["Perleskjold"],
   "catchRate": 0.4
 }

@@ -1,0 +1,8 @@
+{
+  "bondToEvolve": [60, 160],
+  "statBonusPerStage": 0.25,
+  "pet": { "bond": 5, "perDay": 3 },
+  "play": { "bond": 8, "perDay": 2 },
+  "feed": { "bond": 12 },
+  "battleWin": { "bond": 4 }
+}

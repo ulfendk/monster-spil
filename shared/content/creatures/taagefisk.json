@@ -7,5 +7,6 @@
   "spriteFront": "creatures/taagefisk_front.png",
   "spriteBack": "creatures/taagefisk_back.png",
   "sound": "creatures/taagefisk.wav",
+  "evolutions": ["Tågehaj"],
   "catchRate": 0.45
 }

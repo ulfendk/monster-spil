@@ -7,5 +7,6 @@
   "spriteFront": "creatures/svanefjer_front.png",
   "spriteBack": "creatures/svanefjer_back.png",
   "sound": "creatures/svanefjer.wav",
+  "evolutions": ["Svanedronning"],
   "catchRate": 0.35
 }

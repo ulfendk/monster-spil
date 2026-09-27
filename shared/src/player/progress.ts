@@ -39,6 +39,8 @@ export interface LevelConfig {
     item?: number;
     /** An egg hatching. */
     hatch?: number;
+    /** A monster evolving. */
+    evolve?: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -89,7 +91,9 @@ export type ProgressEvent =
   /** Picked up a potion or another item on the map. */
   | { kind: "item" }
   /** An egg hatched (the monster is then caught like any other). */
-  | { kind: "hatch" };
+  | { kind: "hatch" }
+  /** A monster evolved to its next stage. */
+  | { kind: "evolve" };
 
 /** XP needed in all to reach `level`. */
 export function xpForLevel(level: number, config: LevelConfig): number {
@@ -164,6 +168,8 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
       return x.item ?? 0;
     case "hatch":
       return x.hatch ?? 0;
+    case "evolve":
+      return x.evolve ?? 0;
   }
 }
 
@@ -232,6 +238,9 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
       break;
     case "hatch":
       count(stats, "hatch");
+      break;
+    case "evolve":
+      count(stats, "evolve");
       break;
   }
   const gained = xpFor(event, config);

@@ -23,6 +23,8 @@ export interface MonsterModelSpec {
   species: CreatureSpecies;
   look?: BossLook;
   variant?: string;
+  /** Its evolution stage (1–3): later stages are richer in colour, with a bigger crest, a chest mark, and at 3 a mantle and a crown. */
+  stage?: number;
 }
 
 export interface MonsterModel {
@@ -121,7 +123,7 @@ const sphere = () => new THREE.SphereGeometry(0.5, 20, 14);
 
 export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   const b = new Builder(spec.variant);
-  const face = spec.look === "serpent" ? serpent(b, spec.species) : spec.look === "eagle" ? eagle(b, spec.species) : creature(b, spec.species, spec.look === "dragon");
+  const face = spec.look === "serpent" ? serpent(b, spec.species) : spec.look === "eagle" ? eagle(b, spec.species) : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
   return {
     root: b.root,
     setFace: face,
@@ -143,8 +145,9 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
 
 // ------------------------------------------------------------ an ordinary monster (or a dragon)
 
-function creature(b: Builder, species: CreatureSpecies, dragon: boolean): (face: "normal" | "blink" | "talk") => void {
-  const colour = shade(TYPE_COLOURS[species.type], dragon ? 0 : speciesShade(species.id) * 0.8);
+function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: number): (face: "normal" | "blink" | "talk") => void {
+  // Later stages: a deeper, richer colour.
+  const colour = shade(TYPE_COLOURS[species.type], (dragon ? 0 : speciesShade(species.id) * 0.8) - (stage - 1) * 7);
   const { w, h } = bodyShape(species);
   const d = Math.min(w, h) * 0.8; // how deep the body is
   const cy = 128 - 12 - h / 2; // the body's middle (px, y down): feet near the bottom of the box
@@ -172,7 +175,34 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean): (face:
       horn.rotation.z = -side * 0.25;
     }
   } else {
+    // The type's crest (bigger at later stages, grown from where it sits on the head).
+    const before = b.root.children.length;
     typeFeature(b, species.type, top, w, d);
+    if (stage > 1) {
+      const crest = new THREE.Group();
+      const pivot = P(64, top + 6);
+      crest.position.copy(pivot);
+      for (const part of b.root.children.slice(before)) {
+        part.position.sub(pivot);
+        crest.add(part);
+      }
+      crest.scale.setScalar(1 + 0.3 * (stage - 1));
+      b.root.add(crest);
+    }
+  }
+  if (stage >= 2) {
+    // A mark on the chest: a diamond in the type's light colour.
+    const mark = b.part(new THREE.OctahedronGeometry(0.5, 0), shade(TYPE_COLOURS[species.type], 22), P(64, cy + h * 0.16, front(64, cy + h * 0.16) - 1), new THREE.Vector3(10 * S, 13 * S, 5 * S), false);
+    mark.rotation.z = Math.PI / 4;
+  }
+  if (stage >= 3) {
+    // A mantle over the shoulders and down the back, and a small golden crown.
+    const mantle = b.part(new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), shade(colour, -18), P(64, cy + 2, -d * 0.12), new THREE.Vector3(w * 1.08 * S, h * 1.02 * S, d * 1.08 * S));
+    mantle.rotation.x = Math.PI + 0.35;
+    for (let i = -1; i <= 1; i++) {
+      const spike = b.part(new THREE.ConeGeometry(0.5, 1, 5), KANAGAWA.carpYellow, P(64 + i * 8, top - 2 - (i === 0 ? 3 : 0), d * 0.18), new THREE.Vector3(6 * S, (i === 0 ? 14 : 10) * S, 6 * S));
+      spike.rotation.z = -i * 0.25;
+    }
   }
 
   // The face.

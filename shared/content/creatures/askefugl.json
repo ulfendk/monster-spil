@@ -7,5 +7,6 @@
   "spriteFront": "creatures/askefugl_front.png",
   "spriteBack": "creatures/askefugl_back.png",
   "sound": "creatures/askefugl.wav",
+  "evolutions": ["Askefønix"],
   "catchRate": 0.3
 }

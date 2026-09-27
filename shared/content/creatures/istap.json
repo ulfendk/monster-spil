@@ -7,5 +7,6 @@
   "spriteFront": "creatures/istap_front.png",
   "spriteBack": "creatures/istap_back.png",
   "sound": "creatures/istap.wav",
+  "evolutions": ["Isspyd"],
   "catchRate": 0.45
 }

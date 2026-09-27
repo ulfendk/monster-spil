@@ -324,6 +324,25 @@ games" — with no schema state: plain messages typed in
 - On the 3D map items are models like the food (flasks, a feather, a clover). Picking one up
   gives a little XP and counts for the badge Skattefinder.
 
+## Evolution, bond and the monster garden
+
+- **Monsters evolve through 1–3 stages.** A species names its later stages in its JSON
+  (`"evolutions": ["Mosrotte", "Moskonge"]`; none = it doesn't evolve). The stage lives on the
+  monster (`CreatureInstance.stage`, 1 by default); each stage above the first adds
+  `statBonusPerStage` to all stats and fights under the stage's name (`makeParticipant`). In 3D
+  a later stage is richer in colour with a bigger crest and a chest mark, and at stage 3 a
+  mantle and a golden crown (`MonsterModelSpec.stage`). Trades and duels keep the stage.
+- **Bond** (`CreatureInstance.bond`) grows from care in the garden — petting and playing (a few
+  times a day each, `care`), feeding (a piece of food from the bag) — and from wild battles won
+  with it. With `bondToEvolve[stage-1]` it can evolve. Numbers in `shared/content/nurture.json`,
+  rules tested in `shared/src/creature/evolution.ts`.
+- **The monster garden** (`GardenScene` over `cave/garden-stage.ts`, from the garden button on
+  the left of the map): my monsters wander a sunny 3D garden (eight at a time, pages for more).
+  Tap one to bring it forward: its stage's name, stars for the stage, hearts towards the next,
+  and Klap / Fodr / Leg / Udvikl (when ready: it spins in a burst of light into its next stage)
+  / Kæmper (makes it the monster that fights first). Evolving gives XP, the badge Monsterven
+  and, at 10, a trophy.
+
 ## Trophies and monster eggs
 
 - **Trophies** are the big moments: badges with a `trophy` model in `badges.json` (the week's

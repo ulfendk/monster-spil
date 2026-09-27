@@ -7,5 +7,6 @@
   "spriteFront": "creatures/stoevbold_front.png",
   "spriteBack": "creatures/stoevbold_back.png",
   "sound": "creatures/stoevbold.wav",
+  "evolutions": ["Sporebold"],
   "catchRate": 0.45
 }

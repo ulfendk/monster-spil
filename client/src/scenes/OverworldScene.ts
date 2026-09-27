@@ -913,6 +913,14 @@ export class OverworldScene extends Phaser.Scene {
     });
     levelButton.setScrollFactor(0).setDepth(10);
     this.hud.push(levelButton);
+    // The monster garden, on the left under the level (and the bag).
+    const garden = this.hudButton(layout.safe.left + gap + size / 2, y + size + gap + layout.px(84), size, ic("garden"), () => {
+      this.closePopup();
+      this.scene.launch("Garden", { save: this.save, content: this.content });
+      this.scene.bringToTop("Garden");
+      this.scene.pause();
+    });
+    this.hud.push(garden);
     this.drawBag();
   }
 

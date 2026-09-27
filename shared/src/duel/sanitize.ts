@@ -60,6 +60,7 @@ export function sanitizeSeat(raw: unknown, playerId: string): BattleParticipant 
       currentHp: baseStats.hp,
       caughtAt: a.caughtAt,
       ...(isVariantId(a.variant) ? { variant: a.variant } : {}),
+      ...(Number.isInteger(a.stage) && (a.stage as number) >= 2 && (a.stage as number) <= 3 ? { stage: a.stage as number } : {}),
     },
   };
 }

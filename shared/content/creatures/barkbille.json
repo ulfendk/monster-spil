@@ -7,5 +7,6 @@
   "spriteFront": "creatures/barkbille_front.png",
   "spriteBack": "creatures/barkbille_back.png",
   "sound": "creatures/barkbille.wav",
+  "evolutions": ["Barkkriger"],
   "catchRate": 0.5
 }

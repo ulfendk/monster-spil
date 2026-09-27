@@ -7,5 +7,6 @@
   "spriteFront": "creatures/lovgro_front.png",
   "spriteBack": "creatures/lovgro_back.png",
   "sound": "creatures/lovgro.wav",
+  "evolutions": ["Løvtrold", "Skovkonge"],
   "catchRate": 0.5
 }

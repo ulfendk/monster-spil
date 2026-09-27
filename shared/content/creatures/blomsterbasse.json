@@ -7,5 +7,6 @@
   "spriteFront": "creatures/blomsterbasse_front.png",
   "spriteBack": "creatures/blomsterbasse_back.png",
   "sound": "creatures/blomsterbasse.wav",
+  "evolutions": ["Blomsterbille"],
   "catchRate": 0.45
 }

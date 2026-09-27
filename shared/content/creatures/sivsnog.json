@@ -7,5 +7,6 @@
   "spriteFront": "creatures/sivsnog_front.png",
   "spriteBack": "creatures/sivsnog_back.png",
   "sound": "creatures/sivsnog.wav",
+  "evolutions": ["Sivslange"],
   "catchRate": 0.4
 }

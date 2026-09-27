@@ -7,5 +7,6 @@
   "spriteFront": "creatures/vandloeber_front.png",
   "spriteBack": "creatures/vandloeber_back.png",
   "sound": "creatures/vandloeber.wav",
+  "evolutions": ["Vandskøjter", "Søløber"],
   "catchRate": 0.5
 }

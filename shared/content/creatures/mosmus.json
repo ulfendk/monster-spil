@@ -7,5 +7,6 @@
   "spriteFront": "creatures/mosmus_front.png",
   "spriteBack": "creatures/mosmus_back.png",
   "sound": "creatures/mosmus.wav",
+  "evolutions": ["Mosrotte", "Moskonge"],
   "catchRate": 0.55
 }

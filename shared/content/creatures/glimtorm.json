@@ -7,5 +7,6 @@
   "spriteFront": "creatures/glimtorm_front.png",
   "spriteBack": "creatures/glimtorm_back.png",
   "sound": "creatures/glimtorm.wav",
+  "evolutions": ["Glimslange", "Lynormen"],
   "catchRate": 0.5
 }
