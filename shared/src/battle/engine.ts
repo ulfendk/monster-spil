@@ -64,6 +64,15 @@ export function resolveTurn(
       return { ...state, turn, log: [...state.log, ...log], outcome: "fled" };
     }
 
+    // An item: it works at once (healing) or on the next moves (stronger, surer), and takes the turn.
+    if (action.kind === "item") {
+      const e = action.effect;
+      if (e.heal) participant.active.currentHp = Math.min(participant.species.baseStats.hp, participant.active.currentHp + Math.round(participant.species.baseStats.hp * Math.max(0, e.heal)));
+      if ((e.power ?? 1) !== 1 || e.accuracy) participant.boost = { power: Math.max(0.1, e.power ?? 1), accuracy: Math.max(0, e.accuracy ?? 0), moves: Math.max(1, Math.round(e.moves ?? 1)) };
+      log.push({ turn, kind: "item", text: `${speciesName(participant)} fik ${action.navn}!`, targetPlayerId: participant.playerId, actorPlayerId: participant.playerId });
+      continue;
+    }
+
     // You can't catch another player's creature.
     if (action.kind === "catch" && state.mode === "wild") {
       const opponent = otherParticipant(participants, participant);
@@ -107,7 +116,13 @@ export function resolveTurn(
     const move = attacker.moves[action.moveId];
     if (!move) continue;
 
-    if (rng.next() > move.accuracy) {
+    // An item's effect works on this move (and wears off after its moves).
+    const boost = attacker.boost;
+    if (boost) {
+      boost.moves -= 1;
+      if (boost.moves <= 0) delete attacker.boost;
+    }
+    if (rng.next() > move.accuracy + (boost?.accuracy ?? 0)) {
       log.push({
         turn,
         kind: "miss",
@@ -120,7 +135,7 @@ export function resolveTurn(
     }
 
     const multiplier = getMultiplier(move.type, defender.species.type);
-    const damage = calculateDamage(attacker.species, defender.species, move, multiplier);
+    const damage = Math.max(1, Math.round(calculateDamage(attacker.species, defender.species, move, multiplier) * (boost?.power ?? 1)));
     defender.active.currentHp = Math.max(0, defender.active.currentHp - damage);
     log.push({
       turn,
@@ -195,5 +210,5 @@ function speciesName(p: BattleParticipant): string {
 }
 
 function cloneParticipant(p: BattleParticipant): BattleParticipant {
-  return { ...p, active: { ...p.active } };
+  return { ...p, active: { ...p.active }, ...(p.boost ? { boost: { ...p.boost } } : {}) };
 }

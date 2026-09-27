@@ -35,6 +35,8 @@ export interface LevelConfig {
     /** Every trip to another world (by tunnel, bridge or boat), and on top for the first visit to one. */
     travel?: number;
     newWorld?: number;
+    /** Picking up an item on the map. */
+    item?: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -79,7 +81,9 @@ export type ProgressEvent =
   | { kind: "food" }
   | { kind: "work"; work: "cut" | "climb" | "swim" | "dig" }
   /** A gem dug up: its XP. */
-  | { kind: "gem"; xp: number };
+  | { kind: "gem"; xp: number }
+  /** Picked up a potion or another item on the map. */
+  | { kind: "item" };
 
 /** XP needed in all to reach `level`. */
 export function xpForLevel(level: number, config: LevelConfig): number {
@@ -150,6 +154,8 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
       return x[event.work];
     case "gem":
       return Math.max(0, Math.round(event.xp));
+    case "item":
+      return x.item ?? 0;
   }
 }
 
@@ -212,6 +218,9 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
       break;
     case "gem":
       count(stats, "gem");
+      break;
+    case "item":
+      count(stats, "item");
       break;
   }
   const gained = xpFor(event, config);

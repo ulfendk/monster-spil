@@ -83,6 +83,8 @@ const strings = {
   catch_missed: "Bolden ramte ikke!",
   catch_retry: "Prøv igen",
   catch_back: "Tilbage",
+  item_full: "Du har ikke plads til flere",
+  battle_items: "Ting",
   chop_hint: "Tryk når den er i det grønne!",
   chop_done: "Træet faldt!",
   climb_hint: "Tryk på det lysende greb!",

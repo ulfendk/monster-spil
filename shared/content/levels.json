@@ -18,7 +18,8 @@
     "dig": 3,
     "variant": 20,
     "travel": 3,
-    "newWorld": 60
+    "newWorld": 60,
+    "item": 4
   },
   "titles": [
     { "level": 1, "navn": "Nybegynder" },

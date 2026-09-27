@@ -547,6 +547,37 @@ const ART: Record<string, (g: G) => void> = {
     ellipse(g, 64, 62, 116, 32, K.oldWhite);
     for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
   },
+  potion: (g) => {
+    // A round flask of red strength potion, a cork, a glint.
+    rrect(g, 54, 14, 20, 16, 4, K.boatYellow1, 5);
+    rrect(g, 50, 28, 28, 22, 6, K.fujiWhite, 5);
+    circle(g, 64, 80, 38, K.fujiWhite);
+    g.fillStyle(K.autumnRed, 1).fillCircle(64, 86, 30);
+    g.fillStyle(K.peachRed, 1).fillCircle(64, 86, 18);
+    g.fillStyle(K.washi, 1).fillEllipse(48, 70, 10, 16);
+  },
+  healpotion: (g) => {
+    // A round flask of green healing potion with a heart on it.
+    rrect(g, 54, 14, 20, 16, 4, K.boatYellow1, 5);
+    rrect(g, 50, 28, 28, 22, 6, K.fujiWhite, 5);
+    circle(g, 64, 80, 38, K.fujiWhite);
+    g.fillStyle(K.autumnGreen, 1).fillCircle(64, 86, 30);
+    g.fillStyle(K.springGreen, 1).fillCircle(64, 86, 18);
+    g.fillStyle(K.washi, 1).fillCircle(58, 82, 7).fillCircle(70, 82, 7).fillTriangle(51, 85, 77, 85, 64, 100);
+  },
+  feather: (g) => {
+    // A long white feather with a blue tip, its quill slanting.
+    const pts: P[] = [{ x: 26, y: 108 }, { x: 50, y: 60 }, { x: 88, y: 18 }, { x: 104, y: 26 }, { x: 78, y: 70 }];
+    shape(g, pts, K.fujiWhite);
+    shape(g, [{ x: 88, y: 18 }, { x: 104, y: 26 }, { x: 96, y: 40 }, { x: 80, y: 32 }], K.crystalBlue, 4);
+    stroke(g, 20, 116, 92, 26, K.boatYellow1, 3);
+  },
+  clover: (g) => {
+    // A four-leaf clover on its stalk.
+    for (const [x, y] of [[50, 44], [78, 44], [50, 70], [78, 70]] as const) circle(g, x, y, 17, K.springGreen);
+    circle(g, 64, 57, 8, K.autumnGreen, 4);
+    stroke(g, 64, 70, 74, 116, K.autumnGreen, 5);
+  },
   boat: (g) => {
     // A little wooden row boat on a wave, an oar resting across it.
     shape(g, [{ x: 12, y: 64 }, { x: 116, y: 64 }, { x: 98, y: 92 }, { x: 30, y: 92 }], K.boatYellow1);

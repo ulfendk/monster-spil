@@ -3,6 +3,7 @@ import { spriteFit } from "../gfx/creature-sprite";
 import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
 import { nameWithVariant } from "../content/load-variants";
 import { sceneKind } from "../content/load-scenes";
+import { itemById, itemConfig } from "../content/load-items";
 import type { Room } from "colyseus.js";
 import type {
   PassOutKind,
@@ -627,7 +628,7 @@ export class BattleScene extends Phaser.Scene {
   /** How many columns and rows the battle buttons need, and where the grid starts. */
   private buttonGrid() {
     const layout = getLayout(this);
-    const count = Object.keys(this.me().moves).length + (this.duel || this.raid || this.team ? 1 : 2);
+    const count = Object.keys(this.me().moves).length + (this.duel || this.raid || this.team ? 1 : 2) + (this.canUseItems() ? 1 : 0);
     const gap = layout.px(14);
     const usable = layout.width - layout.safe.left - layout.safe.right - gap * 2;
     // As many per row as fit at a readable width (a label like "Varmebølge" needs ~110px).
@@ -668,6 +669,7 @@ export class BattleScene extends Phaser.Scene {
     });
     actions.push({ label: t("battle_flee"), icon: FLEE_ICON, colour: C.buttonQuiet, onTap: () => this.performTurn({ kind: "flee" }) });
     if (canCatch) actions.push({ label: t("battle_catch"), icon: CATCH_ICON, colour: C.catch, onTap: () => this.performCatch() });
+    if (this.canUseItems()) actions.push({ label: t("battle_items"), icon: "bag", colour: C.button, onTap: () => this.renderItems() });
 
     actions.forEach((action, i) => {
       const row = Math.floor(i / grid.cols);
@@ -685,6 +687,50 @@ export class BattleScene extends Phaser.Scene {
       });
       this.actionButtons.push(button);
     });
+  }
+
+  /** Potions and the like can be used in wild battles, when I carry any. */
+  private canUseItems(): boolean {
+    if (this.duel || this.raid || this.team) return false;
+    return Object.values(this.battleData.save.items ?? {}).some((n) => n > 0);
+  }
+
+  /** The bag open: one button per item I carry (with how many), and ✕ back to the moves. */
+  private renderItems(): void {
+    if (this.busy) return;
+    this.clearActionButtons();
+    const layout = getLayout(this);
+    const grid = this.buttonGrid();
+    const carried = itemConfig.items.filter((i) => (this.battleData.save.items?.[i.id] ?? 0) > 0);
+    const entries: Array<{ label: string; icon: string; colour: number; onTap: () => void }> = carried.map((item) => ({
+      label: `${item.navn} ×${this.battleData.save.items![item.id]}`,
+      icon: item.icon,
+      colour: C.button,
+      onTap: () => this.useItem(item.id),
+    }));
+    entries.push({ label: "✕", icon: "", colour: C.buttonQuiet, onTap: () => this.renderActions() });
+    const cols = Math.min(entries.length, grid.cols);
+    entries.forEach((entry, i) => {
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, entries.length - row * cols);
+      const rowW = inRow * grid.w + (inRow - 1) * grid.gap;
+      const x = layout.width / 2 - rowW / 2 + grid.w / 2 + (i - row * cols) * (grid.w + grid.gap);
+      const y = grid.top + grid.h / 2 + row * (grid.h + grid.gap);
+      this.actionButtons.push(
+        createButton(this, x, y, entry.label, entry.onTap, { width: grid.w, height: grid.h, fontSize: layout.font(18), backgroundColor: entry.colour, ...(entry.icon ? { icon: entry.icon } : {}) })
+      );
+    });
+  }
+
+  /** Uses an item: out of the bag, and it takes the turn. */
+  private useItem(itemId: string): void {
+    const item = itemById(itemId);
+    const items = this.battleData.save.items;
+    if (!item || !items || !(items[itemId]! > 0) || this.busy) return;
+    items[itemId] = items[itemId]! - 1;
+    if (items[itemId] === 0) delete items[itemId];
+    void persist();
+    this.performTurn({ kind: "item", navn: item.navn, effect: item.effect });
   }
 
   private clearActionButtons(): void {
@@ -782,14 +828,14 @@ export class BattleScene extends Phaser.Scene {
     this.busy = true;
 
     if (this.raid) {
-      if (playerAction.kind === "catch") return;
+      if (playerAction.kind === "catch" || playerAction.kind === "item") return void (this.busy = false); // not here: only in the wild
       this.clearActionButtons();
       presence.send("raidAction", { action: playerAction });
       return;
     }
 
     if (this.team) {
-      if (playerAction.kind === "catch") return;
+      if (playerAction.kind === "catch" || playerAction.kind === "item") return void (this.busy = false); // not here: only in the wild
       this.clearActionButtons();
       this.say(t("team_waiting_move"), WAITING_ICON);
       presence.send("teamAction", { teamId: this.team.view.id, action: playerAction });
@@ -797,7 +843,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     if (this.duel) {
-      if (playerAction.kind === "catch") return;
+      if (playerAction.kind === "catch" || playerAction.kind === "item") return void (this.busy = false); // not here: only in the wild
       this.clearActionButtons();
       this.say(t("duel_waiting_move"), WAITING_ICON);
       say(this.duel.room, "duelAction", { duelId: this.duel.view.id, action: playerAction });
@@ -918,6 +964,9 @@ export class BattleScene extends Phaser.Scene {
       playFaintSound();
       const side = sideOf(entry.targetPlayerId);
       if (side) await stage.faint(side);
+    } else if (entry.kind === "item") {
+      const side = sideOf(entry.targetPlayerId);
+      if (side) await stage.powerUp(side);
     } else if (entry.kind === "flee" && sideOf(entry.targetPlayerId) === "mine") {
       await stage.flee();
     }

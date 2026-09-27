@@ -307,6 +307,23 @@ games" — with no schema state: plain messages typed in
 - Catching one: extra XP (`xp.variant`) and the counter `variant` (badges Sjældent fund,
   Sjældenhedsjæger).
 
+## Potions and other items
+
+- **Things to find on the map and use in battles** (`shared/content/items.json`): Styrkedrik
+  (moves 1.5× as strong for 3 moves), Sigtefjer (moves never miss for 3 moves), Lykkekløver
+  (one double-strong move), Helbredsdrik (heals half the HP). About one per `tilesPerItem`
+  open tiles lies on each map, in spots that change every day (Danish midnight) — the same for
+  everyone that day — and each is picked up once per day per device by walking onto it
+  (`SaveData.items`, `itemsTaken`); at most `maxCarried` of a kind. All on the device: no
+  server, works offline. Pure rules (tested) in `shared/src/world/items.ts`.
+- **In a wild battle** a bag button ("Ting") opens the items I carry; using one takes the turn.
+  The engine's `{kind: "item", navn, effect}` action (tested) heals at once or sets
+  `BattleParticipant.boost` ({power, accuracy, moves}), which works on the next moves and wears
+  off. Duels, the dragon and team fights have no items (their turns are the server's, and it
+  only accepts moves and fleeing). A monster using one glows golden in 3D (`BattleStage.powerUp`).
+- On the 3D map items are models like the food (flasks, a feather, a clover). Picking one up
+  gives a little XP and counts for the badge Skattefinder.
+
 ## Monster book
 
 `MonsterbogScene` shows every species: caught ones with 🔴 times caught and 🎒 owned

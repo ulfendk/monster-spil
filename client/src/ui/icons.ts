@@ -28,6 +28,7 @@ export const LOG_ICONS = {
   "catch-fail": "angry",
   "catch-miss": "miss",
   flee: "run",
+  item: "potion",
 } as const;
 
 /** Icons for how a battle ended, and for the states around it. */

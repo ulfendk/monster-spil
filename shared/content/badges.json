@@ -28,5 +28,6 @@
   {"id": "brovandrer", "navn": "Brovandrer", "icon": "bridge", "stat": "bridge", "min": 5},
   {"id": "kirsebaeroeen", "navn": "Kirsebærøen", "icon": "blossom", "stat": "world:kirsebaeroeen", "min": 1},
   {"id": "snedalen", "navn": "Snedalen", "icon": "snowflake", "stat": "world:snedalen", "min": 1},
-  {"id": "ildbjerget", "navn": "Ildbjerget", "icon": "volcano", "stat": "world:ildbjerget", "min": 1}
+  {"id": "ildbjerget", "navn": "Ildbjerget", "icon": "volcano", "stat": "world:ildbjerget", "min": 1},
+  {"id": "skatteleder", "navn": "Skattefinder", "icon": "potion", "stat": "item", "min": 10}
 ]

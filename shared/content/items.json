@@ -1,0 +1,10 @@
+{
+  "tilesPerItem": 350,
+  "maxCarried": 5,
+  "items": [
+    { "id": "styrkedrik", "navn": "Styrkedrik", "icon": "potion", "weight": 3, "effect": { "power": 1.5, "moves": 3 } },
+    { "id": "sigtefjer", "navn": "Sigtefjer", "icon": "feather", "weight": 2, "effect": { "accuracy": 1, "moves": 3 } },
+    { "id": "lykkekloever", "navn": "Lykkekløver", "icon": "clover", "weight": 1, "effect": { "power": 2, "moves": 1 } },
+    { "id": "helbredsdrik", "navn": "Helbredsdrik", "icon": "healpotion", "weight": 3, "effect": { "heal": 0.5 } }
+  ]
+}

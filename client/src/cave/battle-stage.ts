@@ -168,6 +168,15 @@ export class BattleStage extends MeadowStage {
     await this.wait(impact === "strong" ? 0.45 : 0.3);
   }
 
+  /** An item works on a monster: a golden glow and sparkles around it. */
+  async powerUp(side: Side): Promise<void> {
+    const m = this.monsterOn(side);
+    const at = m.sprite.position.clone();
+    for (const dy of [-0.3, 0.2, 0.6]) this.sparkle(at.clone().add(new THREE.Vector3(0, dy * m.size, 0.1)), KANAGAWA.carpYellow, 10, 0.7);
+    await this.tween(0.7, (k) => this.setTint(m, Math.sin(k * Math.PI * 3) > 0 ? KANAGAWA.carpYellow : null));
+    this.setTint(m, null);
+  }
+
   /** A blow from someone who isn't on the stage (a teammate, in a team fight) lands on a monster. */
   async struck(side: Side, type: TypeId, impact: Impact): Promise<void> {
     if (impact === "miss") return;

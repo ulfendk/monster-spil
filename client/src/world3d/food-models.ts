@@ -9,7 +9,7 @@ import { KANAGAWA } from "../ui/theme";
  * Map3D uses one in place of a food icon (`icon-apple`, …) standing on the map.
  */
 
-export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes"] as const;
+export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover"] as const;
 export type FoodModelIcon = (typeof FOOD_MODEL_ICONS)[number];
 
 let gradient: THREE.DataTexture | undefined;
@@ -134,7 +134,63 @@ function grapes(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
-const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = { apple, strawberry, banana, carrot, grapes };
+/** A round glass flask of potion (red strength, green healing) with a cork. */
+function flask(colour: number) {
+  return () => {
+    const glass = new THREE.SphereGeometry(0.16, 14, 10);
+    glass.translate(0, 0.16, 0);
+    const brew = new THREE.SphereGeometry(0.135, 14, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.65);
+    brew.translate(0, 0.16, 0.012);
+    const neck = new THREE.CylinderGeometry(0.05, 0.06, 0.1, 10);
+    neck.translate(0, 0.33, 0);
+    const cork = new THREE.CylinderGeometry(0.045, 0.04, 0.06, 8);
+    cork.translate(0, 0.41, 0);
+    return mergeGeometries([coloured(glass, KANAGAWA.fujiWhite), coloured(brew, colour), coloured(neck, KANAGAWA.fujiWhite), coloured(cork, KANAGAWA.boatYellow1)])!;
+  };
+}
+
+function feather(): THREE.BufferGeometry {
+  const vane = new THREE.SphereGeometry(0.1, 10, 6);
+  vane.scale(0.6, 2.2, 0.15);
+  vane.rotateZ(-0.6);
+  vane.translate(0.05, 0.2, 0);
+  const tip = new THREE.SphereGeometry(0.05, 8, 5);
+  tip.scale(0.8, 1.4, 0.3);
+  tip.rotateZ(-0.6);
+  tip.translate(0.17, 0.37, 0);
+  const quill = new THREE.CylinderGeometry(0.008, 0.01, 0.5, 4);
+  quill.rotateZ(-0.6);
+  quill.translate(0.03, 0.18, 0.01);
+  return mergeGeometries([coloured(vane, KANAGAWA.fujiWhite), coloured(tip, KANAGAWA.crystalBlue), coloured(quill, KANAGAWA.boatYellow1)])!;
+}
+
+function clover(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 4; i++) {
+    const leaf = new THREE.SphereGeometry(0.08, 10, 6);
+    leaf.scale(1, 0.25, 0.8);
+    leaf.translate(0.08, 0, 0);
+    leaf.rotateY((i / 4) * Math.PI * 2 + 0.4);
+    leaf.translate(0, 0.3, 0);
+    parts.push(coloured(leaf, KANAGAWA.springGreen));
+  }
+  const stalk = new THREE.CylinderGeometry(0.01, 0.014, 0.3, 4);
+  stalk.translate(0, 0.15, 0);
+  parts.push(coloured(stalk, KANAGAWA.autumnGreen));
+  return mergeGeometries(parts)!;
+}
+
+const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
+  apple,
+  strawberry,
+  banana,
+  carrot,
+  grapes,
+  potion: flask(KANAGAWA.autumnRed),
+  healpotion: flask(KANAGAWA.springGreen),
+  feather,
+  clover,
+};
 const cache = new Map<FoodModelIcon, THREE.BufferGeometry>();
 let material: THREE.MeshToonMaterial | undefined;
 let ink: THREE.MeshBasicMaterial | undefined;

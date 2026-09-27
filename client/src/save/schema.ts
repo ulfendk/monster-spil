@@ -10,6 +10,10 @@ export interface SaveData {
   caughtCounts: Record<string, number>;
   /** Catches not yet counted by the family server's scoreboard (made offline, or not yet acknowledged). */
   pendingScore: Array<{ id: string; kind: "catch"; at: string }>;
+  /** Potions and other items carried (item id → how many), to use in battles. */
+  items?: Record<string, number>;
+  /** Items picked up today (so each lies there only once a day for this player): the day, and their keys. */
+  itemsTaken?: { day: string; keys: string[] };
   /** Food collected on the map (at most BAG_MAX), eaten to recover faster after passing out. */
   bag: FoodKind[];
   /** While set and in the future, the player has passed out and can't move (ISO timestamp). */

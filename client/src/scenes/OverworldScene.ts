@@ -39,6 +39,8 @@ import { recordProgress } from "../progress/record";
 import { badgesById, levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
+import { carryItem, itemDay, itemSpots, type ItemSpot } from "@shared";
+import { itemById, itemConfig } from "../content/load-items";
 import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import { variantConfig } from "../content/load-variants";
@@ -340,6 +342,8 @@ export class OverworldScene extends Phaser.Scene {
     this.drawBag();
     this.checkPassOut();
     this.drawLinks();
+    this.itemSprites = new Map();
+    this.drawItems();
     if (this.arrived) {
       this.cameras.main.fadeIn(450, 22, 22, 29);
       const world = worldById(worldConfig, this.areaMeta.id);
@@ -659,6 +663,56 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /** Stepped onto food: ask the server for it (it may already be gone), if the bag has room. */
+  // ------------------------------------------------------------ items (potions and the like)
+
+  private itemSprites = new Map<string, { spot: ItemSpot; sprite: Phaser.GameObjects.Image }>();
+
+  /** Today's items on this map (the same spots for everyone today), less those I've picked up. */
+  private drawItems(): void {
+    for (const { sprite } of this.itemSprites.values()) sprite.destroy();
+    this.itemSprites.clear();
+    const day = itemDay(new Date());
+    const taken = this.save.itemsTaken?.day === day ? new Set(this.save.itemsTaken.keys) : new Set<string>();
+    const ids = this.areaMeta.terrain;
+    const open: TileCoord[] = [];
+    for (let y = 1; y < this.map.height - 1; y++) {
+      for (let x = 1; x < this.map.width - 1; x++) {
+        const g = this.groundLayer.getTileAt(x, y)?.index;
+        if ((g === (ids?.ground ?? 1) || g === ids?.path || g === ids?.sand) && !this.grassLayer.getTileAt(x, y)) open.push({ x, y });
+      }
+    }
+    // (From the map as drawn: a changed tile — a crater, a hole — may move an item a little. Fine.)
+    for (const spot of itemSpots(itemConfig, this.areaMeta.id, day, open)) {
+      if (taken.has(spot.key)) continue;
+      const item = itemById(spot.itemId);
+      if (!item) continue;
+      const c = this.tileCentre(spot);
+      this.itemSprites.set(spot.key, { spot, sprite: addIcon(this, c.x, c.y, item.icon, 40).setDepth(3) });
+    }
+  }
+
+  /** Stepped onto an item: into the bag (if there's room for another of its kind). */
+  private pickUpItem(tile: TileCoord): void {
+    for (const [key, { spot, sprite }] of this.itemSprites) {
+      if (spot.x !== tile.x || spot.y !== tile.y) continue;
+      const item = itemById(spot.itemId);
+      if (!item) return;
+      const items = (this.save.items ??= {});
+      const count = carryItem(itemConfig, items, item.id);
+      if (count === undefined) return this.showToast(`${ic(item.icon)} ${t("item_full")}`);
+      items[item.id] = count;
+      const day = itemDay(new Date());
+      if (this.save.itemsTaken?.day !== day) this.save.itemsTaken = { day, keys: [] };
+      this.save.itemsTaken.keys.push(key);
+      sprite.destroy();
+      this.itemSprites.delete(key);
+      recordProgress({ kind: "item" }, true);
+      void persist();
+      this.showToast(`${ic(item.icon)} ${item.navn}!`, 2200);
+      return;
+    }
+  }
+
   private pickUpFood(tile: TileCoord): void {
     if (!multiplayerEnabled || this.save.bag.length >= BAG_MAX) return;
     const item = presence.food.find((f) => f.areaId === this.save.position.areaId && f.x === tile.x && f.y === tile.y);
@@ -1723,6 +1777,7 @@ export class OverworldScene extends Phaser.Scene {
         this.isMoving = false;
         this.positionDirty = true;
         this.pickUpFood(next);
+        this.pickUpItem(next);
         // Walked onto a dock, a tunnel mouth or a bridge: stop, and offer the trip.
         const link = linkAt(this.areaMeta, next.x, next.y);
         if (link) {

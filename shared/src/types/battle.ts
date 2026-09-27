@@ -7,6 +7,20 @@ export interface BattleParticipant {
   /** Resolved once at battle creation so the engine itself does no content lookups. */
   species: CreatureSpecies;
   moves: Record<string, Move>;
+  /** An item's effect still working (a potion, a feather…): stronger or surer moves for a few more moves. */
+  boost?: { power: number; accuracy: number; moves: number };
+}
+
+/** What an item does when used in a battle (shared/content/items.json; the engine needs no content). */
+export interface ItemEffect {
+  /** Moves do this many times the damage (1 = unchanged)… */
+  power?: number;
+  /** …and hit this much more surely (added to the move's accuracy; 1 = never miss)… */
+  accuracy?: number;
+  /** …for this many of the monster's moves. */
+  moves?: number;
+  /** Heals this share of the monster's full HP at once. */
+  heal?: number;
 }
 
 /**
@@ -41,11 +55,13 @@ export type BattleAction =
    * (precision 1). Without it, the ball simply reaches the monster (as before 3D).
    */
   | { kind: "catch"; throw?: { hit: false } | { hit: true; precision: number } }
-  | { kind: "flee" };
+  | { kind: "flee" }
+  /** Use an item (it takes the turn). `navn` is for the message. */
+  | { kind: "item"; navn: string; effect: ItemEffect };
 
 export interface BattleLogEntry {
   turn: number;
-  kind: "damage" | "miss" | "faint" | "catch-success" | "catch-fail" | "catch-miss" | "flee";
+  kind: "damage" | "miss" | "faint" | "catch-success" | "catch-fail" | "catch-miss" | "flee" | "item";
   text: string;
   /** playerId of the participant this entry happened to, so a UI can animate the right sprite. */
   targetPlayerId?: string;
