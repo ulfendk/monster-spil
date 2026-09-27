@@ -36,7 +36,9 @@ import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
 import { C, CSS, FONT } from "../ui/theme";
 import { recordProgress } from "../progress/record";
-import { badgesById, levelConfig } from "../content/load-progress";
+import { badgesById, levelConfig, ridingOn } from "../content/load-progress";
+import { profileChanged } from "../progress/record";
+import type { MountView } from "@shared";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
 import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
@@ -67,6 +69,8 @@ const TILE_SIZE = 64;
 /** `pendingMeet` for walking over to a waiting monster (the UFO's alien): this prefix + its spawn id. */
 const SPAWN_MEET = "spawn:";
 const MOVE_DURATION_MS = 200;
+/** Riding a monster: each step takes this much of the time walking does. */
+const RIDE_TIME_FACTOR = 0.65;
 /** The connection button shows the state: others online, connecting, offline, code needed. */
 const STATUS_ICON: Record<PresenceStatus, string> = { online: "team", connecting: "hourglass", offline: "offline", needCode: "key", off: "gear" };
 
@@ -255,6 +259,7 @@ export class OverworldScene extends Phaser.Scene {
         badges: Object.entries(this.save.progress?.badges ?? {})
           .sort(([, a], [, b]) => b.localeCompare(a))
           .map(([id]) => badgesById[id]?.icon ?? "star"),
+        ...this.mountHint(ridingOn(this.save)),
       }),
     });
     this.others.clear();
@@ -343,6 +348,7 @@ export class OverworldScene extends Phaser.Scene {
     });
     if (multiplayerEnabled) this.joinWorld();
     const onResumeRecovery = () => {
+      this.buildHud(); // the garden may have picked a monster to ride
       this.drawBag();
       this.checkPassOut();
     };
@@ -1038,7 +1044,35 @@ export class OverworldScene extends Phaser.Scene {
       this.scene.pause();
     });
     this.hud.push(garden);
+    // Riding: on or off the monster chosen in the garden (only once one has been chosen).
+    if (this.canRide()) {
+      const ride = this.hudButton(layout.safe.left + gap + size / 2, y + (size + gap) * 2 + layout.px(84), size, ic("saddle"), () => this.toggleRide());
+      if (!this.save.riding) ride.setAlpha(0.6);
+      this.hud.push(ride);
+    }
     this.drawBag();
+  }
+
+  /** Whether the monster chosen to ride is still mine, and one that can be ridden. */
+  private canRide(): boolean {
+    const c = this.save.mount ? this.save.creatures.find((m) => m.instanceId === this.save.mount) : undefined;
+    return !!c && !!this.content.speciesById[c.speciesId]?.ride;
+  }
+
+  private toggleRide(): void {
+    if (!this.canRide()) return;
+    this.save.riding = !this.save.riding;
+    void persist();
+    profileChanged();
+    this.buildHud();
+    this.showToast(this.save.riding ? `${ic("saddle")} ${t("care_ride")}!` : `${ic("saddle")} ${t("care_ride_off")}`);
+  }
+
+  /** What the 3D map needs to draw a ridden monster: its picture's key (which says which model), variant and stage. */
+  private mountHint(mount: MountView | undefined): { mount?: { key: string; variant?: string; stage?: number } } {
+    const species = mount ? this.content.speciesById[mount.speciesId] : undefined;
+    if (!mount || !species?.ride) return {};
+    return { mount: { key: species.spriteFront, ...(mount.variant ? { variant: mount.variant } : {}), ...(mount.stage ? { stage: mount.stage } : {}) } };
   }
 
   update(): void {
@@ -1665,7 +1699,7 @@ export class OverworldScene extends Phaser.Scene {
         setMapHint(view.face, {
           avatar: () => {
             const p = presence.players.get(playerId);
-            return { id: p?.avatarId ?? "", look: lookFor(p?.level ?? 1, levelConfig), badges: (p?.badges ?? []).slice(-3).reverse().map((id) => badgesById[id]?.icon ?? "star") };
+            return { id: p?.avatarId ?? "", look: lookFor(p?.level ?? 1, levelConfig), badges: (p?.badges ?? []).slice(-3).reverse().map((id) => badgesById[id]?.icon ?? "star"), ...this.mountHint(p?.mount) };
           },
         });
         this.others.set(player.playerId, view);
@@ -1970,7 +2004,7 @@ export class OverworldScene extends Phaser.Scene {
       x: next.x * TILE_SIZE + TILE_SIZE / 2,
       y: next.y * TILE_SIZE + TILE_SIZE / 2,
       // Same walking speed either way, so a diagonal (√2 tiles) takes longer.
-      duration: MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1),
+      duration: MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1) * (ridingOn(this.save) ? RIDE_TIME_FACTOR : 1),
       onComplete: () => {
         this.playerTile = next;
         this.isMoving = false;

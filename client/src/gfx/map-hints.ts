@@ -13,8 +13,8 @@ export interface MapHint {
   lift?: number;
   /** Belongs to the spot this many pixels further south on the 2D map (a label drawn above its owner). */
   dy?: number;
-  /** A player's face: stands as their animal figure in 3D, with the headwear and badges this says (read every frame). */
-  avatar?: () => { id: string; look?: string; badges: string[] };
+  /** A player's face: stands as their animal figure in 3D, with the headwear and badges this says (read every frame) — riding the monster whose front picture is `mount.key`, if they are. */
+  avatar?: () => { id: string; look?: string; badges: string[]; mount?: { key: string; variant?: string; stage?: number } };
 }
 
 const KEY = "map3d";

@@ -3,6 +3,7 @@ import type { CreatureSpecies, TypeId } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 import { TYPE_COLOURS, bodyShape, speciesShade, type BossLook } from "../gfx/placeholder-sprites";
 import { variantColour } from "../gfx/variants";
+import { flammeskael } from "./handmade/flammeskael";
 
 /**
  * A monster in 3D, modelled after its placeholder picture (gfx/placeholder-sprites.ts) so it
@@ -29,6 +30,10 @@ export interface MonsterModelSpec {
 
 export interface MonsterModel {
   root: THREE.Group;
+  /** Where a rider sits (in the root's own units, before it's scaled). */
+  seat: THREE.Vector3;
+  /** Little movements of its own, if it has any (wings flapping, flames flickering): call every frame with the time in seconds. */
+  tick?(seconds: number): void;
   setFace(face: "normal" | "blink" | "talk"): void;
   /** A flash of colour (a hit), or null to stop. */
   setTint(colour: number | null): void;
@@ -36,22 +41,55 @@ export interface MonsterModel {
   dispose(): void;
 }
 
-const S = 1 / 128;
-const INK = KANAGAWA.sumiInk0;
+export const S = 1 / 128;
+export const INK = KANAGAWA.sumiInk0;
 /** How thick the ink outline is (px, in the 128-px box). */
 const OUTLINE = 2.2;
 
-let gradient: THREE.DataTexture | undefined;
-/** Three flat bands of light: shadow, mid, lit — woodblock, not glossy. */
-function toonGradient(): THREE.DataTexture {
-  if (gradient) return gradient;
-  gradient = new THREE.DataTexture(new Uint8Array([95, 175, 255]), 3, 1, THREE.RedFormat);
-  gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
-  gradient.needsUpdate = true;
-  return gradient;
+/**
+ * How monsters are lit, whatever the scene's lights: a key light from the upper left in front,
+ * a soft-edged shadow side (two tones, like a woodblock print), a highlight band, edges that
+ * darken towards the silhouette and undersides in shade — so a round body reads as round —
+ * and a touch of sky along the upper rim. `env` tints it all for the place (a cave is dimmer
+ * and warmer); stages set it (`setMonsterEnvironment`).
+ */
+const monsterEnv = { value: new THREE.Color(1, 1, 1) };
+
+export function setMonsterEnvironment(colour: number | THREE.Color = 0xffffff, strength = 1): void {
+  monsterEnv.value.set(colour).multiplyScalar(strength);
 }
 
-function shade(colour: number, amount: number): number {
+const SHADE_GLSL = /* glsl */ `
+  {
+    vec3 n = normalize(normal);
+    vec3 v = normalize(vViewPosition);
+    float nl = dot(n, normalize(vec3(-0.5, 0.75, 0.55)));
+    float lit = mix(0.6, 1.0, smoothstep(-0.08, 0.14, nl));
+    lit += 0.06 * smoothstep(0.62, 0.78, nl);
+    float rim = 1.0 - clamp(dot(n, v), 0.0, 1.0);
+    lit *= 1.0 - 0.3 * smoothstep(0.4, 1.0, rim);
+    lit *= 1.0 - 0.2 * clamp(-n.y, 0.0, 1.0);
+    lit += 0.1 * smoothstep(0.62, 1.0, rim) * clamp(n.y, 0.0, 1.0);
+    // Shaded in perceived brightness (the screen shows linear light compressed): the shadow side
+    // reads as a shadow even on a bright red.
+    outgoingLight = diffuseColor.rgb * pow(clamp(lit, 0.0, 1.25), 2.0) * monsterEnv + totalEmissiveRadiance;
+  }
+`;
+
+/** A monster's own material (see above): a toon material whose light is worked out in its shader. */
+export function monsterMaterial(colour: number): THREE.MeshToonMaterial {
+  const material = new THREE.MeshToonMaterial({ color: colour, transparent: true });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.monsterEnv = monsterEnv;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "uniform vec3 monsterEnv;\nvoid main() {")
+      .replace("#include <opaque_fragment>", `${SHADE_GLSL}\n#include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => "monster-shade-1";
+  return material;
+}
+
+export function shade(colour: number, amount: number): number {
   const c = new THREE.Color(colour);
   const hsl = { h: 0, s: 0, l: 0 };
   c.getHSL(hsl);
@@ -60,9 +98,9 @@ function shade(colour: number, amount: number): number {
 }
 
 /** A place on the model, from the picture's pixel coordinates (y down) and a depth in px. */
-const P = (x: number, y: number, z = 0) => new THREE.Vector3((x - 64) * S, (64 - y) * S, z * S);
+export const P = (x: number, y: number, z = 0) => new THREE.Vector3((x - 64) * S, (64 - y) * S, z * S);
 
-class Builder {
+export class Builder {
   readonly root = new THREE.Group();
   readonly materials: THREE.Material[] = [];
   readonly geometries: THREE.BufferGeometry[] = [];
@@ -81,7 +119,7 @@ class Builder {
   /** A coloured, toon-shaded part (its colour turned as a rare variant's), outlined in ink unless `outline` is false. */
   part(geometry: THREE.BufferGeometry, colour: number, at: THREE.Vector3, scale: THREE.Vector3 | number = 1, outline = true, recolour = true): THREE.Mesh {
     this.geometries.push(geometry);
-    const material = this.keep(new THREE.MeshToonMaterial({ color: recolour ? variantColour(colour, this.variant) : colour, gradientMap: toonGradient(), transparent: true }));
+    const material = this.keep(monsterMaterial(recolour ? variantColour(colour, this.variant) : colour));
     this.toon.push(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(at);
@@ -119,14 +157,56 @@ class Builder {
   }
 }
 
-const sphere = () => new THREE.SphereGeometry(0.5, 20, 14);
+export const sphere = () => new THREE.SphereGeometry(0.5, 32, 22);
+
+/** A body: a sphere a little fuller at the bottom and narrower at the top, like a sitting yokai. */
+export function bodyGeometry(): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(0.5, 36, 26);
+  const pos = g.attributes.position!;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const k = y < 0 ? 1 + 0.14 * Math.sin(-y * Math.PI) : 1 - 0.1 * y;
+    pos.setX(i, pos.getX(i) * k);
+    pos.setZ(i, pos.getZ(i) * k);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** A small whole number from a species id: to vary ears and such from monster to monster. */
+function idHash(id: string): number {
+  let h = 7;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/** What a model's builder gives back: how to change its face, where a rider sits, and its own movements. */
+export interface Built {
+  face: (face: "normal" | "blink" | "talk") => void;
+  seat: THREE.Vector3;
+  tick?: (seconds: number) => void;
+}
+
+/** Monsters with a model made by hand for them (from a drawing), by species id. */
+const HANDMADE: Record<string, (b: Builder, species: CreatureSpecies, stage: number) => Built> = {
+  ildflagrer: flammeskael,
+};
 
 export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   const b = new Builder(spec.variant);
-  const face = spec.look === "serpent" ? serpent(b, spec.species) : spec.look === "eagle" ? eagle(b, spec.species) : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
+  const handmade = HANDMADE[spec.species.id];
+  const built: Built = handmade
+    ? handmade(b, spec.species, spec.stage ?? 1)
+    : spec.look === "serpent"
+      ? { face: serpent(b, spec.species), seat: P(64, 30, -6) }
+      : spec.look === "eagle"
+        ? { face: eagle(b, spec.species), seat: P(64, 60, -4) }
+        : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
   return {
     root: b.root,
-    setFace: face,
+    seat: built.seat,
+    ...(built.tick ? { tick: built.tick } : {}),
+    setFace: built.face,
     setTint(colour) {
       for (const m of b.toon) {
         m.emissive.setHex(colour ?? 0);
@@ -145,7 +225,7 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
 
 // ------------------------------------------------------------ an ordinary monster (or a dragon)
 
-function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: number): (face: "normal" | "blink" | "talk") => void {
+function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: number): Built {
   // Later stages: a deeper, richer colour.
   const colour = shade(TYPE_COLOURS[species.type], (dragon ? 0 : speciesShade(species.id) * 0.8) - (stage - 1) * 7);
   const { w, h } = bodyShape(species);
@@ -155,9 +235,35 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
   /** How far the body's surface sticks out towards the viewer at (x, y) — to put the face on it. */
   const front = (x: number, y: number) => (d / 2) * Math.sqrt(Math.max(0, 1 - ((x - 64) / (w / 2)) ** 2 - ((y - cy) / (h / 2)) ** 2));
 
-  b.part(sphere(), colour, P(64, cy), new THREE.Vector3(w * S, h * S, d * S));
+  b.part(bodyGeometry(), colour, P(64, cy), new THREE.Vector3(w * S, h * S, d * S));
   b.part(sphere(), shade(colour, 12), P(64, cy + h * 0.2, d * 0.24), new THREE.Vector3(w * 0.6 * S, h * 0.46 * S, d * 0.55 * S), false);
-  for (const side of [-1, 1]) b.part(sphere(), shade(colour, -14), P(64 + side * w * 0.26, cy + h / 2 - 3, d * 0.12), new THREE.Vector3(20 * S, 12 * S, 18 * S));
+  for (const side of [-1, 1]) {
+    // Feet: rounded paws with three toe bumps.
+    const fx = 64 + side * w * 0.26;
+    const fy = cy + h / 2 - 3;
+    b.part(sphere(), shade(colour, -14), P(fx, fy, d * 0.12), new THREE.Vector3(20 * S, 12 * S, 20 * S));
+    for (const t of [-1, 0, 1]) b.part(sphere(), shade(colour, -8), P(fx + t * 5.5, fy + 2, d * 0.12 + 9), new THREE.Vector3(6 * S, 6 * S, 6 * S), false);
+    // Little arms at the sides, held forward.
+    const arm = b.part(sphere(), shade(colour, -6), P(64 + side * w * 0.47, cy + h * 0.08, d * 0.16), new THREE.Vector3(11 * S, 20 * S, 12 * S));
+    arm.rotation.set(-0.5, 0, side * 0.55);
+  }
+  if (!dragon && species.type !== "lyn" && species.type !== "sten") {
+    // Ears, varying by monster: none, pointed or round.
+    const style = idHash(species.id) % 3;
+    for (const side of [-1, 1]) {
+      const at = P(64 + side * w * 0.33, cy - h * 0.38, -d * 0.05);
+      if (style === 1) {
+        const ear = b.part(new THREE.ConeGeometry(0.5, 1, 12), shade(colour, -4), at, new THREE.Vector3(13 * S, 20 * S, 9 * S));
+        ear.rotation.z = -side * 0.45;
+        const inner = b.part(new THREE.ConeGeometry(0.5, 1, 10), KANAGAWA.sakuraPink, at.clone().add(new THREE.Vector3(side * -0.4 * S, -1.5 * S, 3.4 * S)), new THREE.Vector3(7 * S, 12 * S, 3 * S), false, false);
+        inner.rotation.z = -side * 0.45;
+      } else if (style === 2) {
+        const ear = b.part(sphere(), shade(colour, -4), at, new THREE.Vector3(16 * S, 15 * S, 7 * S));
+        ear.rotation.z = -side * 0.3;
+        b.part(sphere(), KANAGAWA.sakuraPink, at.clone().add(new THREE.Vector3(0, 0, 3 * S)), new THREE.Vector3(9 * S, 8 * S, 2 * S), false, false);
+      }
+    }
+  }
   // The tail, at the back.
   // (A cone points up; tipped over backwards it points away from the face, a little up and to the side.)
   const tail = b.part(new THREE.ConeGeometry(0.5, 1, 6), shade(colour, -8), P(64 + w * 0.12, cy + h * 0.22, -d * 0.52), new THREE.Vector3(12 * S, 26 * S, 12 * S));
@@ -217,8 +323,9 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
       eyes.push(b.flat(sphere(), KANAGAWA.carpYellow, P(x, eyeY, z), new THREE.Vector3(13 * S, 15 * S, 5 * S)));
       eyes.push(b.flat(sphere(), INK, P(x, eyeY, z + 2), new THREE.Vector3(4 * S, 12 * S, 3 * S)));
     } else {
-      eyes.push(b.flat(sphere(), INK, P(x, eyeY, z), new THREE.Vector3(11 * S, 14 * S, 6 * S)));
-      eyes.push(b.flat(sphere(), KANAGAWA.washi, P(x + 2, eyeY - 3, z + 3), 5.2 * S));
+      eyes.push(b.flat(sphere(), INK, P(x, eyeY, z), new THREE.Vector3(11 * S, 14 * S, 8 * S)));
+      eyes.push(b.flat(sphere(), KANAGAWA.washi, P(x + 2, eyeY - 3, z + 4), 5.2 * S));
+      eyes.push(b.flat(sphere(), KANAGAWA.washi, P(x - 2.5, eyeY + 3, z + 3.5), 2.2 * S, 0.8));
     }
     // Shut: a happy curve where the eye was (hidden until a blink).
     const lid = b.flat(new THREE.TorusGeometry(5.5 * S, 1.3 * S, 5, 10, Math.PI * 0.7), INK, P(x, eyeY + 1, z + 1));
@@ -241,17 +348,21 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
     fang = b.flat(new THREE.ConeGeometry(2.5 * S, 6 * S, 4), KANAGAWA.washi, P(67, eyeY + 13, front(67, eyeY + 13) + 1.5));
     fang.rotation.x = Math.PI;
   }
-  return (face) => {
-    for (const e of eyes) e.visible = face !== "blink";
-    for (const l of shut) l.visible = face === "blink";
-    smile.visible = face !== "talk";
-    if (fang) fang.visible = face !== "talk";
-    open.visible = face === "talk";
+  return {
+    face: (face) => {
+      for (const e of eyes) e.visible = face !== "blink";
+      for (const l of shut) l.visible = face === "blink";
+      smile.visible = face !== "talk";
+      if (fang) fang.visible = face !== "talk";
+      open.visible = face === "talk";
+    },
+    // On top, a little behind the crest.
+    seat: P(64, top + h * 0.1, -d * 0.2),
   };
 }
 
 /** A teardrop flame (px), tip up, for the fire crest. */
-function flameShape(height: number, width: number): Array<[number, number]> {
+export function flameShape(height: number, width: number): Array<[number, number]> {
   return [[0, -height], [width * 0.3, -height * 0.55], [width * 0.5, -height * 0.2], [width * 0.3, 0], [-width * 0.3, 0], [-width * 0.5, -height * 0.2], [-width * 0.3, -height * 0.55]];
 }
 

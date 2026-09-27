@@ -25,6 +25,15 @@ export interface LobbyPlayer extends WorldPosition {
   /** Their player level and earned badge ids (v13+; absent from older devices). */
   level?: number;
   badges?: string[];
+  /** The monster they ride on the map, if they're riding (v15+). */
+  mount?: MountView;
+}
+
+/** A monster someone rides: enough to draw it. */
+export interface MountView {
+  speciesId: string;
+  variant?: string;
+  stage?: number;
 }
 
 /** Options a client passes when joining the lobby room. */
@@ -42,6 +51,8 @@ export interface LobbyJoinOptions extends Partial<WorldPosition> {
   /** My player level and earned badges, for everyone to see (v13+). */
   level?: number;
   badges?: string[];
+  /** The monster I ride now (v15+). */
+  mount?: MountView;
 }
 
 /**
@@ -76,7 +87,7 @@ export const PLAYER_ELSEWHERE = 4000;
  * a newer client can tell the *server* needs upgrading and hide the features it
  * can't do. (Old clients keep working against a newer server for what they know.)
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 export const LOBBY_ROOM = "lobby";
 
@@ -109,7 +120,7 @@ export interface ClientMessages {
   /** I felled the tree next to me, or dug where I stand (v14+): everyone sees the stump or hole. */
   work: { kind: "cut" | "dig"; x: number; y: number };
   /** My level or badges changed (v13+): everyone sees the new ones. */
-  profile: { level: number; badges: string[] };
+  profile: { level: number; badges: string[]; mount?: MountView };
   /** Go into an open cave I'm standing next to (once per opening; v12+). */
   caveEnter: { caveId: string };
   /** Gather a team at the dragon — or at a visiting beast (`targetId`, v11+) — and lead it; others then see it and can join. */

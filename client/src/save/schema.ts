@@ -16,6 +16,9 @@ export interface SaveData {
   items?: Record<string, number>;
   /** Items picked up today (so each lies there only once a day for this player): the day, and their keys. */
   itemsTaken?: { day: string; keys: string[] };
+  /** The monster I ride (an instanceId, chosen in the garden), and whether I'm on its back now. */
+  mount?: string;
+  riding?: boolean;
   /** Each world's castle (world id → the quest things found, guardians beaten, treasure taken). */
   castles?: Record<string, CastleProgress>;
   /** Food collected on the map (at most BAG_MAX), eaten to recover faster after passing out. */

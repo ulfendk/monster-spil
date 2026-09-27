@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { KANAGAWA } from "../ui/theme";
 import { buildScenery } from "./scenery";
-import { buildMonsterModel, type MonsterModel, type MonsterModelSpec } from "./monster-model";
+import { buildMonsterModel, setMonsterEnvironment, type MonsterModel, type MonsterModelSpec } from "./monster-model";
 
 /**
  * The monster garden in 3D: a sunny garden (cherry trees, bamboo, susuki, drifting petals)
@@ -59,6 +59,7 @@ export class GardenStage {
   private rand = Math.random;
 
   constructor(canvas: HTMLCanvasElement, monsters: GardenMonster[]) {
+    setMonsterEnvironment();
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -247,6 +248,7 @@ export class GardenStage {
       const turn = Math.atan2(Math.sin(face - w.root.rotation.y), Math.cos(face - w.root.rotation.y));
       if (w.model) w.root.rotation.y += turn * Math.min(1, dt * 8);
       w.root.rotation.z = walking ? Math.sin(w.phase) * 0.06 : w.root.rotation.z * 0.9;
+      w.model?.tick?.(performance.now() / 1000);
       if (w.model && (w.phase * 0.37) % 4 < 0.06) w.model.setFace("blink");
       else w.model?.setFace("normal");
       if (w.selected) {

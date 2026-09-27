@@ -28,6 +28,11 @@ export function setProfileListener(listener: () => void): void {
   onProfileChange = listener;
 }
 
+/** Something else everyone sees changed (I got on or off my monster): tell the server. */
+export function profileChanged(): void {
+  onProfileChange?.();
+}
+
 /** Takes the next level-up or badge to show, if any. */
 export function nextCelebration(): Celebration | undefined {
   return waiting.shift();

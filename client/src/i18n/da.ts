@@ -94,6 +94,8 @@ const strings = {
   care_play: "Leg",
   care_evolve: "Udvikl",
   care_fighter: "Kæmper",
+  care_ride: "Rid",
+  care_ride_off: "Stå af",
   castle_key: "Nøglen!",
   care_tired: "Den er træt – prøv i morgen",
   egg_nest_full: "Reden er fuld",

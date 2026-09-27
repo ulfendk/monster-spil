@@ -119,8 +119,7 @@ logic Tiled can't express (encounter table, collision GIDs, spawn point). A big 
 **regions**: `regions` in the sidecar lists parts of the map (rectangles of tiles) with
 their own encounter tables — Startskoven has Hjertelandet, Storsøen, Sandklitterne,
 Højfjeldet, Dybskoven and Nordengene; tall grass in none of them uses the area's own
-`encounterTable` (the meadows in the middle and south; `add-creature --vild` adds to that
-one). The first region a tile lies in wins (`shared/src/world/regions.ts`, tested); the
+`encounterTable` (the meadows in the middle and south). The first region a tile lies in wins (`shared/src/world/regions.ts`, tested); the
 monster book's hint points to the nearest tall grass where the monster lives. A test checks
 every region has tall grass and only known monsters, and another that every monster can be
 found somewhere (wild, caves, digging, disasters, or as a reward or starter). Never
@@ -129,21 +128,12 @@ must never clobber it. Every area (world) in `shared/content/areas/` is found by
 `client/src/content/load-areas.ts` with `import.meta.glob` (and read by the server at
 runtime): adding a world is adding its map, tileset and sidecar — see "Worlds".
 
-**Drawings → monsters:** `npm run add-creature -- <photo> --navn "…" --type ild
-[--ryg <photo>] [--lyd <sound>] [--vild N]` (`scripts/add-creature.mjs`, pipeline in
-`scripts/lib/drawing.mjs`). From a phone photo of a drawing on white paper it: evens out
-the paper (a smooth light model fitted to the paper blocks, tinted blocks ignored so pale
-crayon isn't taken for paper), finds the drawing (ink/colour threshold, pieces near the
-biggest one, nothing touching the photo's edge), fills its silhouette, turns dark
-uncoloured lines into sumi ink and paper inside the monster into washi, clusters the
-colours (from each cluster's most saturated pixels — crayon grain), makes them bolder and
-pulls them halfway to the nearest Kanagawa colour, traces it with imagetracerjs, adds a
-woodblock ink edge, and renders 384 px PNGs with sharp (the back: mirrored and darker,
-or `--ryg`). It writes `<id>_front/_back.png`, a JSON scaffold (type-based stats and
-moves; an existing JSON is kept), a voice (`scripts/lib/voice.mjs`) unless `--lyd`,
-the photo and SVG under `creatures/drawings/`, and a preview PNG next to the photo.
-Scenes size monster pictures with `spriteFit` (`client/src/gfx/creature-sprite.ts`), so
-any picture size shows like a 128 px placeholder.
+**No more drawing import.** The photo-to-monster pipeline (`add-creature`) is gone; the one
+monster made that way, Flammeskæl (`ildflagrer`), is now a 3D model made by hand after the
+drawing (`client/src/cave/handmade/flammeskael.ts`; the original photo is kept in
+`docs/drawings/`). A PNG dropped in at a species' `spriteFront` path still shows (scenes size
+it with `spriteFit`, `client/src/gfx/creature-sprite.ts`), but new monsters are meant to be
+game-drawn models.
 
 ## Monsters in 3D
 
@@ -152,13 +142,24 @@ any picture size shows like a 128 px placeholder.
   after its placeholder picture: the body shaped by its stats, a lighter belly, feet, a
   kawaii face (eyes with a glint, cheeks, a smile, a fang for strong attackers), its type's
   head feature (flame crest, wave scales, leaves and a bud, zigzag horns, a rocky cap), a
-  tail; dragons get wings and horns, serpents coils and a hood, eagles spread wings. Toon
-  shading in three flat bands and an ink outline (the back faces of a slightly bigger copy),
-  so it still looks like woodblock. Built in the picture's 128-px box, so it takes exactly the
-  place a picture sprite of the same size would.
-- **A kid's drawing stays its picture.** `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`)
-  knows which textures were drawn by the game; only those become models. Rare variants
-  recolour a model's parts (`variantColour`).
+  tail, little arms and toed feet, and (by species, from its id) pointed, round or no ears;
+  the body is fuller at the bottom; dragons get wings and horns, serpents coils and a hood,
+  eagles spread wings. An ink outline (the back faces of a slightly bigger copy) keeps the
+  woodblock look. Built in the picture's 128-px box, so it takes exactly the place a picture
+  sprite of the same size would.
+- **Monsters light themselves** (`monsterMaterial`): whatever the scene's lights, a key light
+  from the upper left in front, a soft-edged two-tone shadow side, edges darkening towards the
+  silhouette, shaded undersides and a sky rim — worked out in perceived brightness, so even a
+  bright red body reads as round. `setMonsterEnvironment(colour, strength)` tints it for the
+  place (a cave: dimmer and tinted by its glow); `ThrowStage`, the garden and the map reset it
+  to daylight, and a stage's `destroy` does too.
+- **Handmade models:** `HANDMADE` in `monster-model.ts` maps a species id to its own builder
+  (`client/src/cave/handmade/`); it returns its face switch, a `seat` (where a rider sits) and
+  an optional `tick(seconds)` for movements of its own (Flammeskæl's wings beat and flames
+  flicker), which the stages, the garden and the map call every frame.
+- `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`) knows which textures were drawn by the
+  game; only those become models (a dropped-in PNG stays a picture). Rare variants recolour
+  a model's parts (`variantColour`).
 - **In the stages** (`ThrowStage`): `LivingMonster.sprite` is the sprite or the model's root
   and `model` the model; `setFace` (a blink closes the eyes, a cry opens the mouth),
   `setTint`, `setOpacity` and `setTilt` work on either. Models turn to face the camera — my
@@ -171,7 +172,7 @@ any picture size shows like a 128 px placeholder.
   back, eyes shut, mouth open — and paints it into the placeholder's own canvas texture (same
   key, same size), a few milliseconds per frame in the background; a picture already on
   screen turns 3D where it stands, and nothing waits for it. Rare variants' recoloured
-  pictures are made again afterwards (`picturesChanged`). Kids' drawings are left alone.
+  pictures are made again afterwards (`picturesChanged`). Dropped-in PNGs are left alone.
 - **Every battle is in the 3D meadow** — wild ones, duels, the dragon and beasts (drawn 1.5×)
   and team fights. `BattleScene.showTurn` plays any turn one entry at a time (the server's
   turns in duels, raids and teams, the device's own in the wild); in a team fight a teammate
@@ -365,6 +366,24 @@ games" — with no schema state: plain messages typed in
   All three beaten opens the chest: eggs (as many as the nest holds), items (past the usual
   bag limit), XP (event `castle`), and the last guardian's kind joins you in rare colours.
   Badges `borgvogter`, `borgherre`; trophy `trofae-borge` (all four castles).
+
+## Riding monsters (protocol v15)
+
+- **Some monsters can be ridden:** `"ride": true` in the species JSON (the big ones: Mosbjørn,
+  Flodtrold, Snetrold, Krystalhjort, Tordenbuk, Stenged, the dragon's, serpent's and eagle's
+  babies, Svanefjer, Lavasnegl, Flammeskæl). In the garden such a monster gets a **Rid**
+  button (**Stå af** to get off) that makes it `SaveData.mount` and sets `riding`; a saddle
+  button then appears on the left of the map (under the garden) to hop on and off. Riding,
+  each step takes `RIDE_TIME_FACTOR` (0.65) of the time.
+- **In 3D** (`Map3D`, the avatar hint's `mount: {key, variant, stage}`): the monster's model
+  stands under the player's figure (`MOUNT_SCALE`), the figure sits a little smaller on its
+  `seat`, and the two bob and rock along together; the monster's own `tick` runs. The 2D map
+  shows nothing different.
+- **Everyone sees it:** the profile (`profileOf` → `ridingOn(save)`) carries `mount
+  {speciesId, variant?, stage?}`; the server cleans it (`cleanMount`: slugs, stage 2–3),
+  keeps it on `LobbyPlayer.mount` and drops it when a profile comes without one (got off).
+  Getting on or off calls `profileChanged()` (`progress/record.ts`). A monster traded away
+  can't be ridden (`ridingOn` checks it's still mine).
 
 ## Trophies and monster eggs
 
@@ -1065,9 +1084,7 @@ BFS pathfinding if needed); on the ground it does nothing.
 
 Pre-approved: Phaser, Vite, TypeScript, Colyseus (server `@colyseus/core` +
 `@colyseus/ws-transport` + `@colyseus/schema`, client `colyseus.js`), `vite-plugin-pwa`
-(added for PWA manifest/service-worker generation), and for the drawing import
-(dev-only, root `devDependencies`, never shipped to the game) `sharp` and `imagetracerjs`,
-and `three` (+ `@types/three`) for the cave minigame, loaded only inside a cave.
+(added for PWA manifest/service-worker generation), and `three` (+ `@types/three`) for the cave minigame, loaded only inside a cave.
 **Ask before adding anything else.**
 
 ## Testing convention

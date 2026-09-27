@@ -1,4 +1,4 @@
-import { levelForXp, type Badge, type LevelConfig, type Progress } from "@shared";
+import { levelForXp, type Badge, type LevelConfig, type MountView, type Progress } from "@shared";
 import levels from "../../../shared/content/levels.json";
 import badges from "../../../shared/content/badges.json";
 import type { SaveData } from "../save/schema";
@@ -19,6 +19,15 @@ export function levelOf(progress: Progress | undefined): number {
 }
 
 /** What everyone may see: my level and my badges' ids. */
-export function profileOf(save: SaveData): { level: number; badges: string[] } {
-  return { level: levelOf(save.progress), badges: Object.keys(save.progress?.badges ?? {}) };
+export function profileOf(save: SaveData): { level: number; badges: string[]; mount?: MountView } {
+  const mount = ridingOn(save);
+  return { level: levelOf(save.progress), badges: Object.keys(save.progress?.badges ?? {}), ...(mount ? { mount } : {}) };
+}
+
+/** The monster I'm riding now, if I am (it must still be mine). */
+export function ridingOn(save: SaveData): MountView | undefined {
+  if (!save.riding || !save.mount) return undefined;
+  const c = save.creatures.find((m) => m.instanceId === save.mount);
+  if (!c) return undefined;
+  return { speciesId: c.speciesId, ...(c.variant ? { variant: c.variant } : {}), ...(c.stage && c.stage > 1 ? { stage: c.stage } : {}) };
 }

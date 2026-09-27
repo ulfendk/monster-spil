@@ -79,3 +79,10 @@ test("every monster can be found somewhere (or is a starter or a reward)", () =>
   for (const s of loadCreatures()) assert.ok(found.has(s.id), `${s.id} lives nowhere`);
   for (const id of found) assert.ok(loadCreatures().some((s) => s.id === id), `unknown monster ${id}`);
 });
+
+test("some monsters can be ridden, and the flag is always a plain true", () => {
+  const species = loadCreatures();
+  const riders = species.filter((s) => s.ride !== undefined);
+  assert.ok(riders.length >= 5, "a few monsters to ride");
+  for (const s of riders) assert.equal(s.ride, true, `${s.id}: "ride" is true or left out`);
+});

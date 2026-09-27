@@ -667,6 +667,14 @@ const ART: Record<string, (g: G) => void> = {
     circle(g, 64, 68, 18, K.crystalBlue);
     g.fillStyle(K.washi, 1).fillCircle(57, 61, 5);
   },
+  saddle: (g) => {
+    // A red riding saddle with a golden rim, a stirrup hanging from it.
+    shape(g, [{ x: 14, y: 58 }, { x: 30, y: 36 }, { x: 50, y: 52 }, { x: 78, y: 52 }, { x: 98, y: 30 }, { x: 114, y: 50 }, { x: 104, y: 78 }, { x: 24, y: 78 }], K.autumnRed);
+    g.fillStyle(K.carpYellow, 1).fillRect(26, 70, 76, 7);
+    stroke(g, 64, 78, 64, 98, K.boatYellow2, 5);
+    arcLine(g, 64, 108, 12, 0, Math.PI * 2, INK, 12);
+    arcLine(g, 64, 108, 12, 0, Math.PI * 2, K.carpYellow, 6);
+  },
   castle: (g) => {
     // A Japanese castle: a stone base, white walls, two tiers of dark curved roofs, gold tips.
     shape(g, [{ x: 16, y: 120 }, { x: 26, y: 88 }, { x: 102, y: 88 }, { x: 112, y: 120 }], K.katanaGray);

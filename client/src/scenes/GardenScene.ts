@@ -8,7 +8,7 @@ import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { pictureKey, variantScale } from "../gfx/variants";
 import { playCreatureSound } from "../audio/creature-sound";
 import { persist } from "../save/game-state";
-import { recordProgress } from "../progress/record";
+import { profileChanged, recordProgress } from "../progress/record";
 import { addCloseButton, createButton } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip, richText } from "../ui/rich-text";
@@ -164,6 +164,18 @@ export class GardenScene extends Phaser.Scene {
   }
 
   /** This one fights first from now on. */
+  /** Rides this monster on the map (or gets off it). */
+  private toggleRide(instanceId: string): void {
+    const save = this.garden.save;
+    const onIt = save.riding && save.mount === instanceId;
+    save.mount = instanceId;
+    save.riding = !onIt;
+    void persist();
+    profileChanged();
+    if (!onIt) this.say(`${ic("saddle")} ${t("care_ride")}!`);
+    this.drawUi();
+  }
+
   private makeFighter(): void {
     const index = this.monsters.findIndex((m) => m.instanceId === this.selected);
     if (index <= 0) return;
@@ -214,7 +226,15 @@ export class GardenScene extends Phaser.Scene {
     const stages = stageCount(species);
     const need = bondForNext(c, species, nurtureConfig);
     const bond = c.bond ?? 0;
-    const panelH = layout.touch(96) + layout.px(110);
+    // The buttons below: as many in a row as fit at a comfortable size, the rest on a second row.
+    const count = 3 + (canEvolve(c, species, nurtureConfig) ? 1 : 0) + (this.monsters[0]?.instanceId !== c.instanceId ? 1 : 0) + (species.ride ? 1 : 0);
+    const gap = layout.px(10);
+    const room = width - safe.left - safe.right - 32;
+    const cols = Math.max(1, Math.min(count, Math.floor((room + gap) / (layout.touch(72) + gap))));
+    const rows = Math.ceil(count / cols);
+    const bw = Math.min(layout.px(170), (room - gap * (cols - 1)) / cols);
+    const bh = rows > 1 ? layout.touch(72) : layout.touch(96);
+    const panelH = rows * bh + (rows - 1) * gap + layout.px(110);
     const top = height - safe.bottom - panelH - layout.px(8);
     const panel = this.add.graphics();
     panel.fillStyle(C.overlay, 0.88).fillRoundedRect(safe.left + 8, top, width - safe.left - safe.right - 16, panelH, 18);
@@ -237,12 +257,16 @@ export class GardenScene extends Phaser.Scene {
     ];
     if (ready) actions.push({ label: t("care_evolve"), icon: "sparkle", colour: C.catch, onTap: () => void this.evolveSelected() });
     if (this.monsters[0]?.instanceId !== c.instanceId) actions.push({ label: t("care_fighter"), icon: "sword", colour: C.buttonQuiet, onTap: () => this.makeFighter() });
-    const gap = layout.px(10);
-    const bw = Math.min(layout.px(170), (width - safe.left - safe.right - 32 - gap * (actions.length - 1)) / actions.length);
-    const bh = layout.touch(96);
+    if (species.ride) {
+      const onIt = this.garden.save.riding && this.garden.save.mount === c.instanceId;
+      actions.push({ label: onIt ? t("care_ride_off") : t("care_ride"), icon: "saddle", colour: onIt ? C.buttonQuiet : C.ok, onTap: () => this.toggleRide(c.instanceId) });
+    }
     actions.forEach((a, i) => {
-      const x = width / 2 + (i - (actions.length - 1) / 2) * (bw + gap);
-      const b = createButton(this, x, top + panelH - layout.px(12) - bh / 2, a.label, a.onTap, { width: bw, height: bh, fontSize: layout.font(18), backgroundColor: a.colour, ...(a.icon ? { icon: a.icon } : {}) });
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, actions.length - row * cols);
+      const x = width / 2 + ((i % cols) - (inRow - 1) / 2) * (bw + gap);
+      const y = top + panelH - layout.px(12) - bh / 2 - (rows - 1 - row) * (bh + gap);
+      const b = createButton(this, x, y, a.label, a.onTap, { width: bw, height: bh, fontSize: layout.font(18), backgroundColor: a.colour, ...(a.icon ? { icon: a.icon } : {}) });
       if (a.off) b.setAlpha(0.4).disableInteractive();
       this.ui.push(b);
     });

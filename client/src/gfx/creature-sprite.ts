@@ -4,8 +4,8 @@ import type Phaser from "phaser";
 export const SPRITE_SIZE = 128;
 
 /**
- * Multiply a monster picture's scale by this, so a picture of any size (the drawing import
- * makes sharp 384 px ones) shows as big as a 128 px placeholder would.
+ * Multiply a monster picture's scale by this, so a picture of any size (a PNG dropped in by
+ * hand) shows as big as a 128 px placeholder would.
  */
 export function spriteFit(scene: Phaser.Scene, key: string): number {
   if (!scene.textures.exists(key)) return 1;

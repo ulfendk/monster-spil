@@ -12,12 +12,9 @@
     "build": "npm run build -w shared && npm run build -w client",
     "build:server": "npm run build -w server",
     "typecheck": "tsc -b",
-    "test": "npm run build -w shared && npm run build -w server && node --test \"shared/dist/**/*.test.js\" \"server/dist/**/*.test.js\"",
-    "add-creature": "node scripts/add-creature.mjs"
+    "test": "npm run build -w shared && npm run build -w server && node --test \"shared/dist/**/*.test.js\" \"server/dist/**/*.test.js\""
   },
   "devDependencies": {
-    "imagetracerjs": "^1.2.6",
-    "sharp": "^0.35.4",
     "typescript": "^7.0.2"
   }
 }

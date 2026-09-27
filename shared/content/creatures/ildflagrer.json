@@ -8,5 +8,6 @@
   "spriteBack": "creatures/ildflagrer_back.png",
   "sound": "creatures/ildflagrer.wav",
   "evolutions": ["Flammedrage"],
+  "ride": true,
   "catchRate": 0.4
 }

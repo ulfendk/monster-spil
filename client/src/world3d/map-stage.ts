@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { setMonsterEnvironment } from "../cave/monster-model";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
@@ -158,6 +159,7 @@ export class MapStage {
   view: MapView = { ...DEFAULT_VIEW };
 
   constructor(canvas: HTMLCanvasElement, source: MapSource) {
+    setMonsterEnvironment();
     this.source = source;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));

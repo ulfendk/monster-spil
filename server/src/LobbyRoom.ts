@@ -75,6 +75,7 @@ import type {
   DuelSession,
   LobbyJoinOptions,
   LobbyPlayer,
+  MountView,
   ServerMessages,
   TradeDelivery,
   TradeResult,
@@ -147,12 +148,25 @@ function cleanPosition(raw: unknown): WorldPosition | undefined {
   return { areaId: p.areaId, x: p.x, y: p.y };
 }
 
-/** A level (1–100) and badge ids (short slugs, at most 64) from a client, or nothing. */
-function cleanProfile(raw: unknown): { level?: number; badges?: string[] } {
-  const p = raw as { level?: unknown; badges?: unknown } | null;
+/** A level (1–100), badge ids (short slugs, at most 64) and the monster ridden, from a client, or nothing. */
+function cleanProfile(raw: unknown): { level?: number; badges?: string[]; mount?: MountView } {
+  const p = raw as { level?: unknown; badges?: unknown; mount?: unknown } | null;
   if (!p || typeof p !== "object" || !Number.isInteger(p.level) || (p.level as number) < 1 || (p.level as number) > 100) return {};
   const badges = Array.isArray(p.badges) ? p.badges.filter((b): b is string => typeof b === "string" && /^[a-z0-9-]{1,40}$/.test(b)).slice(0, 64) : [];
-  return { level: p.level as number, badges };
+  const mount = cleanMount(p.mount);
+  return { level: p.level as number, badges, ...(mount ? { mount } : {}) };
+}
+
+/** A ridden monster from a client: a species slug, maybe a variant slug and a stage 2–3. */
+function cleanMount(raw: unknown): MountView | undefined {
+  const m = raw as Partial<MountView> | null;
+  const slug = (v: unknown): v is string => typeof v === "string" && /^[a-z0-9-]{1,40}$/.test(v);
+  if (!m || typeof m !== "object" || !slug(m.speciesId)) return undefined;
+  return {
+    speciesId: m.speciesId,
+    ...(slug(m.variant) ? { variant: m.variant } : {}),
+    ...(m.stage === 2 || m.stage === 3 ? { stage: m.stage } : {}),
+  };
 }
 
 /** Rebuilds an offered creature from known fields only, so junk from a client never gets stored or forwarded. */
@@ -493,6 +507,7 @@ export class LobbyRoom extends Room {
       const profile = cleanProfile(msg);
       if (!me || !profile.level) return;
       Object.assign(me.info, profile);
+      if (!profile.mount) delete me.info.mount; // got off
       const stored = this.store.data.players[me.info.playerId];
       if (stored) stored.level = profile.level;
       this.store.changed();

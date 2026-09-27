@@ -24,8 +24,11 @@ export interface CreatureSpecies {
    */
   sound?: string;
   /** Base catch-rate modifier, 0-1 */
-  catchRate: number;  /** The names of its later evolution stages (none: it doesn't evolve). */
+  catchRate: number;
+  /** The names of its later evolution stages (none: it doesn't evolve). */
   evolutions?: string[];
+  /** Big enough to ride on the map (the player sits on its back). */
+  ride?: boolean;
 }
 
 /**

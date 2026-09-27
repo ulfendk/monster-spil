@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { BALL_START, HIT_RADIUS, aimToThrow, ballAt, createRng, hitPrecision, landingTime, type Rng, type Vec3 } from "@shared";
 import { KANAGAWA } from "../ui/theme";
-import { buildMonsterModel, type MonsterModel, type MonsterModelSpec } from "./monster-model";
+import { buildMonsterModel, setMonsterEnvironment, type MonsterModel, type MonsterModelSpec } from "./monster-model";
 
 /**
  * What every 3D throwing scene shares (three.js, loaded only when one opens): the camera,
@@ -93,6 +93,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
   onCry?: (speciesId: string) => void;
 
   constructor(canvas: HTMLCanvasElement, seed: number) {
+    setMonsterEnvironment(); // daylight (a cave dims it)
     this.rng = createRng(seed);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -290,6 +291,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
   }
 
   destroy(): void {
+    setMonsterEnvironment(); // back to daylight for the map
     cancelAnimationFrame(this.frame);
     this.scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -505,6 +507,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     const breath = Math.sin(time * 3 + m.wobble);
     m.sprite.scale.set(m.size * (1 - 0.025 * breath), m.size * (1 + 0.04 * breath), m.model ? m.size * (1 - 0.025 * breath) : 1);
     this.setTilt(m, this.sways(m) ? Math.sin(time * 0.9 + m.wobble) * 0.09 : 0);
+    m.model?.tick?.(time);
     if (m.model) {
       // A model turns to look at the camera (or at what it's facing), turning its head about a little.
       const target = m.lookAt?.() ?? this.camera.position;

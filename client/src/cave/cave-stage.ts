@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { setMonsterEnvironment } from "./monster-model";
 import type { CaveLook, Vec3 } from "@shared";
 import { KANAGAWA, kanagawaColour } from "../ui/theme";
 import { ThrowStage, type LivingMonster, type StageMonster } from "./throw-stage";
@@ -46,6 +47,8 @@ export class CaveStage extends ThrowStage<Monster> {
     rocks: Array<{ x: number; z: number }>
   ) {
     super(canvas, seed);
+    // Monsters in here are lit by the cave: dimmer, and tinted by its glow and the lantern.
+    setMonsterEnvironment(new THREE.Color(KANAGAWA.fujiWhite).lerp(new THREE.Color(kanagawaColour(look.glow[0], KANAGAWA.waveAqua2)), 0.3).lerp(new THREE.Color(KANAGAWA.surimiOrange), 0.12), 0.85);
     this.rocks = rocks.map((r) => ({ x: r.x, y: 0, z: r.z }));
     const fog = this.colour(look.fog, KANAGAWA.sumiInk0);
     this.scene.background = new THREE.Color(fog);
