@@ -1033,11 +1033,12 @@ BFS pathfinding if needed); on the ground it does nothing.
 **Meeting a wild monster is a choice.** When one turns up (tall grass, a disaster's zone, a
 monster peeking out, one dug up) it jumps out of the grass a tile ahead of me (`meetWild`: a
 map picture, so a 3D model on the 3D map, in its rare colours via the map hint `variant`) and
-cries; walking stops and a card shows its type and name with two buttons: the sword fights
-(`startWildBattle` with that very monster) and the runner leaves it be — it hops back into
-the grass, and the next `ENCOUNTER_REST_STEPS` (4) grass steps are quiet. Seeing it counts
-for the monster book either way. While the card is up, taps on the map and walking do
-nothing; if a menu closed the card, `update()` puts it back. The UFO's alien (tapped on
+cries; walking stops and a card shows its type and name with the sword: that (or tapping the
+monster) fights it (`startWildBattle` with that very monster). There's no leave button:
+walking on (a new drag — the finger that was walking had to lift) or tapping anywhere else
+leaves it be — it hops back into the grass, and the next `ENCOUNTER_REST_STEPS` (4) grass
+steps are quiet. Seeing it counts for the monster book either way. A finger put down on the
+map keeps the card up; if a menu closed it, `update()` puts it back. The UFO's alien (tapped on
 purpose) still starts its battle at once.
 
 **Forests can be walked through, slowly.** Trees are no longer in the areas' `collisionGids`;

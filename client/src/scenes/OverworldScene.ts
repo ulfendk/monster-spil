@@ -16,7 +16,7 @@ import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import { beastsById } from "../content/load-beasts";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, CAVE_ICON, FLEE_ICON, TYPE_ICONS, foodIcon } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, CAVE_ICON, TYPE_ICONS, foodIcon } from "../ui/icons";
 import { variantScale } from "../gfx/variants";
 import { spriteFit } from "../gfx/creature-sprite";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -292,7 +292,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.cameraMode) return this.cameraDown(pointer);
       if (this.drag) return; // one steering finger at a time
       if (this.isPassedOut()) return; // can't move (or meet anyone) while passed out
-      this.closePopup();
+      if (!this.encounter) this.closePopup(); // (a wild monster's card stays until I walk on or tap)
       this.pendingMeet = undefined;
       this.pendingPath = [];
       this.drag = { pointerId: pointer.id, ox: pointer.x, oy: pointer.y, x: pointer.x, y: pointer.y, moved: false };
@@ -913,9 +913,14 @@ export class OverworldScene extends Phaser.Scene {
 
   /** A tap (no drag): on another player or the dragon, meet them; on the ground, nothing. */
   private onTap(pointer: Phaser.Input.Pointer): void {
-    if (this.encounter) return; // answer the wild monster first
     const tile: TileCoord | undefined = this.map3d ? this.map3d.tileAt(pointer.x, pointer.y) : { x: Math.floor(pointer.worldX / TILE_SIZE), y: Math.floor(pointer.worldY / TILE_SIZE) };
     if (!tile) return;
+    if (this.encounter) {
+      // Tapping the wild monster fights it; tapping anywhere else, I'm moving on.
+      const m = this.encounter.monster;
+      if (tile.x === Math.floor(m.x / TILE_SIZE) && tile.y === Math.floor(m.y / TILE_SIZE)) return this.fightEncounter();
+      this.leaveEncounter();
+    }
     const tapped = this.playerAt(tile);
     if (tapped) return this.onTapPlayer(tapped);
     const link = linkAt(this.areaMeta, tile.x, tile.y);
@@ -942,7 +947,9 @@ export class OverworldScene extends Phaser.Scene {
   /** Starts the next step in the direction the finger points, unless one is already under way. */
   private stepFromDrag(): void {
     const drag = this.drag;
-    if (!drag?.moved || this.isMoving || this.encounter) return; // (a wild monster in front of me waits for my answer)
+    if (!drag?.moved || this.isMoving) return;
+    // Setting off again with a wild monster in front of me: I'm leaving it be.
+    if (this.encounter) this.leaveEncounter();
     // With the camera turned, "up the screen" is the way the camera faces, not north.
     const yaw = this.map3d?.yaw ?? 0;
     const sx = drag.x - drag.ox;
@@ -2129,8 +2136,9 @@ export class OverworldScene extends Phaser.Scene {
 
   /**
    * A wild monster jumps out of the grass in front of me (as its 3D model on the 3D map) and
-   * cries; walking stops, and a card asks: fight it (the sword) or leave it be (the runner)?
-   * Left be, it hops back into the grass, and a few steps go by before the next one.
+   * cries; walking stops, and a card offers the sword to fight it (so does tapping it). Walking
+   * on (or tapping elsewhere) leaves it be: it hops back into the grass, and a few steps go by
+   * before the next one.
    */
   private meetWild(species: CreatureSpecies): void {
     const wild = this.makeWild(species);
@@ -2163,7 +2171,6 @@ export class OverworldScene extends Phaser.Scene {
     if (!e) return;
     this.showPopup(`${ic(TYPE_ICONS[e.species.type])} ${nameWithVariant(e.species.navn, e.wild.variant)}`, [
       { label: ic("sword"), colour: C.danger, onTap: () => this.fightEncounter() },
-      { label: ic(FLEE_ICON), colour: C.buttonQuiet, onTap: () => this.leaveEncounter() },
     ]);
   }
 
