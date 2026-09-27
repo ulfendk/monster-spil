@@ -35,7 +35,7 @@ clients, but **not yet on real iPads**. See "PvP duels (Milestone 3)" below.
 Since then: a shared 160×120 world where players see each other, a weekly family
 dragon raid, visiting sand serpents and giant eagles, caves with a 3D ball-throwing
 minigame, player levels and badges, a weekly scoreboard, an overview map, save backups,
-a parent's admin portal and several games per server (sections below). Ideas not yet scheduled live
+a parent's admin portal and several games per server, monsters that evolve, and a castle with a picture quest in every world (sections below). Ideas not yet scheduled live
 in `docs/backlog.md`.
 
 ## Monorepo layout
@@ -342,6 +342,29 @@ games" — with no schema state: plain messages typed in
   and Klap / Fodr / Leg / Udvikl (when ready: it spins in a burst of light into its next stage)
   / Kæmper (makes it the monster that fights first). Evolving gives XP, the badge Monsterven
   and, at 10, a trophy.
+
+## Castles and their picture quests
+
+- **One castle per world** (`shared/content/castles.json`: name, quest, three guardians
+  `{speciesId, stage}`, rewards `{eggs, items, xp}`); where it stands is `castle {x, y}` in
+  the world's `.meta.json`, written by `scripts/place-castles.mjs` (open ground with open
+  ground all round, reachable, off roads, away from the start and the links). The tile is
+  blocked; the map draws the `castle` icon, which the 3D map shows as a castle model
+  (`food-models.ts`, in `STILL_MODELS` so it doesn't bob or turn).
+- **The key is a quest told in pictures:** find e.g. three lanterns and two bells
+  (`lantern`, `bell`, `fan`, `shell` and `crystal` icons, with 3D models) lying about that
+  world. `questSpots` (pure, tested, `shared/src/world/castles.ts`) seeds them from the world
+  id over the map *as first drawn* (`baseOpen`, taken before disasters are applied), so they
+  never move; a spot a disaster blocked is shown on the nearest free tile. The chip over the
+  castle shows each thing with ● found / ○ still missing, then 🔑 ✓; they're on the overview
+  map too (`MinimapDot.icon`). Progress is `SaveData.castles[worldId] = {found, beaten, done}`.
+- **Inside** (`CastleScene`, entered with the key from the castle's popup): three gates, a
+  sword on the next one. A guardian is a wild battle at its stage (`BattleSceneData.castle`,
+  scene `borg`, no catching; potions allowed). Winning goes back to the gates (`beaten`+1,
+  event `guardian`); a beaten guardian stays beaten; fainting means passing out on the map.
+  All three beaten opens the chest: eggs (as many as the nest holds), items (past the usual
+  bag limit), XP (event `castle`), and the last guardian's kind joins you in rare colours.
+  Badges `borgvogter`, `borgherre`; trophy `trofae-borge` (all four castles).
 
 ## Trophies and monster eggs
 

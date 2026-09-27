@@ -193,3 +193,5 @@ export { eggProgress, nestHasRoom, newEgg, walkEggs } from "./creature/eggs.js";
 export type { Egg, EggConfig } from "./creature/eggs.js";
 export { bondForNext, bondFromWin, canEvolve, care, evolve, stageCount, stageName, stageOf, stageStats } from "./creature/evolution.js";
 export type { CareKind, NurtureConfig } from "./creature/evolution.js";
+export { hasKey, questSpots, questState } from "./world/castles.js";
+export type { CastleConfig, CastleDef, CastleProgress, QuestSpot } from "./world/castles.js";

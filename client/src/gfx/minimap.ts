@@ -12,6 +12,8 @@ export interface MinimapDot {
   colour: number;
   /** Drawn bigger with a white ring (me), or as its icon (the dragon, a sand serpent, a giant eagle). */
   kind?: "me" | BossMarker;
+  /** Drawn as this icon instead (the castle, its quest things). */
+  icon?: string;
   dim?: boolean;
 }
 
@@ -50,6 +52,8 @@ export class Minimap {
   private dots?: Phaser.GameObjects.Graphics;
   /** One icon per boss kind; beasts of one kind are never on the map twice at once. */
   private markers?: Record<BossMarker, Phaser.GameObjects.Image>;
+  /** Images for the icon dots, made as needed and reused frame to frame. */
+  private iconPool: Phaser.GameObjects.Image[] = [];
   private scale = 1;
   private origin = { x: 0, y: 0 };
 
@@ -140,6 +144,7 @@ export class Minimap {
     this.objects = [];
     this.image = this.dots = undefined;
     this.markers = undefined;
+    this.iconPool = [];
   }
 
   /** After a rotation: lay the open map out again for the new screen size. */
@@ -152,6 +157,7 @@ export class Minimap {
     if (!this.dots || !this.markers) return;
     const s = this.scale;
     const g = this.dots.clear();
+    for (const image of this.iconPool) image.setVisible(false);
     const px = (tile: number) => tile * s + s / 2;
     g.lineStyle(2, C.border, 0.9).strokeRect(
       this.origin.x + (view.x / tileSize) * s,
@@ -161,9 +167,21 @@ export class Minimap {
     );
     const r = Math.max(4, s * 1.2);
     for (const m of Object.values(this.markers)) m.setVisible(false);
+    let pooled = 0;
     for (const d of dots) {
       const x = this.origin.x + px(d.x);
       const y = this.origin.y + px(d.y);
+      if (d.icon) {
+        let image = this.iconPool[pooled];
+        if (!image) {
+          image = addIcon(this.scene, 0, 0, d.icon, 24).setScrollFactor(0).setDepth(DEPTH);
+          this.iconPool.push(image);
+          this.objects.push(image);
+        }
+        pooled++;
+        image.setTexture(`icon-${d.icon}`).setPosition(x, y).setDisplaySize(r * 4, r * 4).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
+        continue;
+      }
       if (d.kind && d.kind !== "me") {
         this.markers[d.kind].setPosition(x, y).setDisplaySize(r * 5, r * 5).setAlpha(d.dim ? 0.5 : 1).setVisible(true);
         continue;

@@ -1,0 +1,32 @@
+{
+  "castles": [
+    {
+      "worldId": "startskoven",
+      "navn": "Skovborgen",
+      "quest": [{ "icon": "lantern", "count": 3 }, { "icon": "bell", "count": 2 }],
+      "guardians": [{ "speciesId": "stenbid", "stage": 2 }, { "speciesId": "kulsnude", "stage": 2 }, { "speciesId": "mosbjoern", "stage": 2 }],
+      "rewards": { "eggs": 1, "items": { "styrkedrik": 2, "helbredsdrik": 2 }, "xp": 150 }
+    },
+    {
+      "worldId": "kirsebaeroeen",
+      "navn": "Kirsebærborgen",
+      "quest": [{ "icon": "fan", "count": 3 }, { "icon": "shell", "count": 2 }],
+      "guardians": [{ "speciesId": "blomsterbasse", "stage": 2 }, { "speciesId": "svanefjer", "stage": 2 }, { "speciesId": "kloeverhop", "stage": 2 }],
+      "rewards": { "eggs": 1, "items": { "sigtefjer": 2, "lykkekloever": 1 }, "xp": 200 }
+    },
+    {
+      "worldId": "snedalen",
+      "navn": "Isborgen",
+      "quest": [{ "icon": "crystal", "count": 3 }, { "icon": "lantern", "count": 2 }],
+      "guardians": [{ "speciesId": "snefnug", "stage": 2 }, { "speciesId": "granitgnom", "stage": 2 }, { "speciesId": "snetrold", "stage": 2 }],
+      "rewards": { "eggs": 2, "items": { "styrkedrik": 2, "sigtefjer": 2 }, "xp": 250 }
+    },
+    {
+      "worldId": "ildbjerget",
+      "navn": "Ildborgen",
+      "quest": [{ "icon": "bell", "count": 3 }, { "icon": "fan", "count": 2 }],
+      "guardians": [{ "speciesId": "magmamus", "stage": 3 }, { "speciesId": "gloedsalamander", "stage": 3 }, { "speciesId": "lavasnegl", "stage": 2 }],
+      "rewards": { "eggs": 2, "items": { "lykkekloever": 2, "helbredsdrik": 3 }, "xp": 350 }
+    }
+  ]
+}

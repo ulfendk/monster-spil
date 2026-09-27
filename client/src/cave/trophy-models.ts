@@ -112,6 +112,19 @@ function model(kind: TrophyKind): THREE.BufferGeometry {
     star.center();
     star.translate(0, 0.46, 0);
     add(star);
+  } else if (kind === "castle") {
+    const wall = new THREE.BoxGeometry(0.34, 0.16, 0.24);
+    wall.translate(0, 0.24, 0);
+    add(wall, KANAGAWA.fujiWhite);
+    for (const [w, h, y] of [[0.52, 0.12, 0.32], [0.36, 0.14, 0.5]] as const) {
+      const roof = new THREE.ConeGeometry(w * 0.72, h, 4);
+      roof.rotateY(Math.PI / 4);
+      roof.translate(0, y + h / 2, 0);
+      add(roof);
+    }
+    const top = new THREE.BoxGeometry(0.2, 0.12, 0.16);
+    top.translate(0, 0.45, 0);
+    add(top, KANAGAWA.fujiWhite);
   } else {
     const gem = new THREE.OctahedronGeometry(0.2, 0);
     gem.scale(1, 1.3, 1);

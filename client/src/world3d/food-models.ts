@@ -9,7 +9,9 @@ import { KANAGAWA } from "../ui/theme";
  * Map3D uses one in place of a food icon (`icon-apple`, …) standing on the map.
  */
 
-export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover", "egg"] as const;
+export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover", "egg", "lantern", "bell", "fan", "shell", "crystal", "castle"] as const;
+/** Models that stand still (no bobbing or turning): the castle. */
+export const STILL_MODELS: ReadonlySet<string> = new Set(["castle"]);
 export type FoodModelIcon = (typeof FOOD_MODEL_ICONS)[number];
 
 let gradient: THREE.DataTexture | undefined;
@@ -202,6 +204,136 @@ function egg(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
+/** A red paper lantern with black bands and a glow. */
+function lantern(): THREE.BufferGeometry {
+  const body = new THREE.SphereGeometry(0.15, 14, 10);
+  body.scale(1, 1.25, 1);
+  body.translate(0, 0.26, 0);
+  const parts = [coloured(body, KANAGAWA.autumnRed)];
+  for (const y of [0.1, 0.42]) {
+    const cap = new THREE.CylinderGeometry(0.08, 0.08, 0.04, 12);
+    cap.translate(0, y, 0);
+    parts.push(coloured(cap, KANAGAWA.sumiInk3));
+  }
+  for (const y of [0.2, 0.32]) {
+    const band = new THREE.TorusGeometry(0.145, 0.01, 4, 16);
+    band.rotateX(Math.PI / 2);
+    band.translate(0, y, 0);
+    parts.push(coloured(band, KANAGAWA.samuraiRed));
+  }
+  return mergeGeometries(parts)!;
+}
+
+/** A golden temple bell on a red cord. */
+function bell(): THREE.BufferGeometry {
+  const body = new THREE.LatheGeometry([new THREE.Vector2(0.01, 0.4), new THREE.Vector2(0.09, 0.38), new THREE.Vector2(0.12, 0.28), new THREE.Vector2(0.14, 0.14), new THREE.Vector2(0.19, 0.06), new THREE.Vector2(0.17, 0.05)], 16);
+  const clapper = new THREE.SphereGeometry(0.04, 8, 6);
+  clapper.translate(0, 0.04, 0);
+  const cord = new THREE.TorusGeometry(0.04, 0.012, 4, 10);
+  cord.translate(0, 0.44, 0);
+  return mergeGeometries([coloured(body, KANAGAWA.carpYellow), coloured(clapper, KANAGAWA.boatYellow2), coloured(cord, KANAGAWA.autumnRed)])!;
+}
+
+/** A thin upright slab shaped like a slice of a disc (a fan, a shell): angles measured from straight up. */
+function slab(radius: number, thickness: number, from: number, to: number, ridges = 0): THREE.BufferGeometry {
+  // A cylinder slice, turned so its axis points at the camera side (z) and the slice stands upright.
+  const g = new THREE.CylinderGeometry(radius, radius, thickness, 24, 1, false, Math.PI + from, to - from);
+  g.rotateX(Math.PI / 2);
+  if (ridges > 0) {
+    const pos = g.attributes.position!;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const r = Math.hypot(x, y);
+      if (r < radius * 0.5) continue;
+      const k = 1 + 0.06 * Math.cos(Math.atan2(y, x) * ridges);
+      pos.setX(i, x * k);
+      pos.setY(i, y * k);
+    }
+    g.computeVertexNormals();
+  }
+  return g;
+}
+
+/** An open folding fan, standing up. */
+function fan(): THREE.BufferGeometry {
+  const paper = slab(0.32, 0.02, -1.1, 1.1);
+  paper.translate(0, 0.06, 0);
+  const inner = slab(0.13, 0.03, -1.1, 1.1);
+  inner.translate(0, 0.06, 0);
+  const pin = new THREE.SphereGeometry(0.03, 8, 6);
+  pin.translate(0, 0.06, 0.02);
+  return mergeGeometries([coloured(paper, KANAGAWA.crystalBlue), coloured(inner, KANAGAWA.boatYellow1), coloured(pin, KANAGAWA.autumnRed)])!;
+}
+
+/** A pink scallop shell, standing on its hinge. */
+function shell(): THREE.BufferGeometry {
+  const body = slab(0.24, 0.06, -1.45, 1.45, 14);
+  body.translate(0, 0.05, 0);
+  const hinge = new THREE.BoxGeometry(0.12, 0.06, 0.07);
+  hinge.translate(0, 0.03, 0);
+  return mergeGeometries([coloured(body, KANAGAWA.sakuraPink), coloured(hinge, KANAGAWA.peachRed)])!;
+}
+
+/** A cluster of blue crystals. */
+function crystal(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const [x, z, h, tilt, colour] of [[0, 0, 0.42, 0, KANAGAWA.springBlue], [-0.12, 0.03, 0.26, 0.4, KANAGAWA.crystalBlue], [0.12, -0.02, 0.3, -0.35, KANAGAWA.crystalBlue], [0.02, 0.1, 0.2, 0.2, KANAGAWA.waveAqua2]] as const) {
+    const c = new THREE.OctahedronGeometry(0.07, 0);
+    c.scale(1, h / 0.14, 1);
+    c.translate(0, h / 2, 0);
+    c.rotateZ(tilt);
+    c.translate(x, 0, z);
+    parts.push(coloured(c, colour));
+  }
+  return mergeGeometries(parts)!;
+}
+
+/** A four-sided Japanese roof, eaves flaring out. */
+function roof(width: number, height: number, y: number): THREE.BufferGeometry {
+  const r = new THREE.ConeGeometry(width * 0.72, height, 4, 1);
+  r.rotateY(Math.PI / 4);
+  r.scale(1, 1, 0.85);
+  r.translate(0, y + height / 2, 0);
+  return r;
+}
+
+/** A Japanese castle: a sloping stone base, three tiers of white walls under blue-grey roofs, gold tips. */
+function castle(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const base = new THREE.CylinderGeometry(0.2, 0.27, 0.16, 4, 1);
+  base.rotateY(Math.PI / 4);
+  base.translate(0, 0.08, 0);
+  parts.push(coloured(base, KANAGAWA.katanaGray));
+  // Tiers, bottom to top: [wall width, wall height, depth].
+  let y = 0.16;
+  const tiers = [[0.28, 0.16, 0.24], [0.2, 0.13, 0.17], [0.13, 0.11, 0.11]] as const;
+  tiers.forEach(([w, h, d], i) => {
+    const wall = new THREE.BoxGeometry(w, h, d);
+    wall.translate(0, y + h / 2, 0);
+    parts.push(coloured(wall, KANAGAWA.fujiWhite));
+    // Windows on the front (south, +z): dark slits.
+    for (const x of i === 2 ? [0] : [-w * 0.25, w * 0.25]) {
+      const win = new THREE.BoxGeometry(0.025, h * 0.35, 0.01);
+      win.translate(x, y + h * 0.5, d / 2 + 0.005);
+      parts.push(coloured(win, KANAGAWA.sumiInk0));
+    }
+    const roofH = 0.07 + i * 0.015;
+    parts.push(coloured(roof(w + 0.14, roofH, y + h - 0.02), KANAGAWA.waveBlue2));
+    y += h + roofH - 0.04;
+  });
+  const gate = new THREE.BoxGeometry(0.07, 0.1, 0.01);
+  gate.translate(0, 0.05, 0.27 * 0.72 + 0.005);
+  parts.push(coloured(gate, KANAGAWA.sumiInk0));
+  // The golden fish (shachihoko) on the ridge.
+  for (const x of [-0.05, 0.05]) {
+    const fish = new THREE.ConeGeometry(0.02, 0.07, 5);
+    fish.translate(x, y + 0.06, 0);
+    parts.push(coloured(fish, KANAGAWA.carpYellow));
+  }
+  return mergeGeometries(parts)!;
+}
+
 const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
   apple,
   strawberry,
@@ -213,6 +345,12 @@ const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
   feather,
   clover,
   egg,
+  lantern,
+  bell,
+  fan,
+  shell,
+  crystal,
+  castle,
 };
 const cache = new Map<FoodModelIcon, THREE.BufferGeometry>();
 let material: THREE.MeshToonMaterial | undefined;

@@ -25,7 +25,7 @@ const contentDir = (sub: string) => fileURLToPath(new URL(`../content/${sub}`, i
  * map plus its `.meta.json` sidecar). Like the bosses, this is read at runtime; the
  * Dockerfile copies the folder into the image. `fixed` are the dragons' home lairs, the
  * starting point for tiles disasters must leave alone (the room replaces it with where
- * the dragon really sits now, since it flies about).
+ * the dragon really sits now, since it flies about). A world's castle is fixed too.
  */
 export async function loadAreas(fixed: Array<{ areaId: string; x: number; y: number }> = []): Promise<ServerArea[]> {
   const dir = contentDir("areas/");
@@ -37,6 +37,12 @@ export async function loadAreas(fixed: Array<{ areaId: string; x: number; y: num
     const ground = map.layers.find((l) => l.name === meta.collisionLayer)?.data ?? [];
     const grass = map.layers.find((l) => l.name === meta.encounterZoneLayer)?.data ?? [];
     const mine = fixed.filter((b) => b.areaId === meta.id).map(({ x, y }) => ({ x, y }));
+    // The world's castle: to the server a tile that blocks (a tree, so no food, perch, beast or
+    // cave goes there) and never changes.
+    if (meta.castle && meta.terrain) {
+      ground[meta.castle.y * map.width + meta.castle.x] = meta.terrain.tree;
+      mine.push({ ...meta.castle });
+    }
     const spots: ServerArea["spots"] = [];
     ground.forEach((gid, i) => {
       const x = i % map.width;

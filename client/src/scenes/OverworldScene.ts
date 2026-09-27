@@ -41,6 +41,9 @@ import { myLevel, nextCelebration, progressEvents, type Celebration } from "../p
 import type { ProfileSceneData } from "./ProfileScene";
 import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
 import { eggConfig } from "../content/load-eggs";
+import { castleFor, castleProgress } from "../content/load-castles";
+import { hasKey, questSpots, questState, type CastleDef, type QuestSpot } from "@shared";
+import type { CastleSceneData } from "./CastleScene";
 import { itemById, itemConfig } from "../content/load-items";
 import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
@@ -78,6 +81,7 @@ const DRAGON_MEET = "__dragon__";
 const BEAST_MEET = "__beast__:";
 /** `pendingMeet` prefix meaning "I'm walking over to this cave". */
 const CAVE_MEET = "__cave__:";
+const CASTLE_MEET = "__castle__";
 /** `pendingMeet` prefix meaning "I'm walking over to work on this tile" (a tree, water, a mountain). */
 const WORK_MEET = "__work__:";
 
@@ -201,6 +205,7 @@ export class OverworldScene extends Phaser.Scene {
     this.groundLayer = groundLayer;
     this.grassLayer = grassLayer;
     this.groundLayer.setCollision(area.meta.collisionGids);
+    this.baseOpen = this.openTiles(); // before disasters change the map: the castle's quest things lie on the map as first drawn
     // The map as natural disasters have left it (the last known state, until the server says more).
     this.world = new WorldLayer(this, this.map, groundLayer, grassLayer, TILE_SIZE, (id) => this.content.speciesById[id]?.spriteFront);
     this.world.apply(presence.terrain.get(area.meta.id));
@@ -348,6 +353,7 @@ export class OverworldScene extends Phaser.Scene {
     this.drawLinks();
     this.itemSprites = new Map();
     this.drawItems();
+    this.drawCastle();
     if (this.arrived) {
       this.cameras.main.fadeIn(450, 22, 22, 29);
       const world = worldById(worldConfig, this.areaMeta.id);
@@ -677,14 +683,7 @@ export class OverworldScene extends Phaser.Scene {
     this.itemSprites.clear();
     const day = itemDay(new Date());
     const taken = this.save.itemsTaken?.day === day ? new Set(this.save.itemsTaken.keys) : new Set<string>();
-    const ids = this.areaMeta.terrain;
-    const open: TileCoord[] = [];
-    for (let y = 1; y < this.map.height - 1; y++) {
-      for (let x = 1; x < this.map.width - 1; x++) {
-        const g = this.groundLayer.getTileAt(x, y)?.index;
-        if ((g === (ids?.ground ?? 1) || g === ids?.path || g === ids?.sand) && !this.grassLayer.getTileAt(x, y)) open.push({ x, y });
-      }
-    }
+    const open = this.openTiles();
     // (From the map as drawn: a changed tile — a crater, a hole — may move an item a little. Fine.)
     for (const spot of itemSpots(itemConfig, this.areaMeta.id, day, open)) {
       if (taken.has(spot.key)) continue;
@@ -699,6 +698,121 @@ export class OverworldScene extends Phaser.Scene {
       const c = this.tileCentre(egg);
       this.itemSprites.set(egg.key, { spot: { ...egg, itemId: EGG_ITEM }, sprite: addIcon(this, c.x, c.y, "egg", 40).setDepth(3) });
     }
+  }
+
+  /** Open ground, paths and sand without tall grass (not the castle's tile): where things can lie. */
+  private openTiles(): TileCoord[] {
+    const ids = this.areaMeta.terrain;
+    const castle = this.areaMeta.castle;
+    const open: TileCoord[] = [];
+    for (let y = 1; y < this.map.height - 1; y++) {
+      for (let x = 1; x < this.map.width - 1; x++) {
+        if (castle && castle.x === x && castle.y === y) continue;
+        const g = this.groundLayer.getTileAt(x, y)?.index;
+        if ((g === (ids?.ground ?? 1) || g === ids?.path || g === ids?.sand) && !this.grassLayer.getTileAt(x, y)) open.push({ x, y });
+      }
+    }
+    return open;
+  }
+
+  // ------------------------------------------------------------ the castle and its quest
+
+  private baseOpen: TileCoord[] = [];
+  private questSprites = new Map<string, { spot: QuestSpot; sprite: Phaser.GameObjects.Image }>();
+  private castleChip?: Phaser.GameObjects.GameObject;
+
+  /** This world's castle and the quest things still lying about (always in the same places). */
+  private drawCastle(): void {
+    this.questSprites = new Map();
+    const castle = castleFor(this.areaMeta.id);
+    const at = this.areaMeta.castle;
+    if (!castle || !at) return;
+    const c = this.tileCentre(at);
+    addIcon(this, c.x, c.y - TILE_SIZE * 0.3, "castle", TILE_SIZE * 2.2).setDepth(3.5);
+    const found = new Set(castleProgress(this.save, castle.worldId).found);
+    for (const spot of questSpots(castle, this.baseOpen)) {
+      if (found.has(spot.key)) continue;
+      // A disaster may have left something blocking on its spot (a crater stays): it lies next to it instead.
+      if (!this.isWalkable(spot.x, spot.y)) Object.assign(spot, this.nearestFree(spot));
+      const p = this.tileCentre(spot);
+      const sprite = addIcon(this, p.x, p.y, spot.icon, 44).setDepth(3);
+      // A little glint now and then, so they stand out from food and potions.
+      this.tweens.add({ targets: sprite, scale: sprite.scale * 1.15, duration: 500, yoyo: true, repeat: -1, repeatDelay: 1400, ease: "Sine.inOut" });
+      this.questSprites.set(spot.key, { spot, sprite });
+    }
+    this.drawCastleChip(castle);
+  }
+
+  /** Over the castle: what its key needs, in pictures and dots (● found, ○ still to find) — or the key. */
+  private drawCastleChip(castle: CastleDef): void {
+    this.castleChip?.destroy();
+    const at = this.areaMeta.castle!;
+    const c = this.tileCentre(at);
+    const chip = richChip(this, c.x, c.y - TILE_SIZE * 2.2, this.questLabel(castle), { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(7);
+    setMapHint(chip, { dy: TILE_SIZE * 2.2, lift: 3.2 });
+    this.castleChip = chip;
+  }
+
+  private questLabel(castle: CastleDef): string {
+    const progress = castleProgress(this.save, castle.worldId);
+    if (progress.done) return `${ic("castle")} ${ic("chest")} ✓`;
+    const spots = questSpots(castle, this.baseOpen);
+    if (hasKey(castle, spots, progress.found)) return `${ic("castle")} ${ic("key")} ✓`;
+    return `${ic("castle")} ${questState(castle, spots, progress.found)
+      .map((q) => `${ic(q.icon)}${"●".repeat(q.found)}${"○".repeat(Math.max(0, q.count - q.found))}`)
+      .join(" ")}`;
+  }
+
+  /** Stepped onto one of the castle's quest things: picked up; the last one gives the key. */
+  private pickUpQuest(tile: TileCoord): void {
+    const castle = castleFor(this.areaMeta.id);
+    if (!castle) return;
+    for (const [key, { spot, sprite }] of this.questSprites) {
+      if (spot.x !== tile.x || spot.y !== tile.y) continue;
+      const progress = castleProgress(this.save, castle.worldId);
+      if (!progress.found.includes(key)) progress.found.push(key);
+      this.questSprites.delete(key);
+      this.tweens.killTweensOf(sprite);
+      this.tweens.add({ targets: sprite, y: sprite.y - TILE_SIZE, alpha: 0, scale: sprite.scale * 1.6, duration: 600, ease: "Quad.easeOut", onComplete: () => sprite.destroy() });
+      void persist();
+      this.drawCastleChip(castle);
+      const spots = questSpots(castle, this.baseOpen);
+      if (hasKey(castle, spots, progress.found)) {
+        this.cameras.main.flash(250, 240, 220, 150);
+        this.showToast(`${ic("key")} ${t("castle_key")} ${ic("castle")}`, 3500);
+      } else {
+        const q = questState(castle, spots, progress.found).find((s) => s.icon === spot.icon)!;
+        this.showToast(`${ic(spot.icon)} ${"●".repeat(q.found)}${"○".repeat(Math.max(0, q.count - q.found))}`, 2200);
+      }
+      return;
+    }
+  }
+
+  /** The castle: next to it, the quest in pictures — or, with the key, go in. Further away: walk over. */
+  private onTapCastle(): void {
+    const castle = castleFor(this.areaMeta.id);
+    const at = this.areaMeta.castle;
+    if (!castle || !at) return;
+    if (!isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, ...at })) return this.walkNextTo(at, CASTLE_MEET);
+    const progress = castleProgress(this.save, castle.worldId);
+    if (!hasKey(castle, questSpots(castle, this.baseOpen), progress.found)) {
+      return this.showPopup(this.questLabel(castle), [{ label: "✕", colour: C.buttonQuiet, onTap: () => {} }]);
+    }
+    this.showPopup(`${ic("castle")} ${castle.navn}`, [
+      { label: ic("key"), colour: C.ok, onTap: () => this.enterCastle(castle) },
+      { label: "✕", colour: C.buttonQuiet, onTap: () => {} },
+    ]);
+  }
+
+  private enterCastle(castle: CastleDef): void {
+    if (this.save.passedOutUntil) return;
+    this.savePosition();
+    if (multiplayerEnabled) presence.setAway(true); // nobody can invite me while I'm inside
+    this.closePopup();
+    this.pendingPath = [];
+    const data: CastleSceneData = { save: this.save, content: this.content, worldId: castle.worldId };
+    this.cameras.main.fadeOut(350, 22, 22, 29);
+    this.time.delayedCall(360, () => this.scene.start("Castle", data));
   }
 
   /** Finds a monster egg: into the nest, if there's room. Returns whether it was kept. */
@@ -803,6 +917,9 @@ export class OverworldScene extends Phaser.Scene {
     if (beast) return this.onTapBeast(beast);
     const cave = this.caves.caveAt(tile.x, tile.y);
     if (cave) return this.onTapCave(cave);
+    // The castle (it stands tall: a tap just above its tile counts too).
+    const at = this.areaMeta.castle;
+    if (at && tile.x === at.x && (tile.y === at.y || tile.y === at.y - 1)) return this.onTapCastle();
     const spawn = this.world.spawnAt(tile.x, tile.y);
     if (spawn) return this.onTapSpawn(spawn.id, tile);
     const work = this.workAt(tile);
@@ -938,6 +1055,9 @@ export class OverworldScene extends Phaser.Scene {
     if (boss) dots.push({ x: boss.lair.x, y: boss.lair.y, colour: 0, kind: "dragon", dim: presence.raid?.defeated });
     for (const { view, def } of this.beasts.views()) dots.push({ x: view.x, y: view.y, colour: 0, kind: BEAST_ICONS[def.habitat] });
     for (const cave of this.caves.views()) dots.push({ x: cave.x, y: cave.y, colour: 0, kind: "cave" });
+    // The castle and the quest things still to find: a treasure map.
+    if (this.areaMeta.castle) dots.push({ ...this.areaMeta.castle, colour: 0, icon: "castle" });
+    for (const { spot } of this.questSprites.values()) dots.push({ x: spot.x, y: spot.y, colour: 0, icon: spot.icon });
     // My dot follows the sprite while it walks, not just the tile it left.
     dots.push({
       x: (this.player.x - TILE_SIZE / 2) / TILE_SIZE,
@@ -1790,6 +1910,7 @@ export class OverworldScene extends Phaser.Scene {
     if (boss && boss.lair.x === x && boss.lair.y === y) return false; // nobody walks through the dragon
     if (this.beasts?.blocks(x, y)) return false; // nor through a visiting beast
     if (this.world?.spawnAt(x, y)) return false; // nor through the UFO's alien
+    if (this.areaMeta.castle?.x === x && this.areaMeta.castle.y === y) return false; // nor into the castle's walls
     const tile = this.groundLayer.getTileAt(x, y);
     return !!tile && !tile.collides;
   }
@@ -1855,6 +1976,7 @@ export class OverworldScene extends Phaser.Scene {
         this.isMoving = false;
         this.positionDirty = true;
         this.pickUpFood(next);
+        this.pickUpQuest(next);
         this.pickUpItem(next);
         this.warmEggs();
         // Walked onto a dock, a tunnel mouth or a bridge: stop, and offer the trip.
@@ -1893,6 +2015,9 @@ export class OverworldScene extends Phaser.Scene {
             const [work, where] = meet.slice(WORK_MEET.length).split(":") as [LandWork, string];
             const [x, y] = where.split(",").map(Number) as [number, number];
             if (isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, x, y })) this.onTapWork(work, { x, y });
+          } else if (meet === CASTLE_MEET) {
+            const at = this.areaMeta.castle;
+            if (at && isAdjacent(this.myPosition(), { areaId: this.save.position.areaId, ...at })) this.onTapCastle();
           } else if (meet.startsWith(CAVE_MEET)) {
             const cave = presence.caves.find((c) => c.id === meet.slice(CAVE_MEET.length));
             if (cave && isAdjacent(this.myPosition(), cave)) this.onTapCave(cave);

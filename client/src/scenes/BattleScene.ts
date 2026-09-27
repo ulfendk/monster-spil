@@ -32,6 +32,7 @@ import { faceFrameKey, placeholderSpec } from "../gfx/placeholder-sprites";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { passOut, persist } from "../save/game-state";
+import { castleProgress } from "../content/load-castles";
 import { createButton } from "../ui/Button";
 import { createHpBar } from "../ui/HpBar";
 import type { HpBarHandle } from "../ui/HpBar";
@@ -91,6 +92,8 @@ export interface BattleSceneData {
   duel?: DuelSceneData;
   raid?: RaidSceneData;
   team?: TeamSceneData;
+  /** A castle's guardian (a wild battle without catching): back to the castle afterwards. */
+  castle?: { worldId: string };
 }
 
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -663,7 +666,7 @@ export class BattleScene extends Phaser.Scene {
     const layout = getLayout(this);
     const player = this.me();
     const grid = this.buttonGrid();
-    const canCatch = !this.duel && !this.raid && !this.team; // you can't catch another player's monster, or the dragon
+    const canCatch = !this.duel && !this.raid && !this.team && !this.battleData.castle; // you can't catch another player's monster, the dragon or a guardian
     const actions: Array<{ label: string; icon: string; colour: number; onTap: () => void }> = Object.keys(player.moves).map((moveId) => {
       const move = player.moves[moveId]!;
       return { label: move.navn, icon: TYPE_ICONS[move.type], colour: TYPE_COLOURS[move.type], onTap: () => this.performTurn({ kind: "move", moveId }) };
@@ -1063,8 +1066,15 @@ export class BattleScene extends Phaser.Scene {
         this.battleState.outcome === "lost" ? player.species.baseStats.hp : player.active.currentHp;
     }
 
+    const castle = this.battleData.castle;
+    if (castle && this.battleState.outcome === "won") {
+      // A guardian beaten stays beaten; the next gate opens.
+      const progress = castleProgress(this.battleData.save, castle.worldId);
+      progress.beaten += 1;
+      recordProgress({ kind: "guardian" }, true);
+    }
     if (this.battleState.outcome === "won") {
-      recordProgress({ kind: "wildWin" }, true);
+      if (!castle) recordProgress({ kind: "wildWin" }, true);
       // Winning together grows my monster's bond.
       const index = this.battleData.save.creatures.findIndex((c) => c.instanceId === player.active.instanceId);
       if (index >= 0) this.battleData.save.creatures[index] = bondFromWin(this.battleData.save.creatures[index]!, nurtureConfig);
@@ -1085,6 +1095,11 @@ export class BattleScene extends Phaser.Scene {
     void persist().then(() => presence.flushScore());
     // Caught: it's mine and gone for everyone. Otherwise it waits for the next one to try.
     if (this.battleData.spawnId) presence.send("spawnDone", { spawnId: this.battleData.spawnId, caught: this.battleState.outcome === "caught" });
+    // From a castle: back to its gates — unless my monster fainted (then I pass out on the map).
+    if (castle && this.battleState.outcome !== "lost") {
+      this.scene.start("Castle", { save: this.battleData.save, content: this.battleData.content, worldId: castle.worldId });
+      return;
+    }
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
   }

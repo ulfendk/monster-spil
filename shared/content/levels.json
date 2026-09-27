@@ -21,7 +21,8 @@
     "newWorld": 60,
     "item": 4,
     "hatch": 30,
-    "evolve": 40
+    "evolve": 40,
+    "guardian": 30
   },
   "titles": [
     { "level": 1, "navn": "Nybegynder" },

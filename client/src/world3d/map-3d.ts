@@ -4,7 +4,7 @@ import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } fr
 import { mapHint } from "../gfx/map-hints";
 import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
-import { buildFoodModel, foodModelFor, type FoodModelIcon } from "./food-models";
+import { buildFoodModel, foodModelFor, STILL_MODELS, type FoodModelIcon } from "./food-models";
 import { buildAvatarModel, type AvatarModel } from "./avatar-model";
 import { PeekLayer } from "./peeks";
 import type { AreaLook3d } from "@shared";
@@ -377,9 +377,10 @@ export class Map3D {
       const t = performance.now() / 1000;
       const phase = (cx * 0.37 + cy * 0.21) % 6.28;
       m.object.visible = visible;
-      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T) + 0.03 + Math.max(0, Math.sin(t * 2 + phase)) * 0.05, cy / T);
+      const still = STILL_MODELS.has(m.food);
+      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T) + 0.03 + (still ? 0 : Math.max(0, Math.sin(t * 2 + phase)) * 0.05), cy / T);
       m.object.scale.setScalar((w / T) * 1.6);
-      m.object.rotation.set(0, t * 0.8 + phase, 0);
+      m.object.rotation.set(0, still ? 0 : t * 0.8 + phase, 0);
       this.updateShadow(m, visible, 0, cx, cy, w * 0.8, alpha);
       return;
     }

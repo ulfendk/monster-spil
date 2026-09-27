@@ -8,6 +8,7 @@
     { "id": "klit", "navn": "Klitterne", "look": { "sky": "carpYellow", "fog": "carpYellow", "ground": "boatYellow2", "hills": "boatYellow1", "sun": "autumnRed", "light": 1.15, "decor": ["dunes", "rocks"] } },
     { "id": "sne", "navn": "Sneen", "look": { "sky": "springBlue", "fog": "washi", "fogNear": 14, "fogFar": 50, "ground": "washi", "hills": "washi", "light": 1.25, "lightTint": "springBlue", "decor": ["snowPines", "rocks"], "particles": "snow" } },
     { "id": "vulkan", "navn": "Vulkanen", "look": { "sky": "sumiInk5", "fog": "sumiInk4", "fogNear": 16, "fogFar": 55, "ground": "sumiInk4", "hills": "sumiInk3", "sun": "autumnRed", "light": 0.85, "decor": ["lava", "rocks"], "particles": "embers" } },
-    { "id": "kirsebaer", "navn": "Kirsebærhaven", "look": { "sky": "springBlue", "fog": "sakuraPink", "fogNear": 20, "fogFar": 70, "ground": "springGreen", "hills": "autumnGreen", "sun": "autumnRed", "decor": ["sakura", "bamboo"], "particles": "petals" } }
+    { "id": "kirsebaer", "navn": "Kirsebærhaven", "look": { "sky": "springBlue", "fog": "sakuraPink", "fogNear": 20, "fogFar": 70, "ground": "springGreen", "hills": "autumnGreen", "sun": "autumnRed", "decor": ["sakura", "bamboo"], "particles": "petals" } },
+    { "id": "borg", "navn": "Borggården", "look": { "sky": "oniViolet", "fog": "sumiInk5", "fogNear": 18, "fogFar": 60, "ground": "katanaGray", "hills": "sumiInk4", "sun": "autumnRed", "light": 0.9, "decor": ["rocks", "pines"], "particles": "petals" } }
   ]
 }

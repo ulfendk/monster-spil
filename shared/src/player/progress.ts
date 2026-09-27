@@ -41,6 +41,8 @@ export interface LevelConfig {
     hatch?: number;
     /** A monster evolving. */
     evolve?: number;
+    /** A castle guardian beaten. */
+    guardian?: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -59,7 +61,7 @@ export interface Badge {
   stat: string;
   min: number;
   /** A trophy, not an ordinary badge: the big moments, shown as this 3D model in the trophy room (not on the badge wall). */
-  trophy?: "dragon" | "cup" | "globe" | "swords" | "egg" | "star" | "gem";
+  trophy?: "dragon" | "cup" | "globe" | "swords" | "egg" | "star" | "gem" | "castle";
 }
 
 /** What the save keeps. */
@@ -93,7 +95,11 @@ export type ProgressEvent =
   /** An egg hatched (the monster is then caught like any other). */
   | { kind: "hatch" }
   /** A monster evolved to its next stage. */
-  | { kind: "evolve" };
+  | { kind: "evolve" }
+  /** A castle's guardian beaten. */
+  | { kind: "guardian" }
+  /** A castle's treasure taken (its XP comes from castles.json). */
+  | { kind: "castle"; xp: number };
 
 /** XP needed in all to reach `level`. */
 export function xpForLevel(level: number, config: LevelConfig): number {
@@ -170,6 +176,10 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
       return x.hatch ?? 0;
     case "evolve":
       return x.evolve ?? 0;
+    case "guardian":
+      return x.guardian ?? 0;
+    case "castle":
+      return Math.max(0, Math.round(event.xp));
   }
 }
 
@@ -241,6 +251,12 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
       break;
     case "evolve":
       count(stats, "evolve");
+      break;
+    case "guardian":
+      count(stats, "guardian");
+      break;
+    case "castle":
+      count(stats, "castle");
       break;
   }
   const gained = xpFor(event, config);

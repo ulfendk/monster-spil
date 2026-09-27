@@ -65,6 +65,8 @@ export interface AreaMeta {
   scene?: string;
   /** Ways to other worlds (shared/src/world/worlds.ts). */
   links?: AreaLink[];
+  /** Where this world's castle stands (shared/src/world/castles.ts): a tile you can't walk onto. */
+  castle?: { x: number; y: number };
   /** How the 3D map looks here (default: Startskoven's pines, snowy peaks and blue sky). */
   look3d?: AreaLook3d;
   /** 0-1 chance per step taken inside the encounter zone */

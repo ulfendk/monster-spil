@@ -667,6 +667,83 @@ const ART: Record<string, (g: G) => void> = {
     circle(g, 64, 68, 18, K.crystalBlue);
     g.fillStyle(K.washi, 1).fillCircle(57, 61, 5);
   },
+  castle: (g) => {
+    // A Japanese castle: a stone base, white walls, two tiers of dark curved roofs, gold tips.
+    shape(g, [{ x: 16, y: 120 }, { x: 26, y: 88 }, { x: 102, y: 88 }, { x: 112, y: 120 }], K.katanaGray);
+    rrect(g, 30, 64, 68, 26, 3, K.fujiWhite, 5);
+    shape(g, [{ x: 12, y: 70 }, { x: 36, y: 54 }, { x: 92, y: 54 }, { x: 116, y: 70 }], K.sumiInk5, 5);
+    rrect(g, 42, 34, 44, 22, 3, K.fujiWhite, 5);
+    shape(g, [{ x: 26, y: 40 }, { x: 48, y: 22 }, { x: 80, y: 22 }, { x: 102, y: 40 }], K.sumiInk5, 5);
+    circle(g, 32, 38, 5, K.carpYellow, 3);
+    circle(g, 96, 38, 5, K.carpYellow, 3);
+    g.fillStyle(INK, 1).fillRoundedRect(56, 100, 16, 20, { tl: 8, tr: 8, bl: 0, br: 0 });
+    g.fillStyle(INK, 1).fillRect(50, 72, 8, 10).fillRect(70, 72, 8, 10).fillRect(60, 40, 8, 10);
+    shape(g, [{ x: 58, y: 22 }, { x: 64, y: 8 }, { x: 70, y: 22 }], K.carpYellow, 4);
+  },
+  lantern: (g) => {
+    // A red paper lantern (chōchin) with black bands, glowing.
+    g.fillStyle(K.carpYellow, 0.35).fillCircle(64, 66, 60);
+    ellipse(g, 64, 66, 76, 90, K.autumnRed);
+    for (const y of [44, 66, 88]) g.fillStyle(K.samuraiRed, 1).fillRect(64 - 36 * Math.sqrt(1 - ((y - 66) / 45) ** 2), y - 2, 72 * Math.sqrt(1 - ((y - 66) / 45) ** 2), 4);
+    g.fillStyle(K.peachRed, 1).fillEllipse(52, 58, 14, 30);
+    rrect(g, 44, 16, 40, 12, 4, INK, 0);
+    rrect(g, 44, 104, 40, 12, 4, INK, 0);
+    line(g, 64, 116, 64, 124, K.carpYellow, 5);
+  },
+  bell: (g) => {
+    // A golden temple bell on a red cord.
+    stroke(g, 64, 6, 64, 26, K.autumnRed, 6);
+    shape(g, [{ x: 40, y: 30 }, { x: 88, y: 30 }, { x: 96, y: 60 }, { x: 110, y: 96 }, { x: 18, y: 96 }, { x: 32, y: 60 }], K.carpYellow);
+    g.fillStyle(K.boatYellow2, 1).fillRect(28, 80, 72, 8);
+    g.fillStyle(K.washi, 1).fillEllipse(48, 54, 10, 24);
+    circle(g, 64, 106, 12, K.boatYellow2, 5);
+  },
+  fan: (g) => {
+    // A folding fan (sensu), opened: blue paper with a white wave, wooden ribs.
+    const pts: P[] = [{ x: 64, y: 112 }];
+    for (let i = 0; i <= 10; i++) {
+      const a = Math.PI * (1.12 + i * 0.076);
+      pts.push({ x: 64 + Math.cos(a) * 58, y: 106 + Math.sin(a) * 58 * 1.25 });
+    }
+    shape(g, pts, K.crystalBlue);
+    arcLine(g, 64, 106, 40, Math.PI * 1.2, Math.PI * 1.8, K.washi, 6);
+    for (let i = 1; i < 10; i++) {
+      const a = Math.PI * (1.12 + i * 0.076);
+      line(g, 64, 106, 64 + Math.cos(a) * 30, 106 + Math.sin(a) * 30 * 1.25, K.boatYellow1, 3);
+    }
+    circle(g, 64, 106, 8, K.autumnRed, 4);
+  },
+  shell: (g) => {
+    // A scallop shell: a pink fan of ridges on a small hinge.
+    const pts: P[] = [{ x: 52, y: 108 }, { x: 76, y: 108 }];
+    for (let i = 0; i <= 12; i++) {
+      const a = Math.PI * (-0.05 - i * 0.075);
+      pts.push({ x: 64 + Math.cos(a) * 54, y: 84 + Math.sin(a) * 60 });
+    }
+    shape(g, pts, K.sakuraPink);
+    for (let i = 1; i < 6; i++) {
+      const a = Math.PI * (-0.08 - i * 0.14);
+      line(g, 64, 100, 64 + Math.cos(a) * 46, 84 + Math.sin(a) * 52, K.peachRed, 4);
+    }
+    shape(g, [{ x: 44, y: 116 }, { x: 52, y: 100 }, { x: 76, y: 100 }, { x: 84, y: 116 }], K.sakuraPink, 5);
+  },
+  crystal: (g) => {
+    // A cluster of blue crystals.
+    shape(g, [{ x: 50, y: 118 }, { x: 44, y: 44 }, { x: 60, y: 14 }, { x: 76, y: 44 }, { x: 70, y: 118 }], K.springBlue);
+    shape(g, [{ x: 18, y: 118 }, { x: 22, y: 70 }, { x: 36, y: 52 }, { x: 46, y: 78 }, { x: 44, y: 118 }], K.crystalBlue);
+    shape(g, [{ x: 76, y: 118 }, { x: 82, y: 64 }, { x: 98, y: 44 }, { x: 110, y: 72 }, { x: 104, y: 118 }], K.crystalBlue);
+    line(g, 58, 36, 54, 90, K.washi, 4);
+  },
+  chest: (g) => {
+    // A treasure chest, open, gold shining out.
+    shape(g, [{ x: 16, y: 58 }, { x: 28, y: 22 }, { x: 100, y: 22 }, { x: 112, y: 58 }], K.boatYellow2);
+    circle(g, 44, 60, 14, K.carpYellow, 4);
+    circle(g, 66, 54, 16, K.carpYellow, 4);
+    circle(g, 88, 60, 13, K.carpYellow, 4);
+    rrect(g, 14, 60, 100, 56, 6, K.autumnRed);
+    g.fillStyle(K.carpYellow, 1).fillRect(14, 76, 100, 8);
+    rrect(g, 56, 70, 16, 22, 3, K.carpYellow, 4);
+  },
   games: (g) => {
     // a stack of worlds: three cards fanned out, each with its own little landscape
     const cards = [[-16, K.oniViolet, -0.18], [0, K.crystalBlue, 0], [16, K.springGreen, 0.18]] as const;

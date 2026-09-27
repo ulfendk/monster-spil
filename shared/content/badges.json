@@ -32,6 +32,8 @@
   {"id": "skatteleder", "navn": "Skattefinder", "icon": "potion", "stat": "item", "min": 10},
   {"id": "aeggepasser", "navn": "Æggepasser", "icon": "egg", "stat": "hatch", "min": 1},
   {"id": "plejer", "navn": "Monsterven", "icon": "heart", "stat": "evolve", "min": 1},
+  {"id": "borgvogter", "navn": "Vogterfanger", "icon": "sword", "stat": "guardian", "min": 3},
+  {"id": "borgherre", "navn": "Borgherre", "icon": "castle", "stat": "castle", "min": 1},
   {"id": "trofae-udvikler", "navn": "Udviklingskronen", "icon": "sparkle", "stat": "evolve", "min": 10, "trophy": "star"},
   {"id": "trofae-drage", "navn": "Dragetrofæet", "icon": "dragon", "stat": "dragonWin", "min": 1, "trophy": "dragon"},
   {"id": "trofae-monstermester", "navn": "Monstermester", "icon": "trophy", "stat": "species", "min": 40, "trophy": "cup"},
@@ -39,5 +41,6 @@
   {"id": "trofae-duelkonge", "navn": "Duelkongen", "icon": "sword", "stat": "duelWin", "min": 10, "trophy": "swords"},
   {"id": "trofae-guldaeg", "navn": "Guldægget", "icon": "egg", "stat": "hatch", "min": 5, "trophy": "egg"},
   {"id": "trofae-legende", "navn": "Legendestjernen", "icon": "star", "stat": "level", "min": 20, "trophy": "star"},
-  {"id": "trofae-sjaeldne", "navn": "Juvelen", "icon": "sparkle", "stat": "variant", "min": 10, "trophy": "gem"}
+  {"id": "trofae-sjaeldne", "navn": "Juvelen", "icon": "sparkle", "stat": "variant", "min": 10, "trophy": "gem"},
+  {"id": "trofae-borge", "navn": "Borgkronen", "icon": "castle", "stat": "castle", "min": 4, "trophy": "castle"}
 ]

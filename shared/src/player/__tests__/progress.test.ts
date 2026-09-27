@@ -122,7 +122,7 @@ test("a save from before levels gets credit for what it has caught", () => {
 });
 
 test("the content files make sense", () => {
-  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "cut", "climb", "swim", "dig", "gem", "species", "level", "variant", "travel", "tunnel", "bridge", "boat", "worlds", "item", "hatch", "evolve"]);
+  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "cut", "climb", "swim", "dig", "gem", "species", "level", "variant", "travel", "tunnel", "bridge", "boat", "worlds", "item", "hatch", "evolve", "guardian", "castle"]);
   const ids = new Set<string>();
   for (const b of badges) {
     assert.ok(!ids.has(b.id), `badge ids are unique: ${b.id}`);
@@ -130,7 +130,7 @@ test("the content files make sense", () => {
     assert.ok(/^[a-z0-9-]+$/.test(b.id), `ASCII slug: ${b.id}`);
     assert.ok(counters.has(b.stat) || /^(beast|cave|world):[a-z0-9]+$/.test(b.stat), `a counter the game keeps: ${b.stat}`);
     assert.ok(b.min > 0);
-    if (b.trophy) assert.ok(["dragon", "cup", "globe", "swords", "egg", "star", "gem"].includes(b.trophy), `a trophy the room can show: ${b.trophy}`);
+    if (b.trophy) assert.ok(["dragon", "cup", "globe", "swords", "egg", "star", "gem", "castle"].includes(b.trophy), `a trophy the room can show: ${b.trophy}`);
   }
   for (const list of [config.titles, config.looks]) {
     for (let i = 1; i < list.length; i++) assert.ok(list[i]!.level > list[i - 1]!.level, "in level order");

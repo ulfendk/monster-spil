@@ -1,4 +1,4 @@
-import type { CreatureInstance, Egg, FoodKind, Progress } from "@shared";
+import type { CastleProgress, CreatureInstance, Egg, FoodKind, Progress } from "@shared";
 
 export interface SaveData {
   version: 1;
@@ -16,6 +16,8 @@ export interface SaveData {
   items?: Record<string, number>;
   /** Items picked up today (so each lies there only once a day for this player): the day, and their keys. */
   itemsTaken?: { day: string; keys: string[] };
+  /** Each world's castle (world id → the quest things found, guardians beaten, treasure taken). */
+  castles?: Record<string, CastleProgress>;
   /** Food collected on the map (at most BAG_MAX), eaten to recover faster after passing out. */
   bag: FoodKind[];
   /** While set and in the future, the player has passed out and can't move (ISO timestamp). */
