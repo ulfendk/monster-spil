@@ -553,9 +553,10 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   (`CatchSceneData.stage`), my monster steps aside, the wild one starts shifting about and the
   crosshairs come up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
   kind `catch-miss`); a hit lets the engine roll the catch, and the ball glows or bursts
-  open accordingly. Not caught: "Prøv igen" or "Tilbage" (`CatchScene.offerRetry`). "Prøv
-  igen" stays right there with a new ball: the battle counts the throw as its turn in the
-  background (`CatchSceneData.again`; a catch turn has no counter-attack). Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
+  open accordingly. Not caught: the next ball is simply ready — keep throwing, or go back with
+  the "Tilbage" button in the corner (there all along). Each failed throw counts as a battle
+  turn right away (`CatchSceneData.again`; a catch turn has no counter-attack), so going back
+  uses no further turn (`done()` without a throw). Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
 - **Scenes:** a wild battle (and its catching) takes place in a scene that fits where you
   stand — the meadow, Dybskoven's forest glade, Storsøen's shore, Højfjeldet's mountains,
   Sandklitterne's dunes, and snow, volcano and cherry-blossom scenes for other worlds.

@@ -725,6 +725,17 @@ export class BattleScene extends Phaser.Scene {
       done: (thrown) => {
         this.scene.stop("Catch");
         this.scene.wake();
+        // Back without a new turn (the missed throws have already counted): the buttons again.
+        if (!thrown) {
+          this.relayout();
+          const resume = () => {
+            this.busy = false;
+            this.renderActions();
+          };
+          if (this.stage) void this.stage.endCatch().then(resume);
+          else resume();
+          return;
+        }
         const next = worked ?? this.wildTurn({ kind: "catch", throw: thrown });
         if (!this.stage) return this.presentTurn(next);
         // Back to the battle in the meadow: my monster steps back in, then the turn plays out.

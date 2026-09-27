@@ -28,12 +28,9 @@ export interface CatchSceneData {
   stage?: BattleStage;
   /** A hit: the battle works out the turn now and says whether it's caught. */
   decide: (thrown: ThrowOutcome) => boolean;
-  /** The throw is over (and its animation done): back to the battle. */
-  done: (thrown: ThrowOutcome) => void;
-  /**
-   * Not caught, and the player tries again right here: the battle counts the throw as its turn
-   * (a catch turn has no counter-attack) and says whether the battle goes on — then another ball.
-   */
+  /** Back to the battle: after the catching throw (`thrown`), or — with none — after the failed throws that already counted (or none at all). */
+  done: (thrown?: ThrowOutcome) => void;
+  /** A throw that didn't catch it: the battle counts it as its turn (a catch turn has no counter-attack) and says whether the battle goes on. */
   again: (thrown: ThrowOutcome) => boolean;
   /** No 3D here (e.g. no WebGL): the battle throws the old way. */
   unavailable: () => void;
@@ -54,6 +51,7 @@ export class CatchScene extends Phaser.Scene {
   private canvas?: HTMLCanvasElement;
   private thrown = false;
   private aiming?: AimInput;
+  private back?: Phaser.GameObjects.Container;
   private hint?: Phaser.GameObjects.Container;
 
   constructor() {
@@ -70,6 +68,7 @@ export class CatchScene extends Phaser.Scene {
     onRelayout(this, () => {
       this.fitStage();
       this.aiming?.layout();
+      if (this.back) this.drawBack();
       this.drawHint();
     });
     const battleStage = this.catchData.stage;
@@ -129,6 +128,7 @@ export class CatchScene extends Phaser.Scene {
     if (import.meta.env.DEV) (window as unknown as { __catch?: CatchScene }).__catch = this;
     this.drawHint();
     this.aiming = new AimInput(this, () => this.stage, () => !this.thrown, (x, y) => this.shoot(x, y));
+    this.drawBack();
   }
 
   private fitStage(): void {
@@ -153,29 +153,25 @@ export class CatchScene extends Phaser.Scene {
   // ------------------------------------------------------------ the throw
 
   /**
-   * Not caught (a miss, or it broke free): try again right here with a new ball, or back to
-   * the battle. Either way the throw counts as the turn.
+   * Not caught (a miss, or it broke free): the throw counts as the battle's turn (a catch turn
+   * has no counter-attack), and the next ball is ready — keep throwing, or go back to the
+   * battle with the button in the corner.
    */
-  private offerRetry(thrown: ThrowOutcome): void {
-    this.aiming?.destroy();
-    this.aiming = undefined;
+  private throwAgain(thrown: ThrowOutcome): void {
+    if (!this.catchData.again(thrown)) return this.catchData.done();
+    this.thrown = false;
+    this.stage?.readyBall();
+  }
+
+  /** Back to the battle (the throws so far have counted; with none, no turn is used). */
+  private drawBack(): void {
+    this.back?.destroy();
     const layout = getLayout(this);
-    const w = Math.min(layout.px(300), (layout.width - layout.safe.left - layout.safe.right - 60) / 2);
-    const h = layout.touch(96);
-    const y = layout.height - layout.safe.bottom - layout.px(30) - h / 2;
-    const choose = (retry: boolean) => {
-      for (const b of buttons) b.destroy();
-      if (!retry || !this.catchData.again(thrown)) return this.catchData.done(thrown);
-      // Another ball, right here.
-      this.thrown = false;
-      this.stage?.readyBall();
-      this.startAiming();
-    };
-    const buttons = [
-      createButton(this, layout.width / 2 - w / 2 - layout.px(12), y, t("catch_retry"), () => choose(true), { width: w, height: h, fontSize: layout.font(28), backgroundColor: C.catch, icon: CATCH_ICON }),
-      createButton(this, layout.width / 2 + w / 2 + layout.px(12), y, t("catch_back"), () => choose(false), { width: w, height: h, fontSize: layout.font(28), backgroundColor: C.buttonQuiet, icon: "sword" }),
-    ];
-    for (const b of buttons) b.setDepth(20);
+    const size = Math.max(88, layout.touch(116));
+    const gap = layout.px(20);
+    this.back = createButton(this, layout.safe.left + gap + size / 2, layout.height - layout.safe.bottom - gap - size / 2, t("catch_back"), () => {
+      if (!this.thrown) this.catchData.done();
+    }, { width: size, height: size, fontSize: layout.font(22), backgroundColor: C.buttonQuiet, icon: "sword" }).setDepth(16);
   }
 
   /** Aims at a point on the screen and pulls the trigger (for testing in dev builds). */
@@ -193,18 +189,19 @@ export class CatchScene extends Phaser.Scene {
     void stage.throwAt(x, y).then(async (result) => {
       if (!result.hit) {
         this.drawHint(`${ic("miss")} ${t("catch_missed")}`);
-        stage.end();
-        this.time.delayedCall(600, () => this.offerRetry({ hit: false }));
+        this.throwAgain({ hit: false });
         return;
       }
       const thrown: ThrowOutcome = { hit: true, precision: result.hit.precision };
       const caught = this.catchData.decide(thrown);
       await stage.catchAnimation(result.hit.index, caught);
-      stage.end();
-      if (caught) this.time.delayedCall(300, () => this.catchData.done(thrown));
-      else {
+      if (caught) {
+        stage.end();
+        this.back?.destroy();
+        this.time.delayedCall(300, () => this.catchData.done(thrown));
+      } else {
         this.drawHint(`${ic("miss")} ${t("cave_free")}`);
-        this.time.delayedCall(400, () => this.offerRetry(thrown));
+        this.throwAgain(thrown);
       }
     });
   }
