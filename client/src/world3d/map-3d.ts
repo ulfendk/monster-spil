@@ -487,7 +487,8 @@ export class Map3D {
     // Food (an apple, a carrot…) lies there as its 3D model.
     const food = picture && kind === "stand" ? foodModelFor(g.texture.key) : undefined;
     if (spec) {
-      model = buildMonsterModel(spec);
+      const variant = mapHint(o)?.variant;
+      model = buildMonsterModel(variant ? { ...spec, variant } : spec);
       object = model.root;
     } else if (food) {
       object = buildFoodModel(food);

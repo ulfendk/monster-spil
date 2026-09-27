@@ -1030,6 +1030,16 @@ covers √2 tiles at the same speed, so it takes longer). A short tap without a 
 is still a tap: on another player or the dragon it offers 🤝/⚔️ (walking over with
 BFS pathfinding if needed); on the ground it does nothing.
 
+**Meeting a wild monster is a choice.** When one turns up (tall grass, a disaster's zone, a
+monster peeking out, one dug up) it jumps out of the grass a tile ahead of me (`meetWild`: a
+map picture, so a 3D model on the 3D map, in its rare colours via the map hint `variant`) and
+cries; walking stops and a card shows its type and name with two buttons: the sword fights
+(`startWildBattle` with that very monster) and the runner leaves it be — it hops back into
+the grass, and the next `ENCOUNTER_REST_STEPS` (4) grass steps are quiet. Seeing it counts
+for the monster book either way. While the card is up, taps on the map and walking do
+nothing; if a menu closed the card, `update()` puts it back. The UFO's alien (tapped on
+purpose) still starts its battle at once.
+
 **Forests can be walked through, slowly.** Trees are no longer in the areas' `collisionGids`;
 the sidecar's `slow: [{gids: [tree], speed: 0.5}]` says a step onto one takes twice as long
 (`groundSpeed` in `shared/src/world/steps.ts`; riding multiplies in). The map's **outermost

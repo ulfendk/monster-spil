@@ -16,7 +16,10 @@ import { seatFor } from "../battle-participant";
 import { bossesById } from "../content/load-raid";
 import { beastsById } from "../content/load-beasts";
 import type { RaidBattleUpdate } from "../net/presence";
-import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, CAVE_ICON, foodIcon } from "../ui/icons";
+import { DRAGON_ICON, SLEEP_ICON, REST_ICON, SCORES_ICON, TEAM_ICON, OWNED_ICON, DISASTER_ICONS, BEAST_ICONS, CAVE_ICON, FLEE_ICON, TYPE_ICONS, foodIcon } from "../ui/icons";
+import { variantScale } from "../gfx/variants";
+import { spriteFit } from "../gfx/creature-sprite";
+import { playCreatureSound } from "../audio/creature-sound";
 import { WorldLayer } from "../gfx/world-layer";
 import { BeastLayer } from "../gfx/beast-layer";
 import { CaveLayer } from "../gfx/cave-layer";
@@ -49,7 +52,7 @@ import type { CastleSceneData } from "./CastleScene";
 import { itemById, itemConfig } from "../content/load-items";
 import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
-import { variantConfig } from "../content/load-variants";
+import { nameWithVariant, variantConfig } from "../content/load-variants";
 import { sceneConfig } from "../content/load-scenes";
 import type { MinigameData } from "./minigames/Minigame";
 
@@ -79,6 +82,8 @@ const STICK_RADIUS = 56;
 
 /** `pendingMeet` value meaning "I'm walking over to the dragon". */
 const DRAGON_MEET = "__dragon__";
+/** After leaving a wild monster be: this many steps in the grass before another can turn up. */
+const ENCOUNTER_REST_STEPS = 4;
 /** `pendingMeet` prefix meaning "I'm walking over to this visiting beast". */
 const BEAST_MEET = "__beast__:";
 /** `pendingMeet` prefix meaning "I'm walking over to this cave". */
@@ -262,6 +267,8 @@ export class OverworldScene extends Phaser.Scene {
     });
     this.others.clear();
     this.popup = [];
+    this.encounter = undefined;
+    this.encounterRest = 0;
     this.toast = undefined;
     this.pendingMeet = undefined;
 
@@ -339,6 +346,7 @@ export class OverworldScene extends Phaser.Scene {
     // Rotating the phone: the camera resizes itself; the HUD, popups and the open map are laid out again.
     onRelayout(this, () => {
       this.closePopup();
+      this.showEncounterChoice(); // (if a wild monster is waiting for an answer)
       this.buildHud();
       this.minimap?.relayout();
       this.drawBag();
@@ -905,6 +913,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** A tap (no drag): on another player or the dragon, meet them; on the ground, nothing. */
   private onTap(pointer: Phaser.Input.Pointer): void {
+    if (this.encounter) return; // answer the wild monster first
     const tile: TileCoord | undefined = this.map3d ? this.map3d.tileAt(pointer.x, pointer.y) : { x: Math.floor(pointer.worldX / TILE_SIZE), y: Math.floor(pointer.worldY / TILE_SIZE) };
     if (!tile) return;
     const tapped = this.playerAt(tile);
@@ -933,7 +942,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Starts the next step in the direction the finger points, unless one is already under way. */
   private stepFromDrag(): void {
     const drag = this.drag;
-    if (!drag?.moved || this.isMoving) return;
+    if (!drag?.moved || this.isMoving || this.encounter) return; // (a wild monster in front of me waits for my answer)
     // With the camera turned, "up the screen" is the way the camera faces, not north.
     const yaw = this.map3d?.yaw ?? 0;
     const sx = drag.x - drag.ox;
@@ -1084,6 +1093,8 @@ export class OverworldScene extends Phaser.Scene {
   update(): void {
     // The animal follows my circle (which walks by tween) and fades with it when passed out.
     this.playerFace?.setPosition(this.player.x, this.player.y).setAlpha(this.player.alpha);
+    // A wild monster waiting for an answer keeps its card (a menu opened over it may have closed it).
+    if (this.encounter && this.popup.length === 0 && !this.minimap?.isOpen) this.showEncounterChoice();
     if (!this.minimap?.isOpen) return;
     const dots: MinimapDot[] = this.visibleOthers().map((p) => ({
       x: p.x,
@@ -1619,7 +1630,7 @@ export class OverworldScene extends Phaser.Scene {
       const species = this.content.speciesById[pickDigMonster(minigameConfig, Math.random, onSand) ?? ""];
       if (species) {
         this.showToast(`${ic("paw")} ${t("dig_monster")}`, 2000);
-        this.time.delayedCall(900, () => this.startWildBattle(species));
+        this.time.delayedCall(900, () => this.meetWild(species));
         return;
       }
     }
@@ -2000,9 +2011,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private advancePath(): void {
-    if (this.isMoving || this.pendingPath.length === 0) return;
+    if (this.isMoving || this.pendingPath.length === 0 || this.encounter) return;
     const next = this.pendingPath.shift()!;
     this.isMoving = true;
+    this.lastStep = { dx: next.x - this.playerTile.x, dy: next.y - this.playerTile.y };
     if (multiplayerEnabled) presence.moveTo({ areaId: this.save.position.areaId, x: next.x, y: next.y });
     const diagonal = next.x !== this.playerTile.x && next.y !== this.playerTile.y;
 
@@ -2094,16 +2106,94 @@ export class OverworldScene extends Phaser.Scene {
     let speciesId: string | undefined = this.peekerAt(this.playerTile.x, this.playerTile.y);
     if (speciesId) {
       // The monster that was peeking out: found it!
+    } else if (this.encounterRest > 0) {
+      // Just left one be: a few steps' peace before the next.
+      this.encounterRest--;
+      return false;
     } else if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
     else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, this.playerTile.x, this.playerTile.y));
     const species = speciesId ? this.content.speciesById[speciesId] : undefined;
     if (!species) return false;
-    this.startWildBattle(species);
+    this.meetWild(species);
     return true;
   }
 
-  /** A wild battle — `spawnId` when it's a single waiting monster (the UFO's alien), so the server hears how it went. */
-  private startWildBattle(species: CreatureSpecies, spawnId?: string): void {
+  // ------------------------------------------------------------ meeting a wild monster: fight it or leave it
+
+  /** A wild monster met on the map, waiting for my choice. */
+  private encounter?: { species: CreatureSpecies; wild: CreatureInstance; monster: Phaser.GameObjects.Image };
+  /** Steps left without a new random encounter (after leaving one be). */
+  private encounterRest = 0;
+  /** The way the last step went, so a monster jumps out ahead of me. */
+  private lastStep?: { dx: number; dy: number };
+
+  /**
+   * A wild monster jumps out of the grass in front of me (as its 3D model on the 3D map) and
+   * cries; walking stops, and a card asks: fight it (the sword) or leave it be (the runner)?
+   * Left be, it hops back into the grass, and a few steps go by before the next one.
+   */
+  private meetWild(species: CreatureSpecies): void {
+    const wild = this.makeWild(species);
+    this.pendingPath = [];
+    this.pendingMeet = undefined;
+    this.drag = undefined;
+    this.stick?.clear();
+    this.savePosition();
+    // A little ahead of me, the way I was going (or just below me).
+    const c = this.tileCentre(this.playerTile);
+    const dir = this.lastStep ?? { dx: 0, dy: 1 };
+    const len = Math.hypot(dir.dx, dir.dy) || 1;
+    const x = c.x + (dir.dx / len) * TILE_SIZE;
+    const y = c.y + (dir.dy / len) * TILE_SIZE;
+    const key = this.textures.exists(species.spriteFront) ? species.spriteFront : "__MISSING";
+    const monster = this.add.image(x, y, key).setDepth(6.2);
+    if (wild.variant) setMapHint(monster, { variant: wild.variant });
+    const size = TILE_SIZE * 1.6 * variantScale(wild.variant) * spriteFit(this, key);
+    monster.setScale(0.01);
+    this.tweens.add({ targets: monster, scale: size / 128, duration: 420, ease: "Back.easeOut" });
+    // Out of the grass with a hop.
+    this.tweens.add({ targets: monster, y: { from: y + TILE_SIZE * 0.25, to: y }, duration: 420, ease: "Quad.easeOut" });
+    playCreatureSound(this, species);
+    this.encounter = { species, wild, monster };
+    this.showEncounterChoice();
+  }
+
+  private showEncounterChoice(): void {
+    const e = this.encounter;
+    if (!e) return;
+    this.showPopup(`${ic(TYPE_ICONS[e.species.type])} ${nameWithVariant(e.species.navn, e.wild.variant)}`, [
+      { label: ic("sword"), colour: C.danger, onTap: () => this.fightEncounter() },
+      { label: ic(FLEE_ICON), colour: C.buttonQuiet, onTap: () => this.leaveEncounter() },
+    ]);
+  }
+
+  private fightEncounter(): void {
+    const e = this.encounter;
+    if (!e) return;
+    this.encounter = undefined;
+    this.closePopup();
+    this.startWildBattle(e.species, undefined, e.wild);
+  }
+
+  private leaveEncounter(): void {
+    const e = this.encounter;
+    if (!e) return;
+    this.encounter = undefined;
+    this.closePopup();
+    this.encounterRest = ENCOUNTER_REST_STEPS;
+    // It hops back into the grass and is gone.
+    this.tweens.add({
+      targets: e.monster,
+      y: e.monster.y - TILE_SIZE * 0.3,
+      duration: 180,
+      ease: "Quad.easeOut",
+      yoyo: true,
+      onComplete: () => this.tweens.add({ targets: e.monster, scale: 0.01, alpha: 0, duration: 260, ease: "Quad.easeIn", onComplete: () => e.monster.destroy() }),
+    });
+  }
+
+  /** A wild monster to meet: now and then a rare one (golden, dark, giant…). Meeting it counts as seeing it. */
+  private makeWild(species: CreatureSpecies): CreatureInstance {
     const wildInstance: CreatureInstance = {
       instanceId: crypto.randomUUID(),
       speciesId: species.id,
@@ -2112,14 +2202,18 @@ export class OverworldScene extends Phaser.Scene {
       currentHp: species.baseStats.hp,
       caughtAt: new Date().toISOString(),
     };
-    // Now and then a rare one: golden, dark, giant…
     const variant = rollVariant(variantConfig, Math.random);
     if (variant) wildInstance.variant = variant;
-
     if (!this.save.seenSpeciesIds.includes(species.id)) {
       this.save.seenSpeciesIds.push(species.id);
       void persist();
     }
+    return wildInstance;
+  }
+
+  /** A wild battle — `spawnId` when it's a single waiting monster (the UFO's alien), so the server hears how it went. */
+  private startWildBattle(species: CreatureSpecies, spawnId?: string, wild?: CreatureInstance): void {
+    const wildInstance = wild ?? this.makeWild(species);
 
     this.savePosition(); // the battle replaces this scene; come back to where it started
     if (multiplayerEnabled) presence.setAway(true); // nobody can invite me during a wild battle
