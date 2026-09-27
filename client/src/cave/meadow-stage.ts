@@ -41,7 +41,9 @@ export class MeadowStage extends ThrowStage<MeadowMonster> {
     this.buildMeadow();
     const living = this.makeLiving(monster);
     living.sprite.visible = true;
-    const at = battle ? this.battleSpot.clone() : new THREE.Vector3(HOME.x, STAND_Y, HOME.z);
+    // It stands on the grass whatever its size (a rare giant or tiny one).
+    this.battleSpot.y = living.size / 2;
+    const at = battle ? this.battleSpot.clone() : new THREE.Vector3(HOME.x, living.size / 2, HOME.z);
     living.sprite.position.copy(at);
     this.monsters.push({ ...living, phase: battle ? "battle" : "standing", timer: 0, nextAct: 2 + this.rng.next() * 2, home: at.clone(), offset: new THREE.Vector3() });
     this.start();
@@ -64,7 +66,7 @@ export class MeadowStage extends ThrowStage<MeadowMonster> {
   protected stopSwaying(): void {
     const m = this.wild;
     if (m.phase === "caught") return;
-    m.home.copy(m.sprite.position).setY(STAND_Y);
+    m.home.copy(m.sprite.position).setY(m.size / 2);
     m.offset.set(0, 0, 0);
     m.phase = "battle";
   }
@@ -169,12 +171,12 @@ export class MeadowStage extends ThrowStage<MeadowMonster> {
       this.animateMonster(m, dt, time);
       return;
     }
-    const spot = new THREE.Vector3(HOME.x + Math.sin(time * 0.55 + m.wobble) * SWAY_X, STAND_Y, HOME.z);
+    const spot = new THREE.Vector3(HOME.x + Math.sin(time * 0.55 + m.wobble) * SWAY_X, m.size / 2, HOME.z);
     if (m.phase === "returning") {
       m.timer -= dt;
       const k = 1 - Math.max(0, m.timer) / 0.7;
       m.sprite.position.lerpVectors(m.returnFrom!, spot, k);
-      m.sprite.position.y = STAND_Y + Math.sin(k * Math.PI) * 1.1;
+      m.sprite.position.y = m.size / 2 + Math.sin(k * Math.PI) * 1.1;
       if (m.timer <= 0) m.phase = "standing";
     } else {
       m.sprite.position.copy(spot);
@@ -196,7 +198,7 @@ export class MeadowStage extends ThrowStage<MeadowMonster> {
   /** Out of the ball: it hops back to where it stood. */
   protected breakFree(m: MeadowMonster, from: THREE.Vector3): void {
     m.phase = "returning";
-    m.returnFrom = from.clone().setY(STAND_Y);
+    m.returnFrom = from.clone().setY(m.size / 2);
     m.timer = 0.7;
   }
 

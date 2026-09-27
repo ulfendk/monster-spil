@@ -9,6 +9,9 @@ import { t } from "../i18n/da";
 import { BEAST_ICONS, DRAGON_ICON, TEAM_ICON } from "../ui/icons";
 import { beastForBaby } from "../content/load-beasts";
 import { addCloseButton, createButton, whenTapped } from "../ui/Button";
+import { pictureKey } from "../gfx/variants";
+import { nameWithVariant } from "../content/load-variants";
+import { addIcon } from "../gfx/icon-art";
 import { getLayout, onRelayout } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
@@ -272,7 +275,7 @@ export class InteractScene extends Phaser.Scene {
         const selected = mine.offer?.instanceId === creature.instanceId;
         this.addCreatureTile(x, y, content.speciesById[creature.speciesId], selected, () => {
           presence.send("offer", { tradeId: trade.id, creature });
-        }, cell - 12);
+        }, cell - 12, creature.variant);
       });
     }
 
@@ -283,7 +286,7 @@ export class InteractScene extends Phaser.Scene {
     const radius = Math.min(80, (portrait ? bottom - mineArea.y - mineArea.h : bottom - top) * 0.3);
     this.addText(theirs_.x, theirs_.y - radius - layout.px(28), otherName, 28, CSS.soft);
     const theirSpecies = theirs.offer ? content.speciesById[theirs.offer.speciesId] : undefined;
-    this.addOfferCircle(theirs_.x, theirs_.y, theirs.offer ? theirSpecies : undefined, theirs.confirmed, radius);
+    this.addOfferCircle(theirs_.x, theirs_.y, theirs.offer ? theirSpecies : undefined, theirs.confirmed, radius, theirs.offer?.variant);
     if (theirs.offer && !theirSpecies) this.addText(theirs_.x, theirs_.y + radius + layout.px(24), t("trade_unknown_species"), 20, CSS.accent, width * 0.4);
 
     // Bottom: confirm / cancel.
@@ -309,8 +312,8 @@ export class InteractScene extends Phaser.Scene {
     const title =
       presence.receivedReason === "dragon" ? `${ic(DRAGON_ICON)} ${t("reward_dragon")}` : beast ? `${ic(BEAST_ICONS[beast.habitat])} ${t("reward_dragon")}` : t("trade_done");
     this.addText(width / 2, layout.safe.top + layout.touch(64) + layout.px(30), title, 48, CSS.accent);
-    this.addOfferCircle(width / 2, height / 2, species, false, 90);
-    if (species) this.addText(width / 2, height / 2 + 130, species.navn, 30);
+    this.addOfferCircle(width / 2, height / 2, species, false, 90, creature.variant);
+    if (species) this.addText(width / 2, height / 2 + 130, nameWithVariant(species.navn, creature.variant), 30);
     this.addButton(width / 2, height - layout.safe.bottom - 24 - layout.touch(72) / 2, "OK", () => {
       presence.received = undefined;
       this.requestDraw();
@@ -345,9 +348,11 @@ export class InteractScene extends Phaser.Scene {
   }
 
   /** A creature sprite scaled to fit `maxSize`, or a "?" when the species isn't known to this device. */
-  private addSprite(x: number, y: number, species: CreatureSpecies | undefined, maxSize: number): void {
+  private addSprite(x: number, y: number, species: CreatureSpecies | undefined, maxSize: number, variant?: string): void {
     if (species && this.textures.exists(species.spriteFront)) {
-      const image = this.add.image(x, y, species.spriteFront);
+      // A rare one shows its own colours (and a sparkle).
+      const image = this.add.image(x, y, pictureKey(this, species.spriteFront, variant));
+      if (variant) this.ui.add(addIcon(this, x + maxSize * 0.4, y - maxSize * 0.4, "sparkle", Math.max(20, maxSize * 0.3)));
       image.setScale(Math.min(1, maxSize / Math.max(image.width, image.height)));
       this.ui.add(image);
     } else {
@@ -361,19 +366,20 @@ export class InteractScene extends Phaser.Scene {
     species: CreatureSpecies | undefined,
     selected: boolean,
     onTap: () => void,
-    size = 118
+    size = 118,
+    variant?: string
   ): void {
     const bg = this.add.rectangle(x, y, size, size, C.panel).setStrokeStyle(selected ? 6 : 3, selected ? C.accent : C.border, selected ? 1 : 0.5);
     bg.setInteractive({ useHandCursor: true });
     whenTapped(bg, onTap);
     this.ui.add(bg);
-    this.addSprite(x, y, species, size * 0.76);
+    this.addSprite(x, y, species, size * 0.76, variant);
   }
 
-  private addOfferCircle(x: number, y: number, species: CreatureSpecies | undefined, confirmed: boolean, radius = 80): void {
+  private addOfferCircle(x: number, y: number, species: CreatureSpecies | undefined, confirmed: boolean, radius = 80, variant?: string): void {
     const ring = this.add.circle(x, y, radius, C.panel).setStrokeStyle(4, confirmed ? C.ok : C.border, confirmed ? 1 : 0.5);
     this.ui.add(ring);
-    this.addSprite(x, y, species, radius * 1.4);
+    this.addSprite(x, y, species, radius * 1.4, variant);
     if (confirmed) this.addText(x + radius * 0.75, y - radius * 0.75, "✓", 40, CSS.ok);
   }
 }

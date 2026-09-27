@@ -62,7 +62,11 @@ export class MonsterbogScene extends Phaser.Scene {
 
     const speciesList = Object.values(data.content.speciesById);
     const owned = new Map<string, number>();
-    for (const c of data.save.creatures) owned.set(c.speciesId, (owned.get(c.speciesId) ?? 0) + 1);
+    const rare = new Map<string, Set<string>>();
+    for (const c of data.save.creatures) {
+      owned.set(c.speciesId, (owned.get(c.speciesId) ?? 0) + 1);
+      if (c.variant) rare.set(c.speciesId, (rare.get(c.speciesId) ?? new Set()).add(c.variant));
+    }
 
     // Entries at a readable size (a little smaller on a phone), as many per row as fit; the rest scrolls.
     const areaW = width - safe.left - safe.right - 16;
@@ -96,8 +100,11 @@ export class MonsterbogScene extends Phaser.Scene {
           richText(this, x, y + 97 * k, `${ic(CAUGHT_ICON)} ${caughtCount}   ${ic(OWNED_ICON)} ${ownedCount}`, { fontFamily: FONT, fontSize: label(18), color: CSS.text });
         }
         // Tapping a known monster opens its page (and plays its cry).
+        const variants = [...(rare.get(species.id) ?? [])];
+        // I have a rare one of these: a sparkle on its ring.
+        if (variants.length) addIcon(this, x + 44 * k, y - 44 * k, "sparkle", Math.max(22, 34 * k));
         const open = () => {
-          if (!this.scroll?.moved) this.openInfo(species, caught, ownedCount, caughtCount);
+          if (!this.scroll?.moved) this.openInfo(species, caught, ownedCount, caughtCount, variants);
         };
         ring.setInteractive({ useHandCursor: true });
         whenTapped(ring, open);
@@ -231,8 +238,8 @@ export class MonsterbogScene extends Phaser.Scene {
     return nearestSpot(position, paintedTiles(zone, map.width).filter((tile) => livesAt(meta, species.id, tile.x, tile.y)));
   }
 
-  private openInfo(species: CreatureSpecies, caught: boolean, owned: number, caughtCount: number): void {
-    const data: MonsterInfoSceneData = { content: this.bookData.content, species, caught, owned, caughtCount };
+  private openInfo(species: CreatureSpecies, caught: boolean, owned: number, caughtCount: number, variants: string[]): void {
+    const data: MonsterInfoSceneData = { content: this.bookData.content, species, caught, owned, caughtCount, variants };
     this.scene.launch("MonsterInfo", data);
     this.scene.bringToTop("MonsterInfo");
     this.scene.pause();

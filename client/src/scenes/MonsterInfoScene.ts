@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { spriteFit } from "../gfx/creature-sprite";
+import { pictureKey, variantScale } from "../gfx/variants";
 import type { CreatureSpecies } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -22,12 +23,14 @@ export interface MonsterInfoSceneData {
   caught: boolean;
   owned: number;
   caughtCount: number;
+  /** The rare variants of it I have (golden, giant…), shown in a row under it. */
+  variants?: string[];
   /** Set when the page is rebuilt after a rotation, so the cry doesn't play again. */
   relayout?: boolean;
 }
 
 /** The two panels' design sizes (iPad); they are scaled and placed side by side or stacked. */
-const HERO = { w: 440, h: 480 };
+const HERO = { w: 440, h: 560 };
 const DETAILS = { w: 470, h: 600 };
 
 /** Bar length is stat / max, so the six starting monsters fill a bar sensibly. */
@@ -73,6 +76,15 @@ export class MonsterInfoScene extends Phaser.Scene {
     hero.add(badge);
     hero.add(richText(this, badge.x, badge.y, `${ic(TYPE_ICONS[species.type])} ${t(`type_${species.type}` as StringKey)}`, { fontFamily: FONT, fontSize: "26px", color: CSS.text }));
     hero.add(createButton(this, cx + 100, 430, ic(SOUND_ICON), cry, { width: 84, height: 64, fontSize: "32px", backgroundColor: C.button }));
+    // The rare ones I have: each in its own colours and size.
+    const variants = this.info.variants ?? [];
+    variants.forEach((v, i) => {
+      const x = cx + (i - (variants.length - 1) / 2) * 84;
+      hero.add(this.add.circle(x, 515, 36, C.panel).setStrokeStyle(3, C.accent, 0.9));
+      const key = pictureKey(this, species.spriteFront, v);
+      hero.add(this.add.image(x, 515, key).setScale(0.5 * variantScale(v) * spriteFit(this, key)));
+      hero.add(addIcon(this, x + 26, 489, "sparkle", 26));
+    });
 
     // Stats, moves and counters.
     const details = this.add.container(0, 0);

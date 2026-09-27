@@ -15,7 +15,10 @@
     "cut": 5,
     "climb": 8,
     "swim": 8,
-    "dig": 3
+    "dig": 3,
+    "variant": 20,
+    "travel": 3,
+    "newWorld": 60
   },
   "titles": [
     { "level": 1, "navn": "Nybegynder" },

@@ -5,6 +5,7 @@ import { ic, richChip } from "../ui/rich-text";
 import { CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
 import { faceFrameKey } from "../gfx/placeholder-sprites";
+import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
 import { playCreatureSound } from "../audio/creature-sound";
 import type { MeadowStage } from "../cave/meadow-stage";
 import type { BattleStage } from "../cave/battle-stage";
@@ -15,6 +16,8 @@ export type ThrowOutcome = { hit: false } | { hit: true; precision: number };
 
 export interface CatchSceneData {
   species: CreatureSpecies;
+  /** A rare variant: its colours and size. */
+  variant?: string;
   seed: number;
   /** A 3D battle's meadow: catch in it (my monster steps aside) instead of opening a new one. */
   stage?: BattleStage;
@@ -76,14 +79,22 @@ export class CatchScene extends Phaser.Scene {
         if (!this.scene.isActive()) return;
         const species = this.catchData.species;
         const picture = (key: string) => (this.textures.exists(key) ? (this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement) : undefined);
-        const image = picture(species.spriteFront);
+        const variant = this.catchData.variant;
+        const image = picture(pictureKey(this, species.spriteFront, variant));
         if (!image) return this.catchData.unavailable();
         this.canvas = document.createElement("canvas");
         this.canvas.className = "cave-stage";
         document.getElementById("game")!.prepend(this.canvas);
         this.stage = new MeadowStage(
           this.canvas,
-          { speciesId: species.id, image, blink: picture(faceFrameKey(species.spriteFront, "blink")), talk: picture(faceFrameKey(species.spriteFront, "talk")) },
+          {
+            speciesId: species.id,
+            image,
+            blink: picture(pictureKey(this, faceFrameKey(species.spriteFront, "blink"), variant)),
+            talk: picture(pictureKey(this, faceFrameKey(species.spriteFront, "talk"), variant)),
+            scale: variantScale(variant),
+            sparkly: variantSparkles(variant),
+          },
           this.catchData.seed
         );
         this.stage.onCry = () => playCreatureSound(this, species);

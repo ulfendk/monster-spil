@@ -1,0 +1,11 @@
+{
+  "chance": 0.04,
+  "variants": [
+    { "id": "gylden", "navn": "Gylden", "weight": 2, "look": { "hueTo": 42, "minSaturation": 0.7, "lighten": 0.12, "sparkle": true } },
+    { "id": "moerk", "navn": "Mørk", "weight": 2, "look": { "tint": "oniViolet", "tintAmount": 0.35, "darken": 0.45 } },
+    { "id": "snehvid", "navn": "Snehvid", "weight": 2, "look": { "saturation": 0.15, "lighten": 0.5 } },
+    { "id": "farverig", "navn": "Farverig", "weight": 1, "look": { "hue": 170, "saturation": 1.3, "sparkle": true } },
+    { "id": "kaempe", "navn": "Kæmpe", "weight": 3, "look": { "size": 1.35 } },
+    { "id": "mini", "navn": "Mini", "weight": 3, "look": { "size": 0.7 } }
+  ]
+}

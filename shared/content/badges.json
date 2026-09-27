@@ -18,5 +18,7 @@
   {"id": "skovhugger", "navn": "Skovhugger", "icon": "axe", "stat": "cut", "min": 10},
   {"id": "bjergbestiger", "navn": "Bjergbestiger", "icon": "climb", "stat": "climb", "min": 5},
   {"id": "svoemmer", "navn": "Svømmer", "icon": "swim", "stat": "swim", "min": 5},
-  {"id": "skattejaeger", "navn": "Skattejæger", "icon": "shovel", "stat": "dig", "min": 20}
+  {"id": "skattejaeger", "navn": "Skattejæger", "icon": "shovel", "stat": "dig", "min": 20},
+  {"id": "sjaeldent-fund", "navn": "Sjældent fund", "icon": "sparkle", "stat": "variant", "min": 1},
+  {"id": "sjaeldenhedsjaeger", "navn": "Sjældenhedsjæger", "icon": "sparkle", "stat": "variant", "min": 5}
 ]

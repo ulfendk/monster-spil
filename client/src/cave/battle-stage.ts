@@ -42,6 +42,8 @@ const TYPE_FX: Record<TypeId, { main: number; spark: number }> = {
 export class BattleStage extends MeadowStage {
   private readonly mine: MeadowMonster;
   private readonly mineSpot = SPOTS.wide.mine.clone();
+  /** How big my monster is drawn (a rare giant or tiny one differs). */
+  private mineSize = MINE_SIZE;
   /** Monsters fainting: they're left alone by the breathing and swaying. */
   private readonly fainting = new Set<LivingMonster>();
   private shake = 0;
@@ -49,7 +51,9 @@ export class BattleStage extends MeadowStage {
   constructor(canvas: HTMLCanvasElement, wild: StageMonster, mine: StageMonster, seed: number) {
     super(canvas, wild, seed, true);
     const living = this.makeLiving(mine, MINE_SIZE);
+    this.mineSize = living.size;
     living.sprite.visible = true;
+    this.mineSpot.y = living.size / 2;
     living.sprite.position.copy(this.mineSpot);
     this.mine = { ...living, phase: "battle", timer: 0, nextAct: Infinity, home: this.mineSpot.clone(), offset: new THREE.Vector3() };
     this.end(); // no slingshot until someone wants to catch
@@ -72,11 +76,11 @@ export class BattleStage extends MeadowStage {
     this.camera.lookAt(BATTLE_LOOK);
     this.camera.updateMatrixWorld();
     const spots = width < (band.bottom - band.top) * 1.1 ? SPOTS.tall : SPOTS.wide;
-    this.mineSpot.copy(spots.mine);
-    this.battleSpot.copy(spots.wild);
+    this.mineSpot.copy(spots.mine).setY(this.mineSize / 2);
+    this.battleSpot.copy(spots.wild).setY(this.wild.size / 2);
     const margin = band.margin ?? 12;
     const corners: THREE.Vector3[] = [];
-    for (const [spot, size] of [[this.mineSpot, MINE_SIZE], [this.battleSpot, this.wild.size]] as const) {
+    for (const [spot, size] of [[this.mineSpot, this.mineSize], [this.battleSpot, this.wild.size]] as const) {
       for (const dx of [-0.4, 0.4]) for (const dy of [-0.5, 0.5]) corners.push(new THREE.Vector3(spot.x + dx * size, spot.y + dy * size, spot.z));
     }
     const bandH = band.bottom - band.top;
@@ -99,13 +103,13 @@ export class BattleStage extends MeadowStage {
   /** Where the top of a monster is on the canvas (where it stands, not where an attack took it). */
   topOf(side: Side): { x: number; y: number } {
     const spot = side === "mine" ? this.mineSpot : this.battleSpot;
-    const size = side === "mine" ? MINE_SIZE : this.wild.size;
+    const size = side === "mine" ? this.mineSize : this.wild.size;
     return this.project({ x: spot.x, y: spot.y + size / 2, z: spot.z });
   }
 
   /** Where the bottom of my monster is on the canvas. */
   feetOfMine(): { x: number; y: number } {
-    return this.project({ x: this.mineSpot.x, y: this.mineSpot.y - MINE_SIZE / 2, z: this.mineSpot.z });
+    return this.project({ x: this.mineSpot.x, y: this.mineSpot.y - this.mineSize / 2, z: this.mineSpot.z });
   }
 
   /** Catching: my monster steps aside, the wild one starts shifting about, the slingshot comes up. */

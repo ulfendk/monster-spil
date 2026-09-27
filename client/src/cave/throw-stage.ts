@@ -24,6 +24,9 @@ export interface StageMonster {
   /** The same with its eyes shut and with its mouth open, if it has them (placeholder monsters do). */
   blink?: TexImageSource;
   talk?: TexImageSource;
+  /** A rare variant: drawn this much bigger or smaller, and twinkling. */
+  scale?: number;
+  sparkly?: boolean;
 }
 
 export interface ThrowResult {
@@ -46,6 +49,8 @@ export interface LivingMonster {
   startle: number;
   /** How big it's drawn (metres). */
   size: number;
+  /** A rare variant that twinkles now and then. */
+  sparkly?: boolean;
   phase: string;
 }
 
@@ -459,7 +464,8 @@ export abstract class ThrowStage<M extends LivingMonster> {
   }
 
   /** A monster's sprite and faces, added to the scene (hidden until the scene shows it). */
-  protected makeLiving(m: StageMonster, size = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size"> {
+  protected makeLiving(m: StageMonster, baseSize = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size" | "sparkly"> {
+    const size = baseSize * (m.scale ?? 1);
     const faces = {
       normal: this.texture(m.image),
       ...(m.blink ? { blink: this.texture(m.blink) } : {}),
@@ -470,7 +476,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     sprite.visible = false;
     sprite.userData.speciesId = m.speciesId;
     this.scene.add(sprite);
-    return { sprite, faces, nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size };
+    return { sprite, faces, nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size, sparkly: m.sparkly };
   }
 
   protected setFace(m: M, face: "normal" | "blink" | "talk", seconds = 0): void {
@@ -498,6 +504,11 @@ export abstract class ThrowStage<M extends LivingMonster> {
     m.sprite.scale.set(m.size * (1 - 0.025 * breath), m.size * (1 + 0.04 * breath), 1);
     const material = m.sprite.material as THREE.SpriteMaterial;
     material.rotation = this.sways(m) ? Math.sin(time * 0.9 + m.wobble) * 0.09 : 0;
+    // A rare, twinkling one: a little glint now and then.
+    if (m.sparkly && m.sprite.visible && this.rng.next() < dt * 1.2) {
+      const p = m.sprite.position;
+      this.sparkle(new THREE.Vector3(p.x + (this.rng.next() - 0.5) * m.size * 0.8, p.y + (this.rng.next() - 0.3) * m.size * 0.6, p.z + 0.05), KANAGAWA.carpYellow, 5, 0.5);
+    }
     if (m.startle > 0) {
       m.startle = Math.max(0, m.startle - dt);
       m.sprite.position.y += Math.sin((1 - m.startle / 0.45) * Math.PI) * 0.45 * (m.size / MONSTER_SIZE);
@@ -532,13 +543,13 @@ export abstract class ThrowStage<M extends LivingMonster> {
     return this.tween(seconds, () => {});
   }
 
-  /** Little bright shards bursting out of a point. */
-  protected sparkle(at: THREE.Vector3, colour: number): void {
+  /** Little bright shards bursting out of a point (`spread` < 1 for a small glint). */
+  protected sparkle(at: THREE.Vector3, colour: number, count = 14, spread = 1): void {
     const material = new THREE.MeshBasicMaterial({ color: colour, transparent: true });
-    const shards = Array.from({ length: 14 }, () => {
-      const s = new THREE.Mesh(new THREE.TetrahedronGeometry(0.06), material);
+    const shards = Array.from({ length: count }, () => {
+      const s = new THREE.Mesh(new THREE.TetrahedronGeometry(0.06 * Math.max(0.6, spread)), material);
       s.position.copy(at);
-      s.userData.v = new THREE.Vector3((this.rng.next() - 0.5) * 3, 1 + this.rng.next() * 2.5, (this.rng.next() - 0.5) * 3);
+      s.userData.v = new THREE.Vector3((this.rng.next() - 0.5) * 3 * spread, (1 + this.rng.next() * 2.5) * spread, (this.rng.next() - 0.5) * 3 * spread);
       this.scene.add(s);
       return s;
     });

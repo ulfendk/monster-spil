@@ -247,6 +247,27 @@ games" — with no schema state: plain messages typed in
   client that gets no `hello` within 3 s assumes an older server, shows a Danish
   "server needs updating" note and hides ⚔️ — trading still works.
 
+## Rare variants
+
+- **Now and then a wild monster is a rare variant** — golden, dark, snow-white, colourful,
+  giant or tiny (`shared/content/variants.json`: `chance` that one is a variant at all, then
+  each kind by weight, and its `look`: `hue`/`hueTo`, `saturation`/`minSaturation`,
+  `lighten`, `darken`, `tint` (a palette name), `size`, `sparkle`). Only the look changes; it
+  fights like any other. Pure rules (tested) in `shared/src/creature/variants.ts`
+  (`rollVariant`, `variantName` → "Gylden Mosmus").
+- **The caught monster keeps it**: `CreatureInstance.variant` (optional; the server's
+  `cleanCreature` and the duel `sanitizeSeat` let a slug through), so it's saved, traded and
+  shown in duels. Rolled in `OverworldScene.startWildBattle` (wild, dug up, the UFO's alien)
+  and per cave monster from the visit's seed (`CaveScene`; caves show colours, not sizes).
+- **Pictures:** `pictureKey(scene, key, variant)` (`client/src/gfx/variants.ts`) bakes the
+  variant's picture from the monster's own (a drawing or a placeholder) on first use — the
+  ink outlines stay ink — and its face frames the same way; `variantScale`, `variantSparkles`
+  for size and twinkling (`StageMonster.scale`/`sparkly` in the 3D scenes). Battles (2D and
+  3D), catching, caves, trades, the monster book (a sparkle on the ring) and the monster's
+  page (a row of the rare ones I have) all show them.
+- Catching one: extra XP (`xp.variant`) and the counter `variant` (badges Sjældent fund,
+  Sjældenhedsjæger).
+
 ## Monster book
 
 `MonsterbogScene` shows every species: caught ones with 🔴 times caught and 🎒 owned

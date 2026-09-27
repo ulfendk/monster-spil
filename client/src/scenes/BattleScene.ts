@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { spriteFit } from "../gfx/creature-sprite";
+import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
+import { nameWithVariant } from "../content/load-variants";
 import type { Room } from "colyseus.js";
 import type {
   PassOutKind,
@@ -175,7 +177,7 @@ export class BattleScene extends Phaser.Scene {
       this.battleState = createBattle(Date.now(), player, wild);
     }
     // A wild monster says hello (in a duel or a raid the first message comes from the server).
-    this.logTextValue = this.stageLoading ? `${this.foe().species.navn} ${t("battle_appears")}` : "";
+    this.logTextValue = this.stageLoading ? `${this.nameOf(this.foe())} ${t("battle_appears")}` : "";
     this.logIconValue = this.stageLoading ? "paw" : "";
     this.buildUi();
     this.renderActions();
@@ -194,8 +196,12 @@ export class BattleScene extends Phaser.Scene {
         const picture = (key: string) => (this.textures.exists(key) ? (this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement) : undefined);
         const foe = this.foe().species;
         const mine = this.me().species;
-        const foeImage = picture(foe.spriteFront);
-        const mineImage = picture(mine.spriteBack);
+        const foeVariant = this.foe().active.variant;
+        const mineVariant = this.me().active.variant;
+        // A rare one's own colours (baked on first use), for its picture and its faces.
+        const variantPicture = (key: string, variant: string | undefined) => (this.textures.exists(key) ? picture(pictureKey(this, key, variant)) : undefined);
+        const foeImage = variantPicture(foe.spriteFront, foeVariant);
+        const mineImage = variantPicture(mine.spriteBack, mineVariant);
         if (!foeImage || !mineImage) throw new Error("no pictures for the 3D battle");
         const canvas = document.createElement("canvas");
         canvas.className = "cave-stage";
@@ -203,8 +209,15 @@ export class BattleScene extends Phaser.Scene {
         try {
           this.stage = new BattleStage(
             canvas,
-            { speciesId: foe.id, image: foeImage, blink: picture(faceFrameKey(foe.spriteFront, "blink")), talk: picture(faceFrameKey(foe.spriteFront, "talk")) },
-            { speciesId: mine.id, image: mineImage },
+            {
+              speciesId: foe.id,
+              image: foeImage,
+              blink: variantPicture(faceFrameKey(foe.spriteFront, "blink"), foeVariant),
+              talk: variantPicture(faceFrameKey(foe.spriteFront, "talk"), foeVariant),
+              scale: variantScale(foeVariant),
+              sparkly: variantSparkles(foeVariant),
+            },
+            { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant), sparkly: variantSparkles(mineVariant) },
             Math.floor(this.rng.next() * 2 ** 31)
           );
         } catch (error) {
@@ -251,6 +264,16 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** A species this device has no picture for (different content version) shows Phaser's placeholder box. */
+  /** A monster's picture (its variant's, if it's a rare one), front or back. */
+  private pictureOf(p: BattleParticipant, side: "front" | "back"): string {
+    return this.textureFor(pictureKey(this, side === "front" ? p.species.spriteFront : p.species.spriteBack, p.active.variant));
+  }
+
+  /** "Gylden Mosmus" for a rare one. */
+  private nameOf(p: BattleParticipant): string {
+    return nameWithVariant(p.species.navn, p.active.variant);
+  }
+
   private textureFor(key: string): string {
     return this.textures.exists(key) ? key : "__MISSING";
   }
@@ -499,10 +522,12 @@ export class BattleScene extends Phaser.Scene {
     const pictures = !this.stageLoading;
     // The dragon is drawn bigger than any monster.
     const foeScale = spriteScale * (this.raid ? 1.5 : 1);
-    this.wildSprite = this.add.image(foe.x, foe.y, this.textureFor(wild.species.spriteFront)).setScale(foeScale * spriteFit(this, this.textureFor(wild.species.spriteFront))).setVisible(pictures);
-    this.wildHpBar = createHpBar(this, foe.x, foe.y - 64 * foeScale - layout.px(14), wild.species.navn, barSize);
-    this.playerSprite = this.add.image(me.x, me.y, this.textureFor(player.species.spriteBack)).setScale(spriteScale * spriteFit(this, this.textureFor(player.species.spriteBack))).setVisible(pictures);
-    this.playerHpBar = createHpBar(this, me.x, me.y - 64 * spriteScale - layout.px(14), player.species.navn, barSize);
+    const foeKey = this.pictureOf(wild, "front");
+    const meKey = this.pictureOf(player, "back");
+    this.wildSprite = this.add.image(foe.x, foe.y, foeKey).setScale(foeScale * variantScale(wild.active.variant) * spriteFit(this, foeKey)).setVisible(pictures);
+    this.wildHpBar = createHpBar(this, foe.x, foe.y - 64 * foeScale - layout.px(14), this.nameOf(wild), barSize);
+    this.playerSprite = this.add.image(me.x, me.y, meKey).setScale(spriteScale * variantScale(player.active.variant) * spriteFit(this, meKey)).setVisible(pictures);
+    this.playerHpBar = createHpBar(this, me.x, me.y - 64 * spriteScale - layout.px(14), this.nameOf(player), barSize);
 
     const logY = portrait ? arena.top + arena.h * 0.55 : arena.top + arena.h * 0.45;
     const iconSize = Math.max(40, layout.px(64));
@@ -546,11 +571,11 @@ export class BattleScene extends Phaser.Scene {
     this.backdrop = [];
 
     // The 2D pictures stay (the fallback ball throw uses their places), but hidden.
-    this.wildSprite = this.add.image(0, 0, this.textureFor(this.foe().species.spriteFront)).setVisible(false);
-    this.playerSprite = this.add.image(0, 0, this.textureFor(this.me().species.spriteBack)).setVisible(false);
+    this.wildSprite = this.add.image(0, 0, this.pictureOf(this.foe(), "front")).setVisible(false);
+    this.playerSprite = this.add.image(0, 0, this.pictureOf(this.me(), "back")).setVisible(false);
     const barBottom = barH - Math.round(36 * barSize) - Math.round(10 * barSize) / 2 - Math.max(14, Math.round(24 * barSize)) / 2;
-    this.wildHpBar = createHpBar(this, safe.left + 12 + barW / 2, arena.top + barH - barBottom, this.foe().species.navn, barSize, true);
-    this.playerHpBar = createHpBar(this, width - safe.right - 12 - barW / 2, logY - logH / 2 - gap / 2 - barBottom, this.me().species.navn, barSize, true);
+    this.wildHpBar = createHpBar(this, safe.left + 12 + barW / 2, arena.top + barH - barBottom, this.nameOf(this.foe()), barSize, true);
+    this.playerHpBar = createHpBar(this, width - safe.right - 12 - barW / 2, logY - logH / 2 - gap / 2 - barBottom, this.nameOf(this.me()), barSize, true);
 
     this.logCard = this.add.graphics();
     this.logCard.fillStyle(C.overlay, 0.85).fillRoundedRect(width / 2 - logW / 2, logY - logH / 2, logW, logH, Math.min(18, logH / 2));
@@ -656,6 +681,7 @@ export class BattleScene extends Phaser.Scene {
     let worked: BattleState | undefined;
     const data: CatchSceneData = {
       species: wild.species,
+      variant: wild.active.variant,
       seed: Math.floor(this.rng.next() * 2 ** 31),
       ...(this.stage ? { stage: this.stage } : {}),
       decide: (thrown) => {
@@ -916,7 +942,7 @@ export class BattleScene extends Phaser.Scene {
       const wild = this.battleState.participants[1];
       this.battleData.save.creatures.push({ ...wild.active, ownerId: this.battleData.save.player.id });
       const counts = this.battleData.save.caughtCounts;
-      recordProgress({ kind: "catch", newSpecies: !counts[wild.species.id] }, true);
+      recordProgress({ kind: "catch", newSpecies: !counts[wild.species.id], variant: Boolean(wild.active.variant) }, true);
       counts[wild.species.id] = (counts[wild.species.id] ?? 0) + 1;
       // Counted on the family scoreboard when the server has acknowledged it (now, or once back online).
       this.battleData.save.pendingScore.push({ id: crypto.randomUUID(), kind: "catch", at: new Date().toISOString() });

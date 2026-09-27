@@ -41,6 +41,7 @@ import {
   setOffer,
   submitAction,
   timeoutTurn,
+  isVariantId,
 } from "@monster-spil/shared";
 import { clientAddress, type KeyGate } from "./key-gate.js";
 import type { GameStore } from "./game-store.js";
@@ -167,6 +168,7 @@ function cleanCreature(raw: unknown): CreatureInstance | undefined {
     niveau: c.niveau,
     currentHp: c.currentHp,
     caughtAt: c.caughtAt,
+    ...(isVariantId(c.variant) ? { variant: c.variant } : {}),
   };
 }
 

@@ -95,6 +95,24 @@ test("events are counted, level-ups reported and badges earned once", () => {
   assert.equal(cave.progress.stats["cave:lava"], 1);
 });
 
+test("rare variants and trips to other worlds count and give XP", () => {
+  const ctx = { species: 1, now };
+  const plain = award(emptyProgress(), { kind: "catch", newSpecies: false }, ctx, config, badges);
+  const rare = award(emptyProgress(), { kind: "catch", newSpecies: false, variant: true }, ctx, config, badges);
+  assert.ok(rare.gained > plain.gained, "a rare one is worth more");
+  assert.equal(rare.progress.stats.variant, 1);
+  assert.equal(plain.progress.stats.variant, undefined);
+  const first = award(emptyProgress(), { kind: "travel", world: "kirsebaeroeen", via: "boat", firstVisit: true }, ctx, config, badges);
+  assert.equal(first.progress.stats.travel, 1);
+  assert.equal(first.progress.stats.boat, 1);
+  assert.equal(first.progress.stats.worlds, 1);
+  assert.equal(first.progress.stats["world:kirsebaeroeen"], 1);
+  const back = award(first.progress, { kind: "travel", world: "kirsebaeroeen", via: "boat", firstVisit: false }, ctx, config, badges);
+  assert.equal(back.progress.stats.worlds, 1, "a world is only discovered once");
+  assert.equal(back.progress.stats["world:kirsebaeroeen"], 2);
+  assert.ok(first.gained > back.gained, "a new world is worth more than going back");
+});
+
 test("a save from before levels gets credit for what it has caught", () => {
   const p = progressFromHistory({ stenbid: 3, gnistrot: 2, istap: 0 }, now, config, badges);
   assert.equal(p.xp, 5 * config.xp.catch + 2 * config.xp.newSpecies);
@@ -104,13 +122,13 @@ test("a save from before levels gets credit for what it has caught", () => {
 });
 
 test("the content files make sense", () => {
-  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "cut", "climb", "swim", "dig", "gem", "species", "level"]);
+  const counters = new Set(["catch", "caveCatch", "caveVisit", "wildWin", "duel", "duelWin", "trade", "food", "bossDamage", "dragonWin", "cut", "climb", "swim", "dig", "gem", "species", "level", "variant", "travel", "tunnel", "bridge", "boat", "worlds"]);
   const ids = new Set<string>();
   for (const b of badges) {
     assert.ok(!ids.has(b.id), `badge ids are unique: ${b.id}`);
     ids.add(b.id);
     assert.ok(/^[a-z0-9-]+$/.test(b.id), `ASCII slug: ${b.id}`);
-    assert.ok(counters.has(b.stat) || /^beast:[a-z0-9]+$/.test(b.stat) || /^cave:[a-z0-9]+$/.test(b.stat), `a counter the game keeps: ${b.stat}`);
+    assert.ok(counters.has(b.stat) || /^(beast|cave|world):[a-z0-9]+$/.test(b.stat), `a counter the game keeps: ${b.stat}`);
     assert.ok(b.min > 0);
   }
   for (const list of [config.titles, config.looks]) {

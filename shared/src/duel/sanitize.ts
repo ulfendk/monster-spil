@@ -1,6 +1,7 @@
 import type { TypeId } from "../types/creature.js";
 import type { BattleParticipant } from "../types/battle.js";
 import type { Move } from "../types/move.js";
+import { isVariantId } from "../creature/variants.js";
 
 const TYPES: readonly TypeId[] = ["ild", "vand", "graes", "lyn", "sten"];
 
@@ -58,6 +59,7 @@ export function sanitizeSeat(raw: unknown, playerId: string): BattleParticipant 
       niveau: 1,
       currentHp: baseStats.hp,
       caughtAt: a.caughtAt,
+      ...(isVariantId(a.variant) ? { variant: a.variant } : {}),
     },
   };
 }

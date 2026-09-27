@@ -1,5 +1,7 @@
 import Phaser from "phaser";
-import { caveCatchChance, caveRocks, createRng, type CaveVisit, type CreatureInstance, type Rng, type Vec3 } from "@shared";
+import { caveCatchChance, caveRocks, createRng, rollVariant, type CaveVisit, type CreatureInstance, type Rng, type Vec3 } from "@shared";
+import { variantConfig } from "../content/load-variants";
+import { pictureKey, variantSparkles } from "../gfx/variants";
 import { caveKindFor } from "../content/load-caves";
 import { faceFrameKey } from "../gfx/placeholder-sprites";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -39,6 +41,8 @@ export class CaveScene extends Phaser.Scene {
   private rng!: Rng;
   private balls = 0;
   private caught: string[] = [];
+  /** Each monster in the cave: a rare variant or not (rolled from the visit's seed). */
+  private variants: Array<string | undefined> = [];
   private throwing = false;
   private done = false;
   private slingshot?: SlingshotInput;
@@ -54,6 +58,8 @@ export class CaveScene extends Phaser.Scene {
     this.rng = createRng(data.visit.seed ^ 0x5bd1e995);
     this.balls = data.visit.balls;
     this.caught = [];
+    const variantRng = createRng(data.visit.seed ^ 0x2545f491);
+    this.variants = data.visit.speciesIds.map(() => rollVariant(variantConfig, () => variantRng.next()));
     this.throwing = false;
     this.done = false;
   }
@@ -71,11 +77,13 @@ export class CaveScene extends Phaser.Scene {
       this.canvas.className = "cave-stage";
       document.getElementById("game")!.prepend(this.canvas);
       const picture = (key: string) => (this.textures.exists(key) ? (this.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement) : undefined);
-      const monsters = this.caveData.visit.speciesIds.flatMap((id) => {
+      // (Rare ones show their colours in here; sizes stay as they are, so they fit behind the rocks.)
+      const monsters = this.caveData.visit.speciesIds.flatMap((id, i) => {
         const key = this.caveData.content.speciesById[id]?.spriteFront;
-        const image = key ? picture(key) : undefined;
+        const variant = this.variants[i];
+        const image = key ? picture(pictureKey(this, key, variant)) : undefined;
         if (!key || !image) return [];
-        return [{ speciesId: id, image, blink: picture(faceFrameKey(key, "blink")), talk: picture(faceFrameKey(key, "talk")) }];
+        return [{ speciesId: id, image, blink: picture(pictureKey(this, faceFrameKey(key, "blink"), variant)), talk: picture(pictureKey(this, faceFrameKey(key, "talk"), variant)), sparkly: variantSparkles(variant) }];
       });
       const kind = caveKindFor(this.caveData.visit.kind);
       const look = kind?.look ?? { walls: "sumiInk6", floor: "sumiInk5", fog: "sumiInk0", glow: ["waveAqua2", "oniViolet"], decor: "crystals" as const, particles: "none" as const };
@@ -137,7 +145,7 @@ export class CaveScene extends Phaser.Scene {
         await this.stage.catchAnimation(index, success);
         if (success) {
           this.caught.push(speciesId);
-          await this.keep(speciesId);
+          await this.keep(speciesId, this.variants[index]);
           this.say(`${ic(POINTS_ICON)} ${species?.navn ?? ""} ${t("cave_caught").toLowerCase()}`);
         } else {
           this.say(t("cave_free"));
@@ -159,7 +167,7 @@ export class CaveScene extends Phaser.Scene {
   }
 
   /** A caught monster is mine, exactly like one caught in the wild. */
-  private async keep(speciesId: string): Promise<void> {
+  private async keep(speciesId: string, variant: string | undefined): Promise<void> {
     const save = this.caveData.save;
     const species = this.caveData.content.speciesById[speciesId];
     const creature: CreatureInstance = {
@@ -169,9 +177,10 @@ export class CaveScene extends Phaser.Scene {
       niveau: 1,
       currentHp: species?.baseStats.hp ?? 1,
       caughtAt: new Date().toISOString(),
+      ...(variant ? { variant } : {}),
     };
     save.creatures.push(creature);
-    recordProgress({ kind: "catch", newSpecies: !save.caughtCounts[speciesId], cave: true }, true);
+    recordProgress({ kind: "catch", newSpecies: !save.caughtCounts[speciesId], cave: true, variant: Boolean(variant) }, true);
     save.caughtCounts[speciesId] = (save.caughtCounts[speciesId] ?? 0) + 1;
     // Counted on the family scoreboard when the server has acknowledged it.
     save.pendingScore.push({ id: crypto.randomUUID(), kind: "catch", at: creature.caughtAt });

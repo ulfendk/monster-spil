@@ -39,4 +39,6 @@ export interface CreatureInstance {
   niveau: number;
   currentHp: number;
   caughtAt: string;
+  /** A rare look (golden, giant…), see shared/src/creature/variants.ts; absent for an ordinary one. */
+  variant?: string;
 }

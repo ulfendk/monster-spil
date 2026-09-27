@@ -38,8 +38,9 @@ import { recordProgress } from "../progress/record";
 import { levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
-import { crossTarget, emptyTerrain, encounterTableAt, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { crossTarget, emptyTerrain, encounterTableAt, rollVariant, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
+import { variantConfig } from "../content/load-variants";
 import type { MinigameData } from "./minigames/Minigame";
 
 export interface OverworldSceneData {
@@ -1630,6 +1631,9 @@ export class OverworldScene extends Phaser.Scene {
       currentHp: species.baseStats.hp,
       caughtAt: new Date().toISOString(),
     };
+    // Now and then a rare one: golden, dark, giant…
+    const variant = rollVariant(variantConfig, Math.random);
+    if (variant) wildInstance.variant = variant;
 
     if (!this.save.seenSpeciesIds.includes(species.id)) {
       this.save.seenSpeciesIds.push(species.id);

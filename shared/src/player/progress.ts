@@ -30,6 +30,11 @@ export interface LevelConfig {
     climb: number;
     swim: number;
     dig: number;
+    /** On top of `catch` for a rare variant (a golden one, a giant…); optional in older files. */
+    variant?: number;
+    /** Every trip to another world (by tunnel, bridge or boat), and on top for the first visit to one. */
+    travel?: number;
+    newWorld?: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -62,7 +67,9 @@ export const emptyProgress = (): Progress => ({ xp: 0, stats: {}, badges: {} });
 
 /** Something that happened in the game, worth XP and counted for badges. */
 export type ProgressEvent =
-  | { kind: "catch"; newSpecies: boolean; cave?: boolean }
+  | { kind: "catch"; newSpecies: boolean; cave?: boolean; variant?: boolean }
+  /** Went to another world: which one, how, and whether it's the first time there. */
+  | { kind: "travel"; world: string; via: "tunnel" | "bridge" | "boat"; firstVisit: boolean }
   | { kind: "wildWin" }
   | { kind: "duel"; won: boolean }
   | { kind: "bossDamage"; amount: number }
@@ -122,7 +129,9 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
   const x = config.xp;
   switch (event.kind) {
     case "catch":
-      return x.catch + (event.newSpecies ? x.newSpecies : 0);
+      return x.catch + (event.newSpecies ? x.newSpecies : 0) + (event.variant ? (x.variant ?? 0) : 0);
+    case "travel":
+      return (x.travel ?? 0) + (event.firstVisit ? (x.newWorld ?? 0) : 0);
     case "wildWin":
       return x.wildWin;
     case "duel":
@@ -167,6 +176,13 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
     case "catch":
       count(stats, "catch");
       if (event.cave) count(stats, "caveCatch");
+      if (event.variant) count(stats, "variant");
+      break;
+    case "travel":
+      count(stats, "travel");
+      count(stats, event.via);
+      count(stats, `world:${event.world}`);
+      if (event.firstVisit) count(stats, "worlds");
       break;
     case "wildWin":
       count(stats, "wildWin");
