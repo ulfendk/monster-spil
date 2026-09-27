@@ -18,7 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { DrawingError, drawingToSvg, render } from "./lib/drawing.mjs";
-import { makeCry } from "./lib/cry.mjs";
+import { makeVoice } from "./lib/voice.mjs";
 import { encodeWav } from "./lib/wav.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -147,7 +147,7 @@ async function main() {
   await sharp(args.photo, { failOn: "none" }).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toFile(path.join(DRAWINGS, `${id}.jpg`));
   if (args.ryg) await sharp(args.ryg, { failOn: "none" }).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toFile(path.join(DRAWINGS, `${id}-ryg.jpg`));
 
-  // The cry: the child's own recording, or a stand-in until there is one.
+  // The cry: the child's own recording, or a voice of its own (scripts/lib/voice.mjs) until there is one.
   let sound;
   if (args.lyd) {
     const ext = path.extname(args.lyd).toLowerCase();
@@ -167,7 +167,7 @@ async function main() {
   } else {
     if (!sound) {
       sound = `creatures/${id}.wav`;
-      writeFileSync(path.join(CREATURES, `${id}.wav`), encodeWav(makeCry(id, type)));
+      writeFileSync(path.join(CREATURES, `${id}.wav`), encodeWav(makeVoice(id, type, STATS[type])));
     }
     const moveIds = movesFor(type);
     const creature = {
