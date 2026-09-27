@@ -547,6 +547,15 @@ const ART: Record<string, (g: G) => void> = {
     ellipse(g, 64, 62, 116, 32, K.oldWhite);
     for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
   },
+  camera: (g) => {
+    // An old box camera: a dark body, a big blue lens, a red button on top.
+    rrect(g, 46, 18, 26, 16, 5, K.sumiInk6, 5);
+    rrect(g, 14, 30, 100, 76, 14, K.sumiInk5);
+    rrect(g, 84, 22, 18, 12, 4, K.autumnRed, 5);
+    circle(g, 64, 68, 28, K.oldWhite);
+    circle(g, 64, 68, 18, K.crystalBlue);
+    g.fillStyle(K.washi, 1).fillCircle(57, 61, 5);
+  },
   games: (g) => {
     // a stack of worlds: three cards fanned out, each with its own little landscape
     const cards = [[-16, K.oniViolet, -0.18], [0, K.crystalBlue, 0], [16, K.springGreen, 0.18]] as const;

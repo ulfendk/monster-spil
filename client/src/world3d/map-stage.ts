@@ -48,6 +48,20 @@ const PAD = 4;
 const PITCH = 57;
 const FOV = 38;
 
+/** The camera's angle around the player, tilt and zoom (camera mode changes them). */
+export interface MapView {
+  /** Radians the camera has turned around the player; 0 = looking north from the south. */
+  yaw: number;
+  /** Degrees above the horizon it looks down from. */
+  pitch: number;
+  /** 1 = the usual distance; smaller is closer. */
+  zoom: number;
+}
+
+export const DEFAULT_VIEW: MapView = { yaw: 0, pitch: PITCH, zoom: 1 };
+/** How far camera mode may tilt and zoom. */
+export const VIEW_LIMITS = { pitch: [28, 82], zoom: [0.55, 1.8] } as const;
+
 interface Chunk {
   cx: number;
   cy: number;
@@ -90,6 +104,8 @@ export class MapStage {
   /** How many tiles wide the view is where the camera looks. */
   private viewTiles = 12;
   private readonly target = new THREE.Vector3();
+  /** Where the camera looks from (camera mode turns, tilts and zooms it). */
+  view: MapView = { ...DEFAULT_VIEW };
 
   constructor(canvas: HTMLCanvasElement, source: MapSource) {
     this.source = source;
@@ -98,6 +114,7 @@ export class MapStage {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.background = new THREE.Color(KANAGAWA.springBlue);
     this.scene.fog = new THREE.Fog(KANAGAWA.springBlue, 30, 60);
+    // (lookAt moves the fog with the camera's distance.)
     this.scene.add(new THREE.HemisphereLight(KANAGAWA.fujiWhite, KANAGAWA.autumnGreen, 1.7));
     const sun = new THREE.DirectionalLight(KANAGAWA.fujiWhite, 1.5);
     sun.position.set(-4, 10, 3);
@@ -136,15 +153,22 @@ export class MapStage {
     this.camera.updateProjectionMatrix();
   }
 
-  /** Looks at a point on the map (in tiles), from the south and above. */
+  /** Looks at a point on the map (in tiles): from the south and above, or as camera mode left it. */
   lookAt(x: number, z: number): void {
     this.target.set(x, 0, z);
     const hfov = 2 * Math.atan(Math.tan((FOV * Math.PI) / 360) * this.camera.aspect);
-    const distance = this.viewTiles / 2 / Math.tan(hfov / 2);
-    const pitch = (PITCH * Math.PI) / 180;
-    this.camera.position.set(x, Math.sin(pitch) * distance, z + Math.cos(pitch) * distance);
+    const distance = (this.viewTiles / 2 / Math.tan(hfov / 2)) * this.view.zoom;
+    const pitch = (this.view.pitch * Math.PI) / 180;
+    const across = Math.cos(pitch) * distance;
+    this.camera.position.set(x + Math.sin(this.view.yaw) * across, Math.sin(pitch) * distance, z + Math.cos(this.view.yaw) * across);
     this.camera.lookAt(this.target);
     this.camera.updateMatrixWorld();
+    // The mist starts past what the camera is looking at, however far away that is.
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = distance + 12;
+    fog.far = distance + 40;
+    this.camera.far = distance + 60;
+    this.camera.updateProjectionMatrix();
   }
 
   render(): void {

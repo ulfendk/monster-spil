@@ -8,7 +8,7 @@ import { seatFor } from "../battle-participant";
 import { t } from "../i18n/da";
 import { BEAST_ICONS, DRAGON_ICON, TEAM_ICON } from "../ui/icons";
 import { beastForBaby } from "../content/load-beasts";
-import { addCloseButton, createButton } from "../ui/Button";
+import { addCloseButton, createButton, whenTapped } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { C, CSS, FONT } from "../ui/theme";
 import { addSeigaiha } from "../gfx/motifs";
@@ -365,7 +365,7 @@ export class InteractScene extends Phaser.Scene {
   ): void {
     const bg = this.add.rectangle(x, y, size, size, C.panel).setStrokeStyle(selected ? 6 : 3, selected ? C.accent : C.border, selected ? 1 : 0.5);
     bg.setInteractive({ useHandCursor: true });
-    bg.on("pointerup", onTap);
+    whenTapped(bg, onTap);
     this.ui.add(bg);
     this.addSprite(x, y, species, size * 0.76);
   }

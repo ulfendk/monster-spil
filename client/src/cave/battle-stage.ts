@@ -27,9 +27,8 @@ const SPOTS = {
   tall: { mine: new THREE.Vector3(-0.75, 0.7, -2.4), wild: new THREE.Vector3(0.7, STAND_Y, -7.5) },
 };
 
-/** Where the camera looks during the battle (a little lower than when catching, so both monsters fit) and when catching. */
+/** Where the camera looks during the battle: a little lower than when catching, so both monsters fit. */
 const BATTLE_LOOK = new THREE.Vector3(0.1, 0.35, -8);
-const CATCH_LOOK = new THREE.Vector3(0, 1, -8);
 
 /** Each type's colours: the missile, and its sparks. */
 const TYPE_FX: Record<TypeId, { main: number; spark: number }> = {
@@ -45,7 +44,6 @@ export class BattleStage extends MeadowStage {
   private readonly mineSpot = SPOTS.wide.mine.clone();
   /** Monsters fainting: they're left alone by the breathing and swaying. */
   private readonly fainting = new Set<LivingMonster>();
-  private readonly cameraHome = new THREE.Vector3(0, 1.6, 1.5);
   private shake = 0;
 
   constructor(canvas: HTMLCanvasElement, wild: StageMonster, mine: StageMonster, seed: number) {
@@ -66,12 +64,13 @@ export class BattleStage extends MeadowStage {
    */
   resize(width: number, height: number, band?: { top: number; bottom: number; margin?: number }): void {
     if (!band) {
-      this.camera.lookAt(CATCH_LOOK);
-      super.resize(width, height);
+      super.resize(width, height); // the catching view (ThrowStage's)
       return;
     }
-    this.camera.position.copy(this.cameraHome);
+    this.cameraBase.set(0, 1.6, 1.5);
+    this.camera.position.copy(this.cameraBase);
     this.camera.lookAt(BATTLE_LOOK);
+    this.camera.updateMatrixWorld();
     const spots = width < (band.bottom - band.top) * 1.1 ? SPOTS.tall : SPOTS.wide;
     this.mineSpot.copy(spots.mine);
     this.battleSpot.copy(spots.wild);
@@ -199,9 +198,9 @@ export class BattleStage extends MeadowStage {
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt);
       const a = this.shake * 0.25;
-      this.camera.position.set(this.cameraHome.x + (this.rng.next() - 0.5) * a, this.cameraHome.y + (this.rng.next() - 0.5) * a, this.cameraHome.z);
-    } else if (!this.camera.position.equals(this.cameraHome)) {
-      this.camera.position.copy(this.cameraHome);
+      this.camera.position.set(this.cameraBase.x + (this.rng.next() - 0.5) * a, this.cameraBase.y + (this.rng.next() - 0.5) * a, this.cameraBase.z);
+    } else if (!this.camera.position.equals(this.cameraBase)) {
+      this.camera.position.copy(this.cameraBase);
     }
   }
 

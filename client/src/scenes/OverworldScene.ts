@@ -24,7 +24,7 @@ import { takeArrivalNote } from "../save/move";
 import { disasterConfigs } from "../content/load-disasters";
 import { currentGame } from "../save/games";
 import { t } from "../i18n/da";
-import { createButton } from "../ui/Button";
+import { createButton, whenTapped } from "../ui/Button";
 import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon } from "../gfx/icon-art";
@@ -138,6 +138,11 @@ export class OverworldScene extends Phaser.Scene {
   private caves!: CaveLayer;
   /** The map in 3D (world3d/map-3d.ts), once three.js has loaded; without it the 2D map shows. */
   private map3d?: Map3D;
+  /** Camera mode (3D only): dragging turns and tilts the camera and pinching zooms, instead of walking. */
+  private cameraMode = false;
+  /** The fingers on the screen in camera mode (screen px), and whether they moved (a tap otherwise). */
+  private cameraFingers = new Map<number, { x: number; y: number }>();
+  private cameraMoved = false;
 
   constructor() {
     super("Overworld");
@@ -225,9 +230,13 @@ export class OverworldScene extends Phaser.Scene {
     this.drag = undefined;
     this.positionDirty = false;
     this.stick = this.add.graphics().setScrollFactor(0).setDepth(25);
+    this.input.addPointer(1); // a second finger, for pinching in camera mode
+    this.cameraMode = false;
+    this.cameraFingers.clear();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       // A UI button (e.g. the Monsterbog corner button) already handled this tap.
       if (this.input.hitTestPointer(pointer).length > 0) return;
+      if (this.cameraMode) return this.cameraDown(pointer);
       if (this.drag) return; // one steering finger at a time
       if (this.isPassedOut()) return; // can't move (or meet anyone) while passed out
       this.closePopup();
@@ -236,6 +245,7 @@ export class OverworldScene extends Phaser.Scene {
       this.drag = { pointerId: pointer.id, ox: pointer.x, oy: pointer.y, x: pointer.x, y: pointer.y, moved: false };
     });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.cameraMode) return this.cameraMove(pointer);
       const drag = this.drag;
       if (!drag || pointer.id !== drag.pointerId) return;
       drag.x = pointer.x;
@@ -247,6 +257,7 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
     const release = (pointer: Phaser.Input.Pointer) => {
+      if (this.cameraFingers.has(pointer.id)) return this.cameraUp(pointer);
       const drag = this.drag;
       if (!drag || pointer.id !== drag.pointerId) return;
       this.drag = undefined;
@@ -317,8 +328,59 @@ export class OverworldScene extends Phaser.Scene {
           focus: () => ({ x: this.player.x, y: this.player.y }),
         });
         if (import.meta.env.DEV) (window as unknown as { __map3d?: Map3D }).__map3d = this.map3d;
+        this.buildHud(); // now with the camera button
       })
       .catch((error: unknown) => console.warn("3D map unavailable:", error));
+  }
+
+  // ------------------------------------------------------------ camera mode (3D)
+
+  /** Into camera mode (dragging turns the view) or back to walking. */
+  private toggleCameraMode(): void {
+    this.cameraMode = !this.cameraMode;
+    this.cameraFingers.clear();
+    this.drag = undefined;
+    this.stick?.clear();
+    this.pendingPath = [];
+    this.closePopup();
+    if (this.cameraMode) this.showToast(`${ic("camera")} ${t("camera_mode")}`, 2500);
+    this.buildHud();
+  }
+
+  private cameraDown(pointer: Phaser.Input.Pointer): void {
+    if (this.cameraFingers.size === 0) this.cameraMoved = false;
+    this.cameraFingers.set(pointer.id, { x: pointer.x, y: pointer.y });
+  }
+
+  /** One finger turns and tilts; two pinch to zoom. */
+  private cameraMove(pointer: Phaser.Input.Pointer): void {
+    const finger = this.cameraFingers.get(pointer.id);
+    if (!finger || !this.map3d) return;
+    const fingers = [...this.cameraFingers.entries()];
+    if (fingers.length >= 2) {
+      const [a, b] = fingers.map(([id, f]) => (id === pointer.id ? { x: pointer.x, y: pointer.y } : f));
+      const before = Phaser.Math.Distance.Between(fingers[0]![1].x, fingers[0]![1].y, fingers[1]![1].x, fingers[1]![1].y);
+      const after = Phaser.Math.Distance.Between(a!.x, a!.y, b!.x, b!.y);
+      if (before > 10 && after > 10) this.map3d.zoomBy(before / after);
+      this.cameraMoved = true;
+    } else {
+      const dx = pointer.x - finger.x;
+      const dy = pointer.y - finger.y;
+      if (!this.cameraMoved && Math.hypot(dx, dy) < DRAG_DEAD_ZONE) return; // not yet: it may be a tap
+      if (!this.cameraMoved) {
+        this.cameraMoved = true;
+        this.buildHud(); // the reset button may appear
+      }
+      this.map3d.orbit(dx, dy);
+    }
+    finger.x = pointer.x;
+    finger.y = pointer.y;
+  }
+
+  private cameraUp(pointer: Phaser.Input.Pointer): void {
+    this.cameraFingers.delete(pointer.id);
+    // A tap in camera mode still taps (a player, the dragon, a tree…).
+    if (this.cameraFingers.size === 0 && !this.cameraMoved && !this.isPassedOut()) this.onTap(pointer);
   }
 
   // ------------------------------------------------------------ passing out and food
@@ -473,8 +535,12 @@ export class OverworldScene extends Phaser.Scene {
   private stepFromDrag(): void {
     const drag = this.drag;
     if (!drag?.moved || this.isMoving) return;
-    const vx = drag.x - drag.ox;
-    const vy = drag.y - drag.oy;
+    // With the camera turned, "up the screen" is the way the camera faces, not north.
+    const yaw = this.map3d?.yaw ?? 0;
+    const sx = drag.x - drag.ox;
+    const sy = drag.y - drag.oy;
+    const vx = sx * Math.cos(yaw) + sy * Math.sin(yaw);
+    const vy = -sx * Math.sin(yaw) + sy * Math.cos(yaw);
     const direction = dragDirection(vx, vy, DRAG_DEAD_ZONE);
     if (!direction) return;
     const step = chooseStep(this.playerTile, direction, vx, vy, (x, y) => this.isWalkable(x, y));
@@ -539,6 +605,27 @@ export class OverworldScene extends Phaser.Scene {
     this.digButton = this.hudButton(layout.width - layout.safe.right - gap - digSize / 2, layout.height - layout.safe.bottom - gap - digSize / 2, digSize, ic("shovel"), () => this.startDig());
     this.digButton.setVisible(this.canDigHere());
     this.hud.push(this.digButton);
+    // The camera, bottom left (3D only): tap to turn and zoom the view, tap again to walk.
+    if (this.map3d) {
+      const camX = layout.safe.left + gap + digSize / 2;
+      const camY = layout.height - layout.safe.bottom - gap - digSize / 2;
+      const camera = createButton(this, camX, camY, this.cameraMode ? "✓" : ic("camera"), () => this.toggleCameraMode(), {
+        width: digSize,
+        height: digSize,
+        fontSize: `${Math.round(digSize * 0.44)}px`,
+        backgroundColor: this.cameraMode ? C.ok : C.button,
+      });
+      camera.setScrollFactor(0).setDepth(10);
+      this.hud.push(camera);
+      // In camera mode (once turned): back to the usual view.
+      if (this.cameraMode && this.map3d.turned) {
+        const reset = this.hudButton(camX + digSize + gap, camY, size, ic("refresh"), () => {
+          this.map3d?.resetView();
+          this.time.delayedCall(500, () => this.buildHud());
+        });
+        this.hud.push(reset);
+      }
+    }
     // My level at the top left: tap it for my profile and badges.
     const levelButton = createButton(this, layout.safe.left + gap + size * 0.8, y, `${ic("star")} ${myLevel()}`, () => this.openProfile({ save: this.save }), {
       width: size * 1.6,
@@ -1381,7 +1468,7 @@ export class OverworldScene extends Phaser.Scene {
       for (const o of objects) o.destroy();
       done();
     };
-    panel.on("pointerup", close);
+    whenTapped(panel, close);
     this.time.delayedCall(4200, close);
   }
 

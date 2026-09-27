@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import * as THREE from "three";
-import { MapStage, type MapTileIds } from "./map-stage";
+import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } from "./map-stage";
 import { mapHint } from "../gfx/map-hints";
 import { KANAGAWA } from "../ui/theme";
 
@@ -55,6 +55,8 @@ interface Moved {
 const SYNC_MS = 300;
 /** Pictures at least this big (px) cast a shadow and can be tapped in 3D. */
 const TOKEN_PX = 48;
+/** Where this device remembers how the camera was left (a convenience; losing it is fine). */
+const VIEW_KEY = "monsterjagt-kamera";
 
 export class Map3D {
   private readonly stage: MapStage;
@@ -91,6 +93,7 @@ export class Map3D {
       throw error;
     }
     this.disc = this.makeDisc();
+    this.stage.view = Map3D.loadView();
     options.ground.setVisible(false);
     options.grass.setVisible(false);
     scene.events.on("prerender", this.beforeRender, this);
@@ -108,6 +111,83 @@ export class Map3D {
     if (source) return { x: Math.floor(source.x / this.T), y: Math.floor(source.y / this.T) };
     const ground = this.stage.groundAt(sx, sy);
     return ground ? { x: Math.floor(ground.x), y: Math.floor(ground.z) } : undefined;
+  }
+
+  // ------------------------------------------------------------ camera mode
+
+  /** Which way the camera faces: 0 = north is up the screen. Walking turns with it. */
+  get yaw(): number {
+    return this.stage.view.yaw;
+  }
+
+  /** Whether the camera has been turned, tilted or zoomed from the usual view. */
+  get turned(): boolean {
+    const v = this.stage.view;
+    return v.yaw !== DEFAULT_VIEW.yaw || v.pitch !== DEFAULT_VIEW.pitch || v.zoom !== DEFAULT_VIEW.zoom;
+  }
+
+  /** A finger dragged `dx`, `dy` px in camera mode: sideways turns around the player, up and down tilts. */
+  orbit(dx: number, dy: number): void {
+    const v = this.stage.view;
+    v.yaw -= (dx / Math.max(200, this.canvas.clientWidth)) * Math.PI * 1.2;
+    v.pitch = Phaser.Math.Clamp(v.pitch + dy * 0.25, VIEW_LIMITS.pitch[0], VIEW_LIMITS.pitch[1]);
+    this.saveView();
+  }
+
+  /** Two fingers pinched: `factor` < 1 brings the camera closer. */
+  zoomBy(factor: number): void {
+    const v = this.stage.view;
+    v.zoom = Phaser.Math.Clamp(v.zoom * factor, VIEW_LIMITS.zoom[0], VIEW_LIMITS.zoom[1]);
+    this.saveView();
+  }
+
+  /** Back to the usual view: from the south, north up. The camera swings back over a moment. */
+  resetView(): void {
+    const from = { ...this.stage.view };
+    // The short way round.
+    const yaw = Math.atan2(Math.sin(from.yaw), Math.cos(from.yaw));
+    const swing = { k: 0 };
+    this.scene.tweens.add({
+      targets: swing,
+      k: 1,
+      duration: 450,
+      ease: "Sine.inOut",
+      onUpdate: () => {
+        this.stage.view = {
+          yaw: yaw * (1 - swing.k),
+          pitch: from.pitch + (DEFAULT_VIEW.pitch - from.pitch) * swing.k,
+          zoom: from.zoom + (DEFAULT_VIEW.zoom - from.zoom) * swing.k,
+        };
+      },
+      onComplete: () => {
+        this.stage.view = { ...DEFAULT_VIEW };
+        this.saveView();
+      },
+    });
+  }
+
+  private saveView(): void {
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify(this.stage.view));
+    } catch {
+      // Private mode or blocked storage: the view just isn't remembered.
+    }
+  }
+
+  private static loadView(): MapView {
+    try {
+      const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null") as Partial<MapView> | null;
+      if (v && [v.yaw, v.pitch, v.zoom].every((n) => typeof n === "number" && Number.isFinite(n))) {
+        return {
+          yaw: v.yaw!,
+          pitch: Phaser.Math.Clamp(v.pitch!, VIEW_LIMITS.pitch[0], VIEW_LIMITS.pitch[1]),
+          zoom: Phaser.Math.Clamp(v.zoom!, VIEW_LIMITS.zoom[0], VIEW_LIMITS.zoom[1]),
+        };
+      }
+    } catch {
+      // Nothing stored, or storage blocked: the usual view.
+    }
+    return { ...DEFAULT_VIEW };
   }
 
   destroy(): void {

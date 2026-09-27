@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { getLayout } from "../ui/layout";
-import { createButton } from "../ui/Button";
+import { createButton, whenTapped } from "../ui/Button";
 import { C, FONT, KANAGAWA } from "../ui/theme";
 import { addIcon } from "./icon-art";
 
@@ -106,11 +106,11 @@ export class Minimap {
     const backdrop = this.scene.add.rectangle(0, 0, width, height, C.overlay, 0.85).setOrigin(0, 0);
     // Tapping anywhere closes the map; it also stops taps from walking the player underneath.
     backdrop.setInteractive();
-    backdrop.on("pointerup", () => this.close());
+    whenTapped(backdrop, () => this.close());
     const frame = this.scene.add.rectangle(this.origin.x - 4, this.origin.y - 4, w + 8, h + 8, C.overlay).setOrigin(0, 0).setStrokeStyle(3, C.border);
     this.image = this.scene.add.image(this.origin.x, this.origin.y, this.key).setOrigin(0, 0).setScale(this.scale);
     this.image.setInteractive();
-    this.image.on("pointerup", () => this.close());
+    whenTapped(this.image, () => this.close());
     this.dots = this.scene.add.graphics();
     const markers = Object.fromEntries(BOSS_MARKERS.map((m) => [m, addIcon(this.scene, 0, 0, m, 24).setVisible(false)])) as Record<BossMarker, Phaser.GameObjects.Image>;
     this.markers = markers;

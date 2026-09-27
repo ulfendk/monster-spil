@@ -15,6 +15,30 @@ export interface ButtonOptions {
 }
 
 /**
+ * Calls `handler` when `target` is tapped: pressed *and* lifted on it. A finger that went
+ * down somewhere else — on the map while walking, before a battle opened under it — and is
+ * lifted over it does nothing, nor does one that slid off before lifting. Use this instead
+ * of listening for "pointerup" on its own.
+ */
+export function whenTapped(target: Phaser.GameObjects.GameObject, handler: () => void, onPressChange?: (pressed: boolean) => void): void {
+  let pressedBy: number | undefined;
+  target.on("pointerdown", (p: Phaser.Input.Pointer) => {
+    pressedBy = p.id;
+    onPressChange?.(true);
+  });
+  target.on("pointerout", () => {
+    pressedBy = undefined;
+    onPressChange?.(false);
+  });
+  target.on("pointerup", (p: Phaser.Input.Pointer) => {
+    const mine = pressedBy === p.id;
+    pressedBy = undefined;
+    onPressChange?.(false);
+    if (mine) handler();
+  });
+}
+
+/**
  * A big (>=64px) in-canvas touch button, since DOM buttons fight Safari's zoom/overlay
  * behaviour. Kanagawa style: a rounded card with a thin warm-white edge and a soft
  * ink shadow below, which it sinks into while pressed.
@@ -24,7 +48,7 @@ export function createButton(
   x: number,
   y: number,
   label: string,
-  onTap: () => void,
+  onTapped: () => void,
   options: ButtonOptions = {}
 ): Phaser.GameObjects.Container {
   const width = options.width ?? 220;
@@ -62,12 +86,7 @@ export function createButton(
   const container = scene.add.container(x, y, parts);
   container.setSize(width, height);
   container.setInteractive({ useHandCursor: true });
-  container.on("pointerdown", () => draw(true));
-  container.on("pointerup", () => {
-    draw(false);
-    onTap();
-  });
-  container.on("pointerout", () => draw(false));
+  whenTapped(container, onTapped, draw);
 
   return container;
 }

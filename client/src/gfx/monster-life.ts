@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { CreatureSpecies } from "@shared";
 import { faceFrameKey, type FaceFrame } from "./placeholder-sprites";
+import { whenTapped } from "../ui/Button";
 
 /** What a monster brought to life can do on request. */
 export interface MonsterLife {
@@ -73,7 +74,7 @@ export function bringToLife(scene: Phaser.Scene, image: Phaser.GameObjects.Image
 
   if (onTap) {
     image.setInteractive({ useHandCursor: false });
-    image.on("pointerup", onTap);
+    whenTapped(image, onTap);
   }
   return life;
 }

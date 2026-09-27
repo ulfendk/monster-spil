@@ -3,7 +3,7 @@ import type { GameContent } from "../content/load-content";
 import { adoptSave } from "../save/game-state";
 import { fetchBackup, listBackups, type BackupSummary } from "../net/backup";
 import { currentGame, updateGame } from "../save/games";
-import { addCloseButton, createButton } from "../ui/Button";
+import { addCloseButton, createButton, whenTapped } from "../ui/Button";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { addAvatar } from "../gfx/avatar-sprites";
@@ -136,7 +136,7 @@ export class RestoreScene extends Phaser.Scene {
       const colour = Phaser.Display.Color.HexStringToColor(p.farve).color;
       const circle = this.add.circle(x, y - r * 0.3, r, colour).setStrokeStyle(3, C.border, 0.9);
       circle.setInteractive({ useHandCursor: true });
-      circle.on("pointerup", () => void this.pick(code, p));
+      whenTapped(circle, () => void this.pick(code, p));
       const face = addAvatar(this, x, y - r * 0.3, p.avatarId, r * 1.7);
       this.ui.push(circle, face);
       this.text(x, y + r * 0.95, p.navn, 26);

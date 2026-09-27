@@ -22,6 +22,7 @@ const strings = {
   battle_fled: "Du løb væk!",
   battle_caught: "Du fangede den!",
   battle_appears: "dukker op!",
+  camera_mode: "Træk for at dreje. Knib for at zoome.",
   battle_effective_strong: "Effektivt!",
   battle_effective_weak: "Ikke så effektivt...",
   lobby_offline: "Ingen forbindelse",

@@ -485,8 +485,9 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   opposite way of the pull (pull down-right → aim left, at most ~35°; within ~5° of straight
   back it throws straight ahead, so a wobbly finger still hits what's in front). A pull shorter than
   `MIN_PULL` just lets the band go. The longest pull that counts depends on the screen
-  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same. On a tall screen the view
-  is moved so the slingshot sits near the bottom (`ThrowStage.resize`); the meadow uses a
+  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same. On a tall screen the
+  camera looks down from higher up and further forward (`ThrowStage.resize`): the horizon is
+  about a third of the way down and the slingshot sits near the bottom; the meadow uses a
   narrower view than the caves (`sideView`), so its one monster is bigger.
 - **Pure rule** (tested): `slingshotToThrow(dx, dy, maxPull)` in `shared/src/cave/throw.ts`;
   tests check that every place a cave monster can peek out, and every place the meadow
@@ -749,6 +750,11 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   ground, within each tile's atlas padding) and the susuki sway in a breeze (vertex shader).
   Names and health labels always draw on top of trees, on purpose: you can see where a
   friend is even behind a forest.
+- **Camera mode:** the camera button (bottom left, 3D only) switches dragging from walking to
+  turning the view round the player (sideways) and tilting it (up and down); two fingers
+  pinch to zoom; taps still work. A green ✓ ends it, and dragging walks again — in the
+  direction the camera faces (`stepFromDrag` turns the drag by `Map3D.yaw`). ↻ swings back to
+  the usual view. The view is remembered on the device (`localStorage`, `MapStage.view`).
 - **Taps** go through `Map3D.tileAt`: a player, monster or the dragon under the finger first
   (their sprites), else the ground under it. Dragging to walk is unchanged (the camera never
   turns, so up on the screen is north). Phaser's camera shake shakes the 3D camera too.
@@ -836,7 +842,12 @@ BFS pathfinding if needed); on the ground it does nothing.
 - **Arrangements:** portrait phones stack what landscape shows side by side (battle:
   foe above, player below, a grid of buttons; monster info; trade screen). Grids pick
   their column count to fit (`wrapGrid`); the monster book keeps its entries a readable size
-  and scrolls (drag up and down; a drag is never a tap on a monster).
+  and scrolls like a phone's list (it glides on after a flick and slows down, stretches past
+  either end and springs back; a touch stops a glide; a drag is never a tap on a monster).
+- **Taps only count when pressed and lifted on the same thing** (`whenTapped` in
+  `client/src/ui/Button.ts`; `createButton` uses it). A finger that went down elsewhere — on
+  the map while walking when a battle opens under it — does nothing when lifted over a
+  button. Never listen for "pointerup" on a game object on its own.
 - **Overlays** get their close button from `addCloseButton` (top-right, clear of the
   notch). The map HUD is a right-aligned row: 🗺️ (overview map overlay) 🏆 ⚙ 📖.
 - **Testing:** in dev builds `window.__game` exposes the Phaser game, so a headless

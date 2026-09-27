@@ -3,7 +3,7 @@ import type { GameContent } from "../content/load-content";
 import type { SaveData } from "../save/schema";
 import { addGame, listGames, removeGame, savesByGame, type GameEntry } from "../save/games";
 import { lookupGame } from "../net/backup";
-import { addCloseButton, createButton } from "../ui/Button";
+import { addCloseButton, createButton, whenTapped } from "../ui/Button";
 import { getLayout, onRelayout, wrapGrid } from "../ui/layout";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { addAvatar } from "../gfx/avatar-sprites";
@@ -107,7 +107,7 @@ export class GamesScene extends Phaser.Scene {
     const { x } = spots[games.length]!;
     const y = spots[games.length]!.y - below / 2;
     const add = this.add.rectangle(x, y, cardW, cardH, C.panel, 0.55).setStrokeStyle(3, C.border, 0.35).setInteractive({ useHandCursor: true });
-    add.on("pointerup", () => this.go({ kind: "key" }));
+    whenTapped(add, () => this.go({ kind: "key" }));
     this.ui.push(add, addIcon(this, x, y - cardH * 0.08, "plus", Math.min(cardW, cardH) * 0.42));
     this.text(x, y + cardH * 0.32, t("games_add"), 24, CSS.soft);
   }
@@ -116,7 +116,7 @@ export class GamesScene extends Phaser.Scene {
     const layout = getLayout(this);
     const save = this.saves.get(game.id);
     const card = this.add.rectangle(x, y, w, h, C.panel, 0.95).setStrokeStyle(3, C.border, 0.6).setInteractive({ useHandCursor: true });
-    card.on("pointerup", () => {
+    whenTapped(card, () => {
       this.go({ kind: "busy" });
       void startGame(this, game.id, this.content);
     });

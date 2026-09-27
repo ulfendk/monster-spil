@@ -60,6 +60,8 @@ export abstract class ThrowStage<M extends LivingMonster> {
   protected readonly renderer: THREE.WebGLRenderer;
   protected readonly scene = new THREE.Scene();
   protected readonly camera = new THREE.PerspectiveCamera(60, 1, 0.1, 80);
+  /** Where the camera stands (resize moves it up on a tall screen; a scene may shake it about this point). */
+  protected readonly cameraBase = new THREE.Vector3(0, 1.6, 1.5);
   protected ball!: THREE.Mesh;
   /** The slingshot: a wooden fork, its bands (tip → pouch → tip) and the aiming dots. */
   private sling!: THREE.Group;
@@ -86,7 +88,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.camera.position.set(0, 1.6, 1.5);
+    this.camera.position.copy(this.cameraBase);
     this.camera.lookAt(0, 1.0, -8);
   }
 
@@ -126,6 +128,14 @@ export abstract class ThrowStage<M extends LivingMonster> {
    * canvas were only that tall, and the rest of the canvas shows what lies around it.
    */
   resize(width: number, height: number, band?: { top: number; bottom: number }): void {
+    // A tall screen looks down from higher up and a little further forward, over the
+    // slingshot: the horizon moves up, the slingshot sits near the bottom, and the ground —
+    // where the monsters are — fills more of the screen than the sky.
+    const tall = !band && height > width;
+    this.cameraBase.set(0, tall ? 3.2 : 1.6, tall ? 0.8 : 1.5);
+    this.camera.position.copy(this.cameraBase);
+    this.camera.lookAt(0, tall ? -0.6 : 1.0, -8);
+    this.camera.updateMatrixWorld();
     const bandH = Math.max(1, (band?.bottom ?? height) - (band?.top ?? 0));
     const vfov = (2 * Math.atan(Math.tan((this.sideView * Math.PI) / 360) / (width / bandH)) * 180) / Math.PI;
     const fov = Math.min(95, Math.max(50, vfov));
@@ -133,8 +143,8 @@ export abstract class ThrowStage<M extends LivingMonster> {
     // On a tall screen the slingshot would float in the middle: move the picture down so it
     // sits near the bottom, where the thumb pulls it (there's sky to spare above).
     const ball = this.project(BALL_START);
-    const wanted = height * 0.85;
-    if (!band && height > width && ball.y < wanted) this.frameView(width, height, band, fov, { x: 0, y: ball.y - wanted });
+    const wanted = height * 0.86;
+    if (tall && ball.y < wanted) this.frameView(width, height, band, fov, { x: 0, y: ball.y - wanted });
   }
 
   /** How wide (degrees) the view must be at least from side to side: the caves spread out more than the meadow. */

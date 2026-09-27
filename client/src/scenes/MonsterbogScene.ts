@@ -6,7 +6,7 @@ import type { GameContent } from "../content/load-content";
 import { getAreaAssets } from "../content/load-areas";
 import type { SaveData } from "../save/schema";
 import type { MonsterInfoSceneData } from "./MonsterInfoScene";
-import { createButton } from "../ui/Button";
+import { createButton, whenTapped } from "../ui/Button";
 import { t } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
 import { BEAST_ICONS, CAUGHT_ICON, CAVE_ICON, DISASTER_ICONS, DRAGON_ICON, OWNED_ICON, STEPS_ICON, arrowAngle } from "../ui/icons";
@@ -35,7 +35,10 @@ const TAP_SLOP = 10;
 export class MonsterbogScene extends Phaser.Scene {
   private bookData!: MonsterbogSceneData;
   /** The finger scrolling the book: where it pressed, the scroll then, and whether it has moved (so it's no tap). */
-  private scroll?: { y: number; from: number; moved: boolean };
+  private scroll?: { y: number; from: number; moved: boolean; lastY: number; lastT: number };
+  /** How fast the book glides after a flick (px per ms; positive = down the book). */
+  private velocity = 0;
+  private maxScroll = 0;
 
   constructor() {
     super("Monsterbog");
@@ -97,9 +100,9 @@ export class MonsterbogScene extends Phaser.Scene {
           if (!this.scroll?.moved) this.openInfo(species, caught, ownedCount, caughtCount);
         };
         ring.setInteractive({ useHandCursor: true });
-        ring.on("pointerup", open);
+        whenTapped(ring, open);
         image.setInteractive({ useHandCursor: true });
-        image.on("pointerup", open);
+        whenTapped(image, open);
       } else {
         this.add.text(x, y, "?", { fontFamily: FONT, fontSize: label(48), color: CSS.faint }).setOrigin(0.5);
         const hint = this.hintFor(species);
@@ -141,21 +144,75 @@ export class MonsterbogScene extends Phaser.Scene {
       .setDepth(11);
   }
 
-  /** Dragging up and down scrolls the book (up to `maxScroll` px); a drag is never a tap on a monster. */
+  /**
+   * Scrolling that feels like a phone's: the book follows the finger, glides on after a
+   * flick and slows down, stretches a little past either end and springs back. A touch
+   * stops a glide (and that touch doesn't open a monster); a drag never opens one.
+   */
   private setUpScrolling(maxScroll: number): void {
     const camera = this.cameras.main;
     camera.setScroll(0, 0);
     this.scroll = undefined;
-    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => (this.scroll = { y: p.y, from: camera.scrollY, moved: false }));
+    this.velocity = 0;
+    this.maxScroll = maxScroll;
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      const gliding = Math.abs(this.velocity) > 0.05;
+      this.velocity = 0;
+      this.scroll = { y: p.y, from: camera.scrollY, moved: gliding, lastY: p.y, lastT: performance.now() };
+    });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       const s = this.scroll;
       if (!s || !p.isDown) return;
-      if (Math.abs(p.y - s.y) > TAP_SLOP) s.moved = true;
-      if (s.moved) camera.setScroll(0, Phaser.Math.Clamp(s.from - (p.y - s.y), 0, maxScroll));
+      if (!s.moved && Math.abs(p.y - s.y) > TAP_SLOP) {
+        // Start from here, so the book doesn't jump by the slop.
+        s.moved = true;
+        s.y = p.y;
+        s.from = camera.scrollY;
+      }
+      if (!s.moved) return;
+      camera.setScroll(0, this.stretched(s.from - (p.y - s.y)));
+      const now = performance.now();
+      const dt = Math.max(1, now - s.lastT);
+      // The finger's speed, smoothed a little: that's what a flick carries on with.
+      this.velocity = 0.7 * ((s.lastY - p.y) / dt) + 0.3 * this.velocity;
+      s.lastY = p.y;
+      s.lastT = now;
     });
-    // The tap on a monster is handled first (pointerup on it); forget the drag afterwards.
-    this.input.on("pointerup", () => this.time.delayedCall(0, () => (this.scroll = undefined)));
+    this.input.on("pointerup", () => {
+      const s = this.scroll;
+      // A finger that stopped before lifting doesn't flick.
+      if (!s?.moved || performance.now() - s.lastT > 80) this.velocity = 0;
+      // The tap on a monster is handled first (pointerup on it); forget the drag afterwards.
+      this.time.delayedCall(0, () => (this.scroll = undefined));
+    });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => camera.setScroll(0, Phaser.Math.Clamp(camera.scrollY + dy, 0, maxScroll)));
+  }
+
+  /** Past either end the book only follows the finger a third of the way: it stretches. */
+  private stretched(y: number): number {
+    if (y < 0) return y / 3;
+    if (y > this.maxScroll) return this.maxScroll + (y - this.maxScroll) / 3;
+    return y;
+  }
+
+  update(_time: number, delta: number): void {
+    if (this.scroll?.moved && this.input.activePointer.isDown) return; // the finger has it
+    const camera = this.cameras.main;
+    let y = camera.scrollY;
+    if (Math.abs(this.velocity) > 0.01) {
+      y += this.velocity * delta;
+      // Slowing down like a phone's list (about a third of a second to lose most speed);
+      // much faster once it's run past an end.
+      const outside = y < 0 || y > this.maxScroll;
+      this.velocity *= Math.exp(-delta / (outside ? 45 : 325));
+    } else {
+      this.velocity = 0;
+    }
+    // Past an end: spring back.
+    const target = Phaser.Math.Clamp(y, 0, this.maxScroll);
+    if (y !== target) y += (target - y) * (1 - Math.exp(-delta / 90));
+    if (Math.abs(y - target) < 0.5 && Math.abs(this.velocity) <= 0.01) y = target;
+    if (y !== camera.scrollY) camera.setScroll(0, y);
   }
 
   /**
