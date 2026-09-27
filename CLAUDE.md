@@ -867,6 +867,13 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   pinch to zoom; taps still work. A green ✓ ends it, and dragging walks again — in the
   direction the camera faces (`stepFromDrag` turns the drag by `Map3D.yaw`). ↻ swings back to
   the usual view. The view is remembered on the device (`localStorage`, `MapStage.view`).
+- **Players and food in 3D:** each player stands on a disc of their colour as their animal
+  figure (`world3d/avatar-model.ts`: fox, frog, panda, calico cat, moon rabbit, bear — chibi,
+  toon-shaded, ink-outlined), wearing their level's headwear and their three newest badges as
+  medals on the chest, leaning back a little towards the camera so the face shows. The face
+  image carries `setMapHint(face, { avatar: () => ({id, look, badges}) })`, read every frame,
+  so a new hat or badge shows at once. Food on the map is modelled too
+  (`world3d/food-models.ts`: apple, strawberry, banana, carrot, grapes), turning and bobbing.
 - **Taps** go through `Map3D.tileAt`: a player, monster or the dragon under the finger first
   (their sprites), else the ground under it. Dragging to walk is unchanged (the camera never
   turns, so up on the screen is north). Phaser's camera shake shakes the 3D camera too.

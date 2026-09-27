@@ -13,6 +13,8 @@ export interface MapHint {
   lift?: number;
   /** Belongs to the spot this many pixels further south on the 2D map (a label drawn above its owner). */
   dy?: number;
+  /** A player's face: stands as their animal figure in 3D, with the headwear and badges this says (read every frame). */
+  avatar?: () => { id: string; look?: string; badges: string[] };
 }
 
 const KEY = "map3d";

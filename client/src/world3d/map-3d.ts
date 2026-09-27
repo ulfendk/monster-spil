@@ -4,6 +4,8 @@ import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } fr
 import { mapHint } from "../gfx/map-hints";
 import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
+import { buildFoodModel, foodModelFor, type FoodModelIcon } from "./food-models";
+import { buildAvatarModel, type AvatarModel } from "./avatar-model";
 import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 
@@ -42,6 +44,11 @@ interface Mirror {
   /** A sprite or a ground decal — or the root of a monster's 3D model. */
   object: THREE.Object3D;
   model?: MonsterModel;
+  /** Food, as its 3D model (world3d/food-models.ts). */
+  food?: FoodModelIcon;
+  /** A player's animal figure (world3d/avatar-model.ts), and what it wears now. */
+  avatar?: AvatarModel;
+  avatarKey?: string;
   shadow?: THREE.Mesh;
   textureKey?: string;
   seen: boolean;
@@ -246,6 +253,10 @@ export class Map3D {
       this.stage.scene.remove(m.object);
       if (m.shadow) this.stage.scene.remove(m.shadow);
       if (m.model) m.model.dispose();
+      else if (m.avatar) m.avatar.dispose();
+      else if (m.food) {
+        // (The food's geometry and look are shared by all food: nothing to free.)
+      }
       else ((m.object as THREE.Mesh).material as THREE.Material).dispose();
       (m.shadow?.material as THREE.Material | undefined)?.dispose();
       this.mirrors.delete(o);
@@ -307,6 +318,45 @@ export class Map3D {
     const cy = g.y + (0.5 - g.originY) * h + (hint?.dy ?? 0);
     const alpha = g.alpha * (shape ? g.fillAlpha : 1);
     const visible = g.visible && alpha > 0.01 && w > 0.5 && h > 0.5;
+    if (hint?.avatar) {
+      // A player: their animal standing on their spot (a new hat or badge: dressed again).
+      const spec = hint.avatar();
+      const key = `${spec.id}|${spec.look ?? ""}|${spec.badges.join(",")}`;
+      if (m.avatarKey !== key || !m.avatar) {
+        m.avatar?.dispose();
+        m.object.clear();
+        m.avatar = buildAvatarModel(spec, (icon) => this.iconTexture(icon));
+        m.object.add(m.avatar.root);
+        m.avatarKey = key;
+      }
+      m.object.visible = visible;
+      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T), cy / T);
+      m.object.scale.setScalar(1.35);
+      const cam = this.stage.camera.position;
+      // Turned to the camera and leaning back a little towards it, so the face shows from up there.
+      m.object.rotation.order = "YXZ";
+      m.object.rotation.set(-0.5, Math.atan2(cam.x - m.object.position.x, cam.z - m.object.position.z), 0);
+      m.object.traverse((o) => {
+        const material = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (material) {
+          material.transparent = alpha < 0.99;
+          material.opacity = Math.min(1, alpha);
+        }
+      });
+      this.updateShadow(m, visible, 0, cx, cy, T * 0.75, alpha);
+      return;
+    }
+    if (m.food) {
+      // Food lies on the ground, turning slowly and bobbing a little, so it catches the eye.
+      const t = performance.now() / 1000;
+      const phase = (cx * 0.37 + cy * 0.21) % 6.28;
+      m.object.visible = visible;
+      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T) + 0.03 + Math.max(0, Math.sin(t * 2 + phase)) * 0.05, cy / T);
+      m.object.scale.setScalar((w / T) * 1.6);
+      m.object.rotation.set(0, t * 0.8 + phase, 0);
+      this.updateShadow(m, visible, 0, cx, cy, w * 0.8, alpha);
+      return;
+    }
     if (m.model) {
       // A monster the game draws itself, as its 3D model: standing on its spot, turned to the camera.
       const lift = hint?.lift ?? 0;
@@ -323,7 +373,7 @@ export class Map3D {
     material.opacity = Math.min(1, alpha);
     if (shape) material.color.setHex(g.fillColor);
     else material.color.setHex(g.isTinted ? g.tintTopLeft : 0xffffff);
-    if (!shape && !m.model) this.retexture(m, g);
+    if (!shape && !m.model && !m.food && !mapHint(o)?.avatar) this.retexture(m, g);
     m.object.visible = visible;
     const depth = (g as unknown as { depth: number }).depth ?? 0;
     // Everything stands (or lies) on the land, which rolls.
@@ -361,9 +411,15 @@ export class Map3D {
     const spec = picture && kind === "stand" ? placeholderSpec(g.texture.key) : undefined;
     let object: THREE.Object3D;
     let model: MonsterModel | undefined;
+    // Food (an apple, a carrot…) lies there as its 3D model.
+    const food = picture && kind === "stand" ? foodModelFor(g.texture.key) : undefined;
     if (spec) {
       model = buildMonsterModel(spec);
       object = model.root;
+    } else if (food) {
+      object = buildFoodModel(food);
+    } else if (mapHint(o)?.avatar) {
+      object = new THREE.Group(); // the figure is put in on the first frame (and whenever it changes)
     } else if (kind === "stand") {
       object = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, alphaTest: 0.35, fog: true }));
     } else {
@@ -371,10 +427,10 @@ export class Map3D {
     }
     object.userData.source = o;
     this.stage.scene.add(object);
-    const mirror: Mirror = { kind, object, seen: true, textureKey: picture ? this.keyOf(g) : undefined, ...(model ? { model } : {}) };
+    const mirror: Mirror = { kind, object, seen: true, textureKey: picture ? this.keyOf(g) : undefined, ...(model ? { model } : {}), ...(food ? { food } : {}) };
     // The bigger standing things (players, monsters, the dragon) get a soft shadow at their feet, and can be tapped.
     const big = Math.max(Math.abs(g.displayWidth), Math.abs(g.displayHeight)) >= TOKEN_PX;
-    if (kind === "stand" && (o instanceof Phaser.GameObjects.Arc || big)) {
+    if (kind === "stand" && (o instanceof Phaser.GameObjects.Arc || big || food || mapHint(o)?.avatar)) {
       mirror.shadow = new THREE.Mesh(this.flatPlane, new THREE.MeshBasicMaterial({ map: this.disc, color: KANAGAWA.sumiInk0, transparent: true, depthWrite: false }));
       this.stage.scene.add(mirror.shadow);
     }
@@ -408,6 +464,19 @@ export class Map3D {
       texture.repeat.set(frame.cutWidth / source.width, frame.cutHeight / source.height);
       texture.offset.set(frame.cutX / source.width, 1 - (frame.cutY + frame.cutHeight) / source.height);
     }
+    texture.needsUpdate = true;
+    this.textures.set(key, texture);
+    return texture;
+  }
+
+  /** A drawn icon (`icon-<name>`) as a three.js texture: for the badges on a figure's chest. */
+  private iconTexture(name: string): THREE.Texture | undefined {
+    const key = `icon-${name}`;
+    const cached = this.textures.get(key);
+    if (cached) return cached;
+    if (!this.scene.textures.exists(key)) return undefined;
+    const texture = new THREE.Texture(this.scene.textures.get(key).getSourceImage() as HTMLCanvasElement);
+    texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
     this.textures.set(key, texture);
     return texture;

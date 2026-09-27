@@ -35,7 +35,7 @@ import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
 import { C, CSS, FONT } from "../ui/theme";
 import { recordProgress } from "../progress/record";
-import { levelConfig } from "../content/load-progress";
+import { badgesById, levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
 import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
@@ -231,6 +231,17 @@ export class OverworldScene extends Phaser.Scene {
     );
     this.player.setDepth(6);
     this.playerFace = addFace(this, this.player.x, this.player.y, this.save.player.avatarId, 6.5, lookFor(myLevel(), levelConfig));
+    // In 3D: my circle is a coloured disc on the ground, and I stand on it as my animal, with my hat and newest badges.
+    setMapHint(this.player, { flat: true });
+    setMapHint(this.playerFace, {
+      avatar: () => ({
+        id: this.save.player.avatarId,
+        look: lookFor(myLevel(), levelConfig),
+        badges: Object.entries(this.save.progress?.badges ?? {})
+          .sort(([, a], [, b]) => b.localeCompare(a))
+          .map(([id]) => badgesById[id]?.icon ?? "star"),
+      }),
+    });
     this.others.clear();
     this.popup = [];
     this.toast = undefined;
@@ -1331,7 +1342,7 @@ export class OverworldScene extends Phaser.Scene {
               .text(centre.x + LEVEL_TAG.dx, centre.y + LEVEL_TAG.dy, "", { fontFamily: FONT, fontSize: "15px", color: CSS.ink, backgroundColor: CSS.accent, padding: { x: 4, y: 1 } })
               .setOrigin(0.5)
               .setDepth(7),
-            { dy: -LEVEL_TAG.dy, lift: 0.62 }
+            { dy: -LEVEL_TAG.dy, lift: 1.5 }
           ),
           label: this.add
             .text(centre.x, centre.y - TILE_SIZE * 0.55, player.navn, {
@@ -1344,7 +1355,15 @@ export class OverworldScene extends Phaser.Scene {
             .setOrigin(0.5)
             .setDepth(7),
         };
-        setMapHint(view.label, { dy: TILE_SIZE * 0.55, lift: 1.05 });
+        setMapHint(view.label, { dy: TILE_SIZE * 0.55, lift: 1.75 });
+        setMapHint(view.circle, { flat: true });
+        const playerId = player.playerId;
+        setMapHint(view.face, {
+          avatar: () => {
+            const p = presence.players.get(playerId);
+            return { id: p?.avatarId ?? "", look: lookFor(p?.level ?? 1, levelConfig), badges: (p?.badges ?? []).slice(-3).reverse().map((id) => badgesById[id]?.icon ?? "star") };
+          },
+        });
         this.others.set(player.playerId, view);
       } else if (snap) {
         this.tweens.killTweensOf([view.circle, view.face, view.label, view.level]);
