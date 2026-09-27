@@ -151,7 +151,7 @@ export class CaveScene extends Phaser.Scene {
           await this.keep(speciesId, this.variants[index]);
           this.say(`${ic(POINTS_ICON)} ${species?.navn ?? ""} ${t("cave_caught").toLowerCase()}`);
         } else {
-          this.say(t("cave_free"));
+          this.say(this.balls > 0 ? `${t("cave_free")} ${t("catch_retry")}!` : t("cave_free"));
         }
       }
       this.throwing = false;

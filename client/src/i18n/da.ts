@@ -81,6 +81,8 @@ const strings = {
   cave_throw: "Sigt og tryk på knappen!",
   cave_caught: "Fanget!",
   catch_missed: "Bolden ramte ikke!",
+  catch_retry: "Prøv igen",
+  catch_back: "Tilbage",
   chop_hint: "Tryk når den er i det grønne!",
   chop_done: "Træet faldt!",
   climb_hint: "Tryk på det lysende greb!",

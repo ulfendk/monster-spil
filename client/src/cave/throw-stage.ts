@@ -217,7 +217,10 @@ export abstract class ThrowStage<M extends LivingMonster> {
     const ray = this.raycaster.ray;
     const ground = ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
     if (ground && ground.distanceTo(this.camera.position) < 30) return ground;
-    return ray.at(20, new THREE.Vector3());
+    // Aimed at the sky: far off, but not high up (the ball would take ages to come down).
+    const far = ray.at(20, new THREE.Vector3());
+    far.y = Math.min(far.y, 2.5);
+    return far;
   }
 
   /** Aiming: dots show the arc the ball would fly to the point under the crosshairs; undefined hides them. */

@@ -49,6 +49,8 @@ interface Mirror {
   /** A player's animal figure (world3d/avatar-model.ts), and what it wears now. */
   avatar?: AvatarModel;
   avatarKey?: string;
+  /** Walking: where it was last frame, how much it's walking (eased), the step's phase, which way it faces. */
+  walk?: { x: number; z: number; amount: number; phase: number; heading?: number };
   shadow?: THREE.Mesh;
   textureKey?: string;
   seen: boolean;
@@ -330,12 +332,30 @@ export class Map3D {
         m.avatarKey = key;
       }
       m.object.visible = visible;
-      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T), cy / T);
+      const x = cx / T, z = cy / T;
+      m.object.position.set(x, this.stage.heightAt(x, z), z);
       m.object.scale.setScalar(1.35);
+      // Walking: steps in time with how fast it moves, and it faces the way it goes; standing,
+      // it turns back to the camera, leaning back a little so the face shows from up there.
+      const dt = Math.max(1, this.scene.game.loop.delta) / 1000;
+      const w = (m.walk ??= { x, z, amount: 0, phase: 0 });
+      const speed = Math.hypot(x - w.x, z - w.z) / dt;
+      const moving = speed > 0.3;
+      w.amount += ((moving ? 1 : 0) - w.amount) * Math.min(1, dt * 10);
+      w.phase += dt * (moving ? 9 + speed * 1.5 : 9);
+      if (moving) w.heading = Math.atan2(x - w.x, z - w.z);
+      w.x = x;
+      w.z = z;
+      m.avatar.walk(w.phase, w.amount);
       const cam = this.stage.camera.position;
-      // Turned to the camera and leaning back a little towards it, so the face shows from up there.
+      const toCamera = Math.atan2(cam.x - x, cam.z - z);
+      const target = w.heading !== undefined && w.amount > 0.05 ? w.heading : toCamera;
+      if (w.amount <= 0.05) w.heading = undefined;
+      // The short way round, eased.
+      const current = m.object.rotation.y;
+      const turn = Math.atan2(Math.sin(target - current), Math.cos(target - current));
       m.object.rotation.order = "YXZ";
-      m.object.rotation.set(-0.5, Math.atan2(cam.x - m.object.position.x, cam.z - m.object.position.z), 0);
+      m.object.rotation.set(-0.5 * (1 - w.amount * 0.6), current + turn * Math.min(1, dt * 12), 0);
       m.object.traverse((o) => {
         const material = (o as THREE.Mesh).material as THREE.Material | undefined;
         if (material) {

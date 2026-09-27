@@ -192,6 +192,11 @@ const ANIMALS: Record<string, Animal> = {
 
 export interface AvatarModel {
   root: THREE.Group;
+  /**
+   * Walking: `phase` runs on with the steps (radians), `amount` (0–1) is how much it's walking —
+   * the feet step, the arms swing, the body bobs and rocks from side to side.
+   */
+  walk(phase: number, amount: number): void;
   dispose(): void;
 }
 
@@ -202,8 +207,8 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
   // The body with its belly and paws, then the head.
   p.add(ball(), a.body, [0, 0.19, 0], [0.34, 0.3, 0.3]);
   if (a.belly) p.add(ball(), a.belly, [0, 0.18, 0.08], [0.22, 0.2, 0.18], false);
-  for (const side of [-1, 1]) p.add(ball(), a.body, [side * 0.1, 0.035, 0.06], [0.12, 0.07, 0.14]);
-  for (const side of [-1, 1]) p.add(ball(), a.body, [side * 0.18, 0.2, 0.06], [0.09, 0.12, 0.09]);
+  const feet = [-1, 1].map((side) => p.add(ball(), a.body, [side * 0.1, 0.035, 0.06], [0.12, 0.07, 0.14]));
+  const arms = [-1, 1].map((side) => p.add(ball(), a.body, [side * 0.18, 0.2, 0.06], [0.09, 0.12, 0.09]));
   a.ears(p);
   p.add(ball(), a.head, [0, HEAD.y, 0], [HEAD.rx * 2, HEAD.ry * 2, HEAD.rz * 2]);
   a.marks?.(p);
@@ -224,7 +229,27 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
 
   headwear(p, spec.look);
   medals(p, spec.badges.slice(0, 3), badgeTexture);
-  return { root: p.root, dispose: () => p.dispose() };
+
+  // Everything but the feet moves together when it walks (the feet stay on the ground).
+  const upper = new THREE.Group();
+  for (const child of [...p.root.children]) if (!feet.includes(child as THREE.Mesh)) upper.add(child);
+  p.root.add(upper);
+  const armHome = arms.map((arm) => arm.position.clone());
+  const walk = (phase: number, amount: number) => {
+    const k = Math.max(0, Math.min(1, amount));
+    feet.forEach((foot, i) => {
+      const s = Math.sin(phase + i * Math.PI);
+      foot.position.z = 0.06 + s * 0.09 * k;
+      foot.position.y = 0.035 + Math.max(0, s) * 0.05 * k;
+    });
+    arms.forEach((arm, i) => {
+      const s = Math.sin(phase + i * Math.PI + Math.PI); // arms swing against the feet
+      arm.position.set(armHome[i]!.x, armHome[i]!.y + Math.abs(s) * 0.02 * k, armHome[i]!.z + s * 0.07 * k);
+    });
+    upper.position.y = Math.abs(Math.sin(phase)) * 0.045 * k;
+    upper.rotation.z = Math.sin(phase) * 0.09 * k;
+  };
+  return { root: p.root, walk, dispose: () => p.dispose() };
 }
 
 /** The headwear a level has unlocked, on the head. */
