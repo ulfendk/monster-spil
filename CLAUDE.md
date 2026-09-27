@@ -742,6 +742,13 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   its owner gives `dy` (back to the owner's spot) and `lift` (tiles above the ground).
   New map objects need nothing: a picture stands, a rectangle lies. A drawing that spans many
   tiles can't be moved as one piece — use one object per tile (the disaster warning does).
+- **In the air:** something flying (the dragon, a swooping eagle) is drawn higher up the
+  screen on the 2D map; `setAirborne(object, heightPx)` says how much of that is height, and
+  the 3D map puts it back over its spot on the ground and raises it instead (its shadow stays
+  on the ground). **Alive:** water tiles slide gently back and forth (a `flow` attribute on the
+  ground, within each tile's atlas padding) and the susuki sway in a breeze (vertex shader).
+  Names and health labels always draw on top of trees, on purpose: you can see where a
+  friend is even behind a forest.
 - **Taps** go through `Map3D.tileAt`: a player, monster or the dragon under the finger first
   (their sprites), else the ground under it. Dragging to walk is unchanged (the camera never
   turns, so up on the screen is north). Phaser's camera shake shakes the 3D camera too.

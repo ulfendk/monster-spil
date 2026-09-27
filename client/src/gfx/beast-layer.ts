@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { BeastDefinition, BeastView } from "@shared";
 import { beastsById } from "../content/load-beasts";
 import { ic, richChip } from "../ui/rich-text";
-import { setMapHint } from "./map-hints";
+import { setAirborne, setMapHint } from "./map-hints";
 import { CSS, FONT, KANAGAWA } from "../ui/theme";
 
 /** Beasts sit where the dragon does: over the ground and food, under players' labels. */
@@ -117,7 +117,11 @@ export class BeastLayer {
       const shadow = this.scene.add.ellipse(c.x, c.y + this.tileSize * 0.38, this.tileSize * 0.3, this.tileSize * 0.12, KANAGAWA.sumiInk0, 0.35).setDepth(DEPTH_BEAST - 1);
       sprite.setPosition(c.x - this.tileSize * 3, c.y - this.tileSize * 5).setScale(SCALE * 1.4).setDepth(DEPTH_AIR);
       this.scene.tweens.add({ targets: shadow, width: this.tileSize * 0.8, height: this.tileSize * 0.28, duration: ARRIVE_MS });
-      this.scene.tweens.add({ targets: sprite, x: c.x, y: c.y, scale: SCALE, duration: ARRIVE_MS, ease: "Quad.easeIn", onComplete: () => {
+      // In 3D the drop down the screen is height: it glides in over the trees to its spot.
+      const air = () => setAirborne(sprite, c.y - sprite.y, this.tileSize);
+      air();
+      this.scene.tweens.add({ targets: sprite, x: c.x, y: c.y, scale: SCALE, duration: ARRIVE_MS, ease: "Quad.easeIn", onUpdate: air, onComplete: () => {
+        setAirborne(sprite, 0);
         shadow.destroy();
         sprite.setDepth(DEPTH_BEAST);
         this.scene.cameras.main.shake(160, 0.003);
@@ -146,7 +150,8 @@ export class BeastLayer {
     } else {
       // Beating its wings and flying off over the trees.
       d.sprite.setDepth(DEPTH_AIR);
-      this.scene.tweens.add({ targets: d.sprite, x: c.x + this.tileSize * 4, y: c.y - this.tileSize * 6, scale: SCALE * 1.4, alpha: 0, duration: LEAVE_MS, ease: "Quad.easeIn", onComplete: gone });
+      const air = () => setAirborne(d.sprite, c.y - d.sprite.y, this.tileSize);
+      this.scene.tweens.add({ targets: d.sprite, x: c.x + this.tileSize * 4, y: c.y - this.tileSize * 6, scale: SCALE * 1.4, alpha: 0, duration: LEAVE_MS, ease: "Quad.easeIn", onUpdate: air, onComplete: gone });
     }
   }
 
@@ -171,6 +176,6 @@ export class BeastLayer {
     d.label?.destroy();
     const c = this.centre(d.view);
     d.label = richChip(this.scene, c.x, c.y + 8 - this.tileSize * 0.98, `${ic("heart")} ${d.view.hp}/${d.view.maxHp}`, { fontFamily: FONT, fontSize: "18px", color: CSS.text }).setDepth(DEPTH_LABEL);
-    setMapHint(d.label, { dy: this.tileSize * 0.98 - 8, lift: 2 });
+    setMapHint(d.label, { dy: this.tileSize * 0.98 - 8, lift: 2.35 });
   }
 }

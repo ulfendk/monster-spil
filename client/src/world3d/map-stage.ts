@@ -17,6 +17,9 @@ import { KANAGAWA } from "../ui/theme";
 /** Which tile ids stand up (drawn as models on plain ground) and which ground tile they stand on. */
 export interface MapTileIds {
   ground: number;
+  /** Water (and floodwater), which moves. */
+  water?: number;
+  flood?: number;
   /** Tall grass (the encounter zones): marked on the ground (a golden meadow) under the tufts, so it's easy to see. */
   grass?: number;
   tree?: number;
@@ -77,6 +80,11 @@ export class MapStage {
   private readonly peakGeometry: THREE.BufferGeometry;
   private readonly tuftGeometry: THREE.BufferGeometry;
   private readonly modelMaterial: THREE.Material;
+  /** The susuki's own material: the same look, swaying in the breeze. */
+  private readonly grassMaterial: THREE.Material;
+  /** Seconds since the map opened, for the water and the breeze. */
+  private readonly time = { value: 0 };
+  private readonly clock = new THREE.Clock();
   private readonly raycaster = new THREE.Raycaster();
   private size = { width: 1, height: 1 };
   /** How many tiles wide the view is where the camera looks. */
@@ -96,9 +104,10 @@ export class MapStage {
     this.scene.add(sun);
 
     this.atlas = this.makeAtlas();
-    // The tile art is shown as drawn: no lighting on the ground.
-    this.groundMaterial = new THREE.MeshBasicMaterial({ map: this.atlas.texture });
+    // The tile art is shown as drawn: no lighting on the ground. Water tiles sway gently.
+    this.groundMaterial = this.makeGroundMaterial();
     this.modelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
+    this.grassMaterial = this.makeGrassMaterial();
     this.pineGeometry = MapStage.pine();
     this.peakGeometry = MapStage.peak();
     this.tuftGeometry = MapStage.tuft();
@@ -139,6 +148,7 @@ export class MapStage {
   }
 
   render(): void {
+    this.time.value += Math.min(0.1, this.clock.getDelta());
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -173,7 +183,7 @@ export class MapStage {
       const mesh = o as THREE.Mesh;
       mesh.geometry?.dispose();
     });
-    for (const m of [this.groundMaterial, this.modelMaterial]) m.dispose();
+    for (const m of [this.groundMaterial, this.modelMaterial, this.grassMaterial]) m.dispose();
     this.atlas.texture.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
@@ -205,6 +215,39 @@ export class MapStage {
   private isTree(id: number): boolean {
     const ids = this.source.ids;
     return id === ids.tree || (ids.extraTrees?.includes(id) ?? false);
+  }
+
+  /**
+   * The ground's material: the tile art as drawn, where water tiles (the `flow` attribute)
+   * slide slowly back and forth — a few pixels, within each tile's padding in the atlas —
+   * so lakes and rivers look alive.
+   */
+  private makeGroundMaterial(): THREE.Material {
+    const material = new THREE.MeshBasicMaterial({ map: this.atlas.texture });
+    const shift = new THREE.Vector2((PAD * 0.8) / this.atlas.w, (PAD * 0.8) / this.atlas.h);
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.time;
+      shader.uniforms.uShift = { value: shift };
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nattribute float flow;\nuniform float uTime;\nuniform vec2 uShift;")
+        .replace("#include <uv_vertex>", "#include <uv_vertex>\nvMapUv += flow * uShift * vec2(sin(uTime * 0.9), cos(uTime * 0.7));");
+    };
+    return material;
+  }
+
+  /** The models' look for the susuki, which lean with a soft breeze (more at the top, out of step across the field). */
+  private makeGrassMaterial(): THREE.Material {
+    const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.time;
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;")
+        .replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\nvec2 base = vec2(0.0);\n#ifdef USE_INSTANCING\nbase = instanceMatrix[3].xz;\n#endif\nfloat bend = transformed.y * transformed.y;\ntransformed.x += sin(uTime * 1.5 + base.x * 0.45 + base.y * 0.3) * 0.12 * bend;\ntransformed.z += cos(uTime * 1.1 + base.x * 0.3) * 0.05 * bend;"
+        );
+    };
+    return material;
   }
 
   /** The tileset, each tile with its edges stretched out a few pixels (see PAD). */
@@ -268,6 +311,7 @@ export class MapStage {
     const h = Math.min(CHUNK, this.source.height - cy * CHUNK);
     const positions: number[] = [];
     const uvs: number[] = [];
+    const flow: number[] = [];
     const index: number[] = [];
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -276,24 +320,26 @@ export class MapStage {
         const base = positions.length / 3;
         positions.push(X, 0, Z, X + 1, 0, Z, X + 1, 0, Z + 1, X, 0, Z + 1);
         uvs.push(0, 0, 0, 0, 0, 0, 0, 0);
+        flow.push(0, 0, 0, 0);
         index.push(base, base + 2, base + 1, base, base + 3, base + 2);
       }
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setAttribute("flow", new THREE.Float32BufferAttribute(flow, 1));
     geometry.setIndex(index);
     geometry.computeBoundingSphere();
     const ground = new THREE.Mesh(geometry, this.groundMaterial);
     this.scene.add(ground);
-    const instanced = (g: THREE.BufferGeometry) => {
-      const mesh = new THREE.InstancedMesh(g, this.modelMaterial, w * h * 2);
+    const instanced = (g: THREE.BufferGeometry, material = this.modelMaterial) => {
+      const mesh = new THREE.InstancedMesh(g, material, w * h * 2);
       mesh.count = 0;
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.scene.add(mesh);
       return mesh;
     };
-    return { cx, cy, ground, pines: instanced(this.pineGeometry), peaks: instanced(this.peakGeometry), tufts: instanced(this.tuftGeometry) };
+    return { cx, cy, ground, pines: instanced(this.pineGeometry), peaks: instanced(this.peakGeometry), tufts: instanced(this.tuftGeometry, this.grassMaterial) };
   }
 
   /** Puts a chunk's tile art and its trees, peaks and grass where the tiles say. */
@@ -301,6 +347,8 @@ export class MapStage {
     const { width } = this.source;
     const ids = this.source.ids;
     const uv = chunk.ground.geometry.attributes.uv as THREE.BufferAttribute;
+    const flow = chunk.ground.geometry.attributes.flow as THREE.BufferAttribute;
+    const water = new Set([ids.water, ids.flood].filter((id): id is number => id !== undefined));
     const w = Math.min(CHUNK, width - chunk.cx * CHUNK);
     const h = Math.min(CHUNK, this.source.height - chunk.cy * CHUNK);
     const m = new THREE.Matrix4();
@@ -326,6 +374,7 @@ export class MapStage {
         uv.setXY(k + 1, u1, v1);
         uv.setXY(k + 2, u1, v0);
         uv.setXY(k + 3, u0, v0);
+        for (let c = 0; c < 4; c++) flow.setX(k + c, water.has(groundId) ? 1 : 0);
         const r1 = hash(X, Z, 1);
         const r2 = hash(X, Z, 2);
         const jitter = (r: number) => (r - 0.5) * 0.25;
@@ -343,6 +392,7 @@ export class MapStage {
       }
     }
     uv.needsUpdate = true;
+    flow.needsUpdate = true;
     for (const key of ["pines", "peaks", "tufts"] as const) {
       const mesh = chunk[key];
       mesh.count = counts[key];

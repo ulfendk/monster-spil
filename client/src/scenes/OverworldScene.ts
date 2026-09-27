@@ -29,7 +29,7 @@ import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon } from "../gfx/icon-art";
 import { addAvatar, avatarKey } from "../gfx/avatar-sprites";
-import { setMapHint } from "../gfx/map-hints";
+import { setAirborne, setMapHint } from "../gfx/map-hints";
 import type { Map3D } from "../world3d/map-3d";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
@@ -313,7 +313,7 @@ export class OverworldScene extends Phaser.Scene {
           grass: this.grassLayer,
           tileset: this.textures.get("area-tileset").getSourceImage() as HTMLImageElement,
           tileSize: TILE_SIZE,
-          ids: ids ? { ground: ids.ground, grass: ids.grass, tree: ids.tree, mountain: ids.mountain } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
+          ids: ids ? { ground: ids.ground, grass: ids.grass, tree: ids.tree, mountain: ids.mountain, water: ids.water, flood: ids.flood } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
           focus: () => ({ x: this.player.x, y: this.player.y }),
         });
         if (import.meta.env.DEV) (window as unknown as { __map3d?: Map3D }).__map3d = this.map3d;
@@ -843,6 +843,7 @@ export class OverworldScene extends Phaser.Scene {
         const x = a.x + (b.x - a.x) * flight.t;
         const y = a.y + (b.y - a.y) * flight.t;
         dragon.sprite.setPosition(x, y - 8 - arc * TILE_SIZE * 2.4).setScale(0.9 * (1 + 0.4 * arc));
+        setAirborne(dragon.sprite, arc * TILE_SIZE * 2.4, TILE_SIZE);
         shadow.setPosition(x, y + 20).setScale(1 - 0.4 * arc).setAlpha(0.35 - 0.15 * arc);
       },
       onComplete: () => {
@@ -850,6 +851,7 @@ export class OverworldScene extends Phaser.Scene {
         if (this.dragonShadow === shadow) this.dragonShadow = undefined;
         this.dragonFlying = false;
         dragon.sprite.setDepth(5).setScale(0.9).setPosition(b.x, b.y - 8);
+        setAirborne(dragon.sprite, 0);
         dragon.tile = { x: to.x, y: to.y };
         // A shake if it lands close by.
         if (Math.hypot(this.playerTile.x - to.x, this.playerTile.y - to.y) < 12) this.cameras.main.shake(350, 0.007);

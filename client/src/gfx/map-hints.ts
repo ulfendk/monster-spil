@@ -22,6 +22,16 @@ export function setMapHint<T extends Phaser.GameObjects.GameObject>(object: T, h
   return object;
 }
 
+/**
+ * Something in the air (a flying dragon, a swooping eagle): the 2D map shows its height as
+ * being drawn `height` px higher up the screen; the 3D map puts it back over its spot on the
+ * ground and raises it that high instead. 0 = it's landed.
+ */
+export function setAirborne<T extends Phaser.GameObjects.GameObject>(object: T, height: number, tileSize = 64): T {
+  // A little lower than on the 2D map: in 3D, rising also brings it closer to the camera.
+  return setMapHint(object, height > 0 ? { dy: height, lift: (height / tileSize) * 0.6 } : {});
+}
+
 export function mapHint(object: Phaser.GameObjects.GameObject): MapHint | undefined {
   return object.data?.get(KEY) as MapHint | undefined;
 }
