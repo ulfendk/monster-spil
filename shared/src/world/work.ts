@@ -10,7 +10,7 @@ import { baseTile, inside, setTile, tileKey, tileNow, walkableNow, type AreaTerr
  */
 
 export interface DigReward {
-  kind: "food" | "monster" | "gem" | "nothing";
+  kind: "food" | "monster" | "gem" | "egg" | "nothing";
   weight: number;
   /** For a gem: how much XP it's worth. */
   xp?: number;

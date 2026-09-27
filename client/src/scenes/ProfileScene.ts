@@ -6,7 +6,7 @@ import { addAvatar } from "../gfx/avatar-sprites";
 import { addIcon } from "../gfx/icon-art";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { getLayout, restartOnResize } from "../ui/layout";
-import { addCloseButton } from "../ui/Button";
+import { addCloseButton, createButton } from "../ui/Button";
 import { ic, richText } from "../ui/rich-text";
 import { C, CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
@@ -76,13 +76,27 @@ export class ProfileScene extends Phaser.Scene {
       }
     }
 
+    // Trophies (anyone's) and the nest (mine).
+    const bw = Math.min(layout.px(190), (columnW - layout.px(40)) / (mine ? 2 : 1));
+    const bh = layout.touch(64);
+    y += layout.px(30) + bh / 2;
+    const trophies = [...earned].filter((id) => badgeList.find((b) => b.id === id)?.trophy);
+    const buttons: Array<[string, () => void]> = [[`${ic("trophy")} ${trophies.length}`, () => this.open("Trophies", { earned: trophies, back: "Profile" })]];
+    if (mine) buttons.push([`${ic("egg")} ${mine.eggs?.length ?? 0}`, () => this.open("Nest", { save: mine, back: "Profile" })]);
+    buttons.forEach(([label, onTap], i) => {
+      const x = hx + (i - (buttons.length - 1) / 2) * (bw + layout.px(16));
+      createButton(this, x, y, label, onTap, { width: bw, height: bh, fontSize: layout.font(26), backgroundColor: C.button });
+    });
+    y += bh / 2;
+
     // The badge wall: below in portrait, to the right in landscape (clear of the close button).
     const area = layout.portrait
       ? { left: safe.left + layout.px(16), right: width - safe.right - layout.px(16), top: y + layout.px(50), bottom: height - safe.bottom - layout.px(16) }
       : { left: safe.left + columnW, right: width - safe.right - layout.px(16), top: safe.top + layout.touch(64) + layout.px(20), bottom: height - safe.bottom - layout.px(12) };
     const areaW = area.right - area.left;
     const areaH = area.bottom - area.top;
-    const n = badgeList.length;
+    const wall = badgeList.filter((b) => !b.trophy); // trophies have their own room
+    const n = wall.length;
     // As many columns as make the cells biggest. Badges aren't buttons, so they may be small.
     let best = { cols: 1, cell: 0 };
     for (let cols = 2; cols <= n; cols++) {
@@ -93,7 +107,7 @@ export class ProfileScene extends Phaser.Scene {
     const cell = Math.max(40, best.cell);
     const cols = best.cols;
     const midX = (area.left + area.right) / 2;
-    badgeList.forEach((badge, i) => {
+    wall.forEach((badge, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const rowCount = Math.min(cols, n - row * cols);
@@ -110,6 +124,12 @@ export class ProfileScene extends Phaser.Scene {
       // One long word ("Monsterkender") can't wrap: shrink it to fit its cell instead.
       if (name.width > cell * 0.95) name.setScale((cell * 0.95) / name.width);
     });
+  }
+
+  private open(key: string, data: object): void {
+    this.scene.launch(key, data);
+    this.scene.bringToTop(key);
+    this.scene.pause();
   }
 
   private close(): void {

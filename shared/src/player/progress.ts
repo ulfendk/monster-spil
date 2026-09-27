@@ -37,6 +37,8 @@ export interface LevelConfig {
     newWorld?: number;
     /** Picking up an item on the map. */
     item?: number;
+    /** An egg hatching. */
+    hatch?: number;
   };
   /** From this level on, this title (sorted by level). */
   titles: Array<{ level: number; navn: string }>;
@@ -54,6 +56,8 @@ export interface Badge {
   icon: string;
   stat: string;
   min: number;
+  /** A trophy, not an ordinary badge: the big moments, shown as this 3D model in the trophy room (not on the badge wall). */
+  trophy?: "dragon" | "cup" | "globe" | "swords" | "egg" | "star" | "gem";
 }
 
 /** What the save keeps. */
@@ -83,7 +87,9 @@ export type ProgressEvent =
   /** A gem dug up: its XP. */
   | { kind: "gem"; xp: number }
   /** Picked up a potion or another item on the map. */
-  | { kind: "item" };
+  | { kind: "item" }
+  /** An egg hatched (the monster is then caught like any other). */
+  | { kind: "hatch" };
 
 /** XP needed in all to reach `level`. */
 export function xpForLevel(level: number, config: LevelConfig): number {
@@ -156,6 +162,8 @@ function xpFor(event: ProgressEvent, config: LevelConfig): number {
       return Math.max(0, Math.round(event.xp));
     case "item":
       return x.item ?? 0;
+    case "hatch":
+      return x.hatch ?? 0;
   }
 }
 
@@ -221,6 +229,9 @@ export function award(progress: Progress, event: ProgressEvent, context: { speci
       break;
     case "item":
       count(stats, "item");
+      break;
+    case "hatch":
+      count(stats, "hatch");
       break;
   }
   const gained = xpFor(event, config);

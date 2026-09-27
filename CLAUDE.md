@@ -324,6 +324,24 @@ games" — with no schema state: plain messages typed in
 - On the 3D map items are models like the food (flasks, a feather, a clover). Picking one up
   gives a little XP and counts for the badge Skattefinder.
 
+## Trophies and monster eggs
+
+- **Trophies** are the big moments: badges with a `trophy` model in `badges.json` (the week's
+  dragon, 40 species, all worlds, 10 duel wins, 5 hatched eggs, level 20, 10 rare variants).
+  They're earned, celebrated and sent to the server like any badge, but kept off the badge
+  wall: the profile's 🏆 button opens `TrophyScene` — gold 3D models on shelves
+  (`cave/trophy-models.ts`, rendered from all round into textures; tap one to spin it), dark
+  shapes for those still to win. Anyone's trophy room opens from their profile.
+- **Monster eggs** (`shared/content/eggs.json`, rules tested in `shared/src/creature/eggs.ts`):
+  found when digging (a dig reward `egg`) and one a day on every map (`eggSpot`, beside the
+  items), kept in a nest of `nestSize` (`SaveData.eggs`), and hatched by walking —
+  `stepsToHatch` steps (`OverworldScene.warmEggs`). The colour tells the type; the monster
+  inside (from the type's pool, maybe a rare variant — likelier than in the wild) is decided
+  when it's found and shown when it hatches (`HatchScene`: wobble, cracks, a flash, the
+  monster pops out and cries). The profile's 🥚 button opens `NestScene` (the eggs, cracked
+  as far as they've come, steps left). A hatched monster counts like a catch, plus `hatch`
+  XP and the badge Æggepasser. The dragon's and beasts' rewards are still babies.
+
 ## Monster book
 
 `MonsterbogScene` shows every species: caught ones with 🔴 times caught and 🎒 owned

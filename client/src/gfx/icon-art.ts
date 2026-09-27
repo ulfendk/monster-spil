@@ -547,6 +547,11 @@ const ART: Record<string, (g: G) => void> = {
     ellipse(g, 64, 62, 116, 32, K.oldWhite);
     for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
   },
+  egg: (g) => {
+    // A speckled egg.
+    ellipse(g, 64, 70, 70, 88, K.washi);
+    g.fillStyle(K.boatYellow2, 1).fillCircle(48, 58, 7).fillCircle(76, 48, 5).fillCircle(72, 84, 8).fillCircle(50, 92, 5);
+  },
   potion: (g) => {
     // A round flask of red strength potion, a cork, a glint.
     rrect(g, 54, 14, 20, 16, 4, K.boatYellow1, 5);

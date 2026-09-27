@@ -63,6 +63,14 @@ export function itemSpots(config: ItemConfig, areaId: string, day: string, open:
   return spots;
 }
 
+/** Today's egg on a map (one a day), on an open tile, or undefined for a map with none. */
+export function eggSpot(areaId: string, day: string, open: ReadonlyArray<{ x: number; y: number }>): { key: string; x: number; y: number } | undefined {
+  if (open.length === 0) return undefined;
+  const rand = seeded(`${areaId}:${day}:egg`);
+  const tile = open[Math.floor(rand() * open.length)]!;
+  return { key: `${areaId}:${day}:egg`, x: tile.x, y: tile.y };
+}
+
 /** Picks one up: the new count of that item, or undefined if the bag is full of that kind. */
 export function carryItem(config: ItemConfig, carried: Record<string, number>, itemId: string): number | undefined {
   const now = carried[itemId] ?? 0;

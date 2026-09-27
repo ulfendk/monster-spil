@@ -1,4 +1,4 @@
-import type { CreatureInstance, FoodKind, Progress } from "@shared";
+import type { CreatureInstance, Egg, FoodKind, Progress } from "@shared";
 
 export interface SaveData {
   version: 1;
@@ -10,6 +10,8 @@ export interface SaveData {
   caughtCounts: Record<string, number>;
   /** Catches not yet counted by the family server's scoreboard (made offline, or not yet acknowledged). */
   pendingScore: Array<{ id: string; kind: "catch"; at: string }>;
+  /** Monster eggs in the nest, hatching as I walk (shared/src/creature/eggs.ts). */
+  eggs?: Egg[];
   /** Potions and other items carried (item id → how many), to use in battles. */
   items?: Record<string, number>;
   /** Items picked up today (so each lies there only once a day for this player): the day, and their keys. */

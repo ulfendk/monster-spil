@@ -29,5 +29,13 @@
   {"id": "kirsebaeroeen", "navn": "Kirsebærøen", "icon": "blossom", "stat": "world:kirsebaeroeen", "min": 1},
   {"id": "snedalen", "navn": "Snedalen", "icon": "snowflake", "stat": "world:snedalen", "min": 1},
   {"id": "ildbjerget", "navn": "Ildbjerget", "icon": "volcano", "stat": "world:ildbjerget", "min": 1},
-  {"id": "skatteleder", "navn": "Skattefinder", "icon": "potion", "stat": "item", "min": 10}
+  {"id": "skatteleder", "navn": "Skattefinder", "icon": "potion", "stat": "item", "min": 10},
+  {"id": "aeggepasser", "navn": "Æggepasser", "icon": "egg", "stat": "hatch", "min": 1},
+  {"id": "trofae-drage", "navn": "Dragetrofæet", "icon": "dragon", "stat": "dragonWin", "min": 1, "trophy": "dragon"},
+  {"id": "trofae-monstermester", "navn": "Monstermester", "icon": "trophy", "stat": "species", "min": 40, "trophy": "cup"},
+  {"id": "trofae-globus", "navn": "Verdensglobussen", "icon": "globe", "stat": "worlds", "min": 3, "trophy": "globe"},
+  {"id": "trofae-duelkonge", "navn": "Duelkongen", "icon": "sword", "stat": "duelWin", "min": 10, "trophy": "swords"},
+  {"id": "trofae-guldaeg", "navn": "Guldægget", "icon": "egg", "stat": "hatch", "min": 5, "trophy": "egg"},
+  {"id": "trofae-legende", "navn": "Legendestjernen", "icon": "star", "stat": "level", "min": 20, "trophy": "star"},
+  {"id": "trofae-sjaeldne", "navn": "Juvelen", "icon": "sparkle", "stat": "variant", "min": 10, "trophy": "gem"}
 ]

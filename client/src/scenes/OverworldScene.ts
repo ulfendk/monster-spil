@@ -39,7 +39,8 @@ import { recordProgress } from "../progress/record";
 import { badgesById, levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
-import { carryItem, itemDay, itemSpots, type ItemSpot } from "@shared";
+import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
+import { eggConfig } from "../content/load-eggs";
 import { itemById, itemConfig } from "../content/load-items";
 import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
@@ -79,6 +80,9 @@ const BEAST_MEET = "__beast__:";
 const CAVE_MEET = "__cave__:";
 /** `pendingMeet` prefix meaning "I'm walking over to work on this tile" (a tree, water, a mountain). */
 const WORK_MEET = "__work__:";
+
+/** Stands for the day's egg among the map's items (not a real item id). */
+const EGG_ITEM = "__egg__";
 
 /** The icon for each way to another world. */
 const LINK_ICONS: Record<LinkKind, string> = { boat: "boat", tunnel: "tunnel", bridge: "bridge" };
@@ -689,12 +693,74 @@ export class OverworldScene extends Phaser.Scene {
       const c = this.tileCentre(spot);
       this.itemSprites.set(spot.key, { spot, sprite: addIcon(this, c.x, c.y, item.icon, 40).setDepth(3) });
     }
+    // And one monster egg a day on every map.
+    const egg = eggSpot(this.areaMeta.id, day, open);
+    if (egg && !taken.has(egg.key) && !this.itemSprites.has(egg.key)) {
+      const c = this.tileCentre(egg);
+      this.itemSprites.set(egg.key, { spot: { ...egg, itemId: EGG_ITEM }, sprite: addIcon(this, c.x, c.y, "egg", 40).setDepth(3) });
+    }
+  }
+
+  /** Finds a monster egg: into the nest, if there's room. Returns whether it was kept. */
+  private findEgg(): boolean {
+    const eggs = (this.save.eggs ??= []);
+    if (!nestHasRoom(eggConfig, eggs)) {
+      this.showToast(`${ic("egg")} ${t("egg_nest_full")}`, 2500);
+      return false;
+    }
+    eggs.push(newEgg(eggConfig, crypto.randomUUID(), new Date(), Math.random, () => rollVariant({ ...variantConfig, chance: 1 }, Math.random)));
+    void persist();
+    this.showToast(`${ic("egg")} ${t("egg_found")}`, 2800);
+    return true;
+  }
+
+  /** A step taken: the eggs in the nest come closer to hatching; those that are ready hatch now. */
+  private warmEggs(): void {
+    if (!this.save.eggs?.length) return;
+    const { waiting, hatched } = walkEggs(this.save.eggs, 1);
+    this.save.eggs = waiting;
+    for (const egg of hatched) this.hatch(egg);
+  }
+
+  /** An egg hatches: the monster is mine (like a catch), with a little celebration. */
+  private hatch(egg: Egg): void {
+    const species = this.content.speciesById[egg.speciesId];
+    if (!species) return;
+    const creature: CreatureInstance = {
+      instanceId: crypto.randomUUID(),
+      speciesId: species.id,
+      ownerId: this.save.player.id,
+      niveau: 1,
+      currentHp: species.baseStats.hp,
+      caughtAt: new Date().toISOString(),
+      ...(egg.variant ? { variant: egg.variant } : {}),
+    };
+    this.save.creatures.push(creature);
+    this.save.caughtCounts[species.id] = (this.save.caughtCounts[species.id] ?? 0) + 1;
+    if (!this.save.seenSpeciesIds.includes(species.id)) this.save.seenSpeciesIds.push(species.id);
+    recordProgress({ kind: "hatch" }, true);
+    void persist();
+    this.pendingPath = [];
+    this.drag = undefined;
+    this.stick?.clear();
+    this.scene.launch("Hatch", { egg, species, content: this.content });
+    this.scene.pause();
   }
 
   /** Stepped onto an item: into the bag (if there's room for another of its kind). */
   private pickUpItem(tile: TileCoord): void {
     for (const [key, { spot, sprite }] of this.itemSprites) {
       if (spot.x !== tile.x || spot.y !== tile.y) continue;
+      if (spot.itemId === EGG_ITEM) {
+        if (!this.findEgg()) return;
+        const day = itemDay(new Date());
+        if (this.save.itemsTaken?.day !== day) this.save.itemsTaken = { day, keys: [] };
+        this.save.itemsTaken.keys.push(key);
+        sprite.destroy();
+        this.itemSprites.delete(key);
+        void persist();
+        return;
+      }
       const item = itemById(spot.itemId);
       if (!item) return;
       const items = (this.save.items ??= {});
@@ -1373,6 +1439,10 @@ export class OverworldScene extends Phaser.Scene {
       this.drawBag();
       return this.showToast(`${ic(foodIcon(kind))} ${t("dig_food")}`, 3000);
     }
+    if (reward.kind === "egg") {
+      this.findEgg();
+      return;
+    }
     if (reward.kind === "gem") {
       recordProgress({ kind: "gem", xp: reward.xp ?? 10 });
       return this.showToast(`${ic("sparkle")} ${t("dig_gem")}`, 3000);
@@ -1778,6 +1848,7 @@ export class OverworldScene extends Phaser.Scene {
         this.positionDirty = true;
         this.pickUpFood(next);
         this.pickUpItem(next);
+        this.warmEggs();
         // Walked onto a dock, a tunnel mouth or a bridge: stop, and offer the trip.
         const link = linkAt(this.areaMeta, next.x, next.y);
         if (link) {

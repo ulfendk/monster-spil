@@ -1,0 +1,13 @@
+{
+  "stepsToHatch": 250,
+  "nestSize": 3,
+  "variantChance": 0.12,
+  "digWeight": 6,
+  "pools": {
+    "ild": ["flammepels", "kulsnude", "solpip", "magmamus", "lygtemand", "halmhane", "gloedsalamander"],
+    "vand": ["dryppel", "vandloeber", "taagefisk", "snefnug", "frostpip", "regnsky", "grottefisk"],
+    "graes": ["lovgro", "mosmus", "kloeverhop", "kvistugle", "hophare", "aakandefroe", "svampling"],
+    "lyn": ["gnistrot", "gnistflue", "vindpust", "ildflue", "gnistpindsvin", "ekkoflagre", "lysmanet"],
+    "sten": ["stenbid", "muldmus", "sandhvisker", "stenged", "granitgnom", "krystaltusse", "gravling"]
+  }
+}

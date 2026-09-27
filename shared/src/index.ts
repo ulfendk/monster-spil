@@ -187,5 +187,7 @@ export { SCENE_DECOR, SCENE_PARTICLES, sceneAt } from "./world/scenes.js";
 export type { SceneConfig, SceneDecor, SceneKind, SceneLook, SceneParticles } from "./world/scenes.js";
 export { canEnterWorld, linkAt, linkTarget, worldById } from "./world/worlds.js";
 export type { WorldConfig, WorldDef } from "./world/worlds.js";
-export { carryItem, itemDay, itemSpots } from "./world/items.js";
+export { carryItem, eggSpot, itemDay, itemSpots } from "./world/items.js";
 export type { ItemConfig, ItemDef, ItemSpot } from "./world/items.js";
+export { eggProgress, nestHasRoom, newEgg, walkEggs } from "./creature/eggs.js";
+export type { Egg, EggConfig } from "./creature/eggs.js";

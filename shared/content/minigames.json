@@ -6,6 +6,7 @@
       { "kind": "food", "weight": 40 },
       { "kind": "monster", "weight": 25 },
       { "kind": "gem", "weight": 20, "xp": 15 },
+      { "kind": "egg", "weight": 6 },
       { "kind": "nothing", "weight": 15 }
     ],
     "monsters": [

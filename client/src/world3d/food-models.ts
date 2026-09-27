@@ -9,7 +9,7 @@ import { KANAGAWA } from "../ui/theme";
  * Map3D uses one in place of a food icon (`icon-apple`, …) standing on the map.
  */
 
-export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover"] as const;
+export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover", "egg"] as const;
 export type FoodModelIcon = (typeof FOOD_MODEL_ICONS)[number];
 
 let gradient: THREE.DataTexture | undefined;
@@ -180,6 +180,28 @@ function clover(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
+/** A monster egg: speckled, standing on end. */
+function egg(): THREE.BufferGeometry {
+  const shell = new THREE.SphereGeometry(0.15, 16, 12);
+  const pos = shell.attributes.position!;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const k = y > 0 ? 1 - y * 1.3 : 1; // narrower at the top
+    pos.setX(i, pos.getX(i) * k);
+    pos.setZ(i, pos.getZ(i) * k);
+    pos.setY(i, y * 1.35);
+  }
+  shell.computeVertexNormals();
+  shell.translate(0, 0.2, 0);
+  const parts = [coloured(shell, KANAGAWA.washi)];
+  for (const [x, y, z] of [[0.1, 0.24, 0.06], [-0.06, 0.3, 0.09], [0.02, 0.14, 0.13], [-0.11, 0.18, -0.02], [0.05, 0.28, -0.1]] as const) {
+    const spot = new THREE.SphereGeometry(0.022, 6, 4);
+    spot.translate(x, y, z);
+    parts.push(coloured(spot, KANAGAWA.boatYellow2));
+  }
+  return mergeGeometries(parts)!;
+}
+
 const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
   apple,
   strawberry,
@@ -190,6 +212,7 @@ const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
   healpotion: flask(KANAGAWA.springGreen),
   feather,
   clover,
+  egg,
 };
 const cache = new Map<FoodModelIcon, THREE.BufferGeometry>();
 let material: THREE.MeshToonMaterial | undefined;
