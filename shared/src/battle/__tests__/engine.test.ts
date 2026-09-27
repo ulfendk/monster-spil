@@ -275,12 +275,13 @@ test("a 3D throw that misses uses the turn with no roll; a hit rolls, better nea
   assert.equal(missed.outcome, "ongoing", "no catch, even with the luckiest roll");
   assert.equal(missed.log.at(-1)?.kind, "catch-miss");
   assert.equal(missed.turn, state.turn + 1);
-  // Full HP, catchRate 0.4: chance 0.4 × 0.5 = 0.2 at the middle; ×1.2 (0.24) dead centre, ×0.8 (0.16) at the edge.
-  const roll = (precision: number) => resolveTurn(state, [{ playerId: "player", action: { kind: "catch", throw: { hit: true, precision } } }], fixedRng(0.22)).outcome;
-  assert.equal(roll(1), "caught", "dead centre makes 0.22 a catch");
-  assert.equal(roll(0.5), "ongoing", "the middle is the old chance (0.2)");
+  // Full HP, catchRate 0.4, 30% easier (CATCH_EASE): chance 0.4 × 0.5 × 1.3 = 0.26 at the middle;
+  // ×1.2 (0.312) dead centre, ×0.8 (0.208) at the edge.
+  const roll = (precision: number) => resolveTurn(state, [{ playerId: "player", action: { kind: "catch", throw: { hit: true, precision } } }], fixedRng(0.28)).outcome;
+  assert.equal(roll(1), "caught", "dead centre makes 0.28 a catch");
+  assert.equal(roll(0.5), "ongoing", "the middle is the plain chance (0.26)");
   assert.equal(roll(0), "ongoing");
-  // No throw info at all: exactly as before.
-  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.19)).outcome, "caught");
-  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.21)).outcome, "ongoing");
+  // No throw info at all: the plain chance, as at the middle.
+  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.25)).outcome, "caught");
+  assert.equal(resolveTurn(state, [{ playerId: "player", action: { kind: "catch" } }], fixedRng(0.27)).outcome, "ongoing");
 });

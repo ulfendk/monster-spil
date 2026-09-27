@@ -2,13 +2,20 @@ import type { CreatureInstance, CreatureSpecies } from "../types/creature.js";
 import type { Rng } from "./rng.js";
 
 /**
+ * Every catch is this much likelier than the monsters' catchRates alone would make it — in
+ * battles and in the caves alike (still never certain: the caps stay). Raise it to make
+ * catching easier for everyone, lower it for harder.
+ */
+export const CATCH_EASE = 1.3;
+
+/**
  * Lower HP makes the catch easier. species.catchRate scales the whole curve; `bonus`
  * scales it too (a well-aimed 3D throw); the result is clamped so nothing is ever a
  * guaranteed catch or a hopeless one.
  */
 export function attemptCatch(target: CreatureInstance, species: CreatureSpecies, rng: Rng, bonus = 1): boolean {
   const hpFraction = Math.max(0, Math.min(1, target.currentHp / species.baseStats.hp));
-  const rawChance = species.catchRate * (1.5 - hpFraction) * bonus;
+  const rawChance = species.catchRate * (1.5 - hpFraction) * bonus * CATCH_EASE;
   const chance = Math.max(0.05, Math.min(0.95, rawChance));
   return rng.next() < chance;
 }

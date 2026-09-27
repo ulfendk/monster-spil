@@ -529,7 +529,8 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
 - **The engine decides** (`shared/src/battle/engine.ts`): the catch action carries
   `throw?: {hit:false} | {hit:true, precision}`; a hit's chance is the old one ×
   `catchBonus(precision)` (0.8 at the edge, 1.2 dead centre, exactly 1 at 0.5 — so a catch
-  without a throw is unchanged). `BattleScene.performCatch` works the turn out when the
+  without a throw is unchanged). Every catch — here and in the caves — is also ×`CATCH_EASE` (1.3,
+  `shared/src/battle/catch.ts`): one number to make catching easier or harder for everyone. `BattleScene.performCatch` works the turn out when the
   ball hits (`wildTurn`) so the animation knows the result, and shows it (`presentTurn`)
   when the battle wakes. Without WebGL the old 2D throw is used.
 - **The 3D code is shared:** `client/src/cave/throw-stage.ts` (`ThrowStage`: renderer,

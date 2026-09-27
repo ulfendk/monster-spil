@@ -6,6 +6,8 @@
  * Units are metres and seconds. The camera stands at the origin looking down -z, y is up,
  * the cave floor is y = 0.
  */
+import { CATCH_EASE } from "../battle/catch.js";
+
 export interface Vec3 {
   x: number;
   y: number;
@@ -84,5 +86,5 @@ export function hitPrecision(distance: number, radius = HIT_RADIUS): number | un
  */
 export function caveCatchChance(catchRate: number, precision: number): number {
   const p = Math.max(0, Math.min(1, precision));
-  return Math.max(0.1, Math.min(0.95, catchRate * (0.7 + 0.8 * p)));
+  return Math.max(0.1, Math.min(0.95, catchRate * (0.7 + 0.8 * p) * CATCH_EASE));
 }
