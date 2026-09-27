@@ -672,7 +672,7 @@ export class BattleScene extends Phaser.Scene {
 
   /**
    * Catching: the 3D meadow opens over the battle (in a 3D battle it's the same meadow: my
-   * monster steps aside) and you shoot the ball at the monster with the slingshot. When the
+   * monster steps aside) and you throw the ball at the monster (crosshairs and a trigger). When the
    * ball hits, the turn is worked out at once (so the ball knows whether to glow or burst
    * open); it's shown here when the battle comes back. Without 3D (no WebGL), the ball is
    * thrown the old way.

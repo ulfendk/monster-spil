@@ -449,7 +449,7 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   can go in **once per opening**.
 - **Inside**, the device runs the minigame: monsters peek out from behind boulders (at
   most two at a time), sometimes scamper to another boulder, and you shoot balls at them
-  with the **slingshot** (see "The slingshot" below). A hit rolls `caveCatchChance`
+  with **crosshairs and a trigger** (see "Crosshairs and trigger" below). A hit rolls `caveCatchChance`
   (catchRate, better near the middle); a catch goes into the save exactly like a wild
   catch (caughtCounts, pendingScore → scoreboard). 10 balls, 5 monsters per visit.
 - **Kinds of caves:** each opening is one kind, picked by weight when it opens (stored as
@@ -471,15 +471,15 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   (`faceFrameKey(front, "blink" | "talk")`) only for monsters it draws itself — a real
   picture doesn't say where its eyes and mouth are, so it breathes and moves but doesn't blink.
 - **Pure rules** (tested): `shared/src/cave/caves.ts` (settings, schedule, `caveMouthTile`,
-  `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`slingshotToThrow`,
+  `chooseCaveSpot`, `planCaveVisit`) and `shared/src/cave/throw.ts` (`aimToThrow`,
   `ballAt`, `landingTime`, hit precision, catch chance — a test checks every place a
-  monster can peek out can be hit with a reasonable pull).
+  monster can peek out can be hit by aiming at it).
 - **Server:** `server/src/cave-openings.ts` (`CaveOpenings`, one open cave at a time;
   state in the game store's `caves`). `caveEnter {caveId}` (must stand next to it) →
   `caveVisit {caveId, kind, seed, speciesIds, balls}`; `caves` goes to everyone on join and
   every change; problems `cave closed` / `cave visited`.
 - **Client:** `client/src/gfx/cave-layer.ts` draws the mouth (rocks tumble out as it
-  opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, the slingshot,
+  opens, it shrinks shut when it closes); `CaveScene` is the Phaser side (HUD, the crosshairs,
   catching, saving) over `client/src/cave/cave-stage.ts`, the **three.js** scene (rock
   dome, stalactites, glowing crystals, boulders, sprites made from the monsters' own
   textures, a temari ball). three.js is loaded with a dynamic import only when entering
@@ -488,7 +488,7 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   `index.html` layers `#game > canvas.cave-stage` below Phaser's canvas.
   `scripts/e2e-caves.mjs` covers the server side.
 - **Testing in Chrome:** step the 3D scene by hand like the game (`__cave.stage.tick(dt)`,
-  yielding between frames so the catch animation's awaits run); `__cave.sling(dx, dy)`
+  yielding between frames so the catch animation's awaits run); `__cave.aimAndFire(x, y)`
   throws.
 
 ### Wild battles and catching in 3D
@@ -512,7 +512,7 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   engine's `damage`/`miss` log entries carry `moveId` for this.
 - **Catching happens in the same meadow**: `CatchScene` gets the battle's stage
   (`CatchSceneData.stage`), my monster steps aside, the wild one starts shifting about and the
-  slingshot comes up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
+  crosshairs come up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
   kind `catch-miss`); a hit lets the engine roll the catch, and the ball glows or bursts
   open accordingly. Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
 - **Scenes:** a wild battle (and its catching) takes place in a scene that fits where you
@@ -535,32 +535,31 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   when the battle wakes. Without WebGL the old 2D throw is used.
 - **The 3D code is shared:** `client/src/cave/throw-stage.ts` (`ThrowStage`: renderer,
   camera and its framing (`resize` with an optional band, `project` to place the HUD over
-  the scene), the slingshot and the temari ball, its flight and hit test, the catch
+  the scene), aiming and the temari ball, its flight and hit test, the catch
   animation, living monsters — breathing, blinking, crying, startled jumps — and the tick
   loop); `CaveStage`, `MeadowStage` and `BattleStage` add their scenery and say where
   monsters are and how they move. `destroy()` also gives the WebGL context back (iPad Safari
   allows only a few).
 - **Testing in headless Chromium:** in dev builds `window.__battle` is the battle scene
   (`performTurn({kind:"move", moveId})`, `performCatch()`) and `window.__catch` the catch
-  scene (`sling(dx, dy)`).
+  scene (`aimAndFire(x, y)`).
 
-### The slingshot
+### Crosshairs and trigger
 
-- **Caves and catching throw with a slingshot**: touch anywhere, pull back (down, towards
-  yourself) and let go. The pouch with the ball follows the finger and white dots show the
-  first half of the throw; a longer pull throws further and higher, and the ball goes the
-  opposite way of the pull (pull down-right → aim left, at most ~35°; within ~5° of straight
-  back it throws straight ahead, so a wobbly finger still hits what's in front). A pull shorter than
-  `MIN_PULL` just lets the band go. The longest pull that counts depends on the screen
-  (`SlingshotInput.maxPull`), so a phone and an iPad feel the same. On a tall screen the
-  camera looks down from higher up and further forward (`ThrowStage.resize`): the horizon is
-  about a third of the way down and the slingshot sits near the bottom; the meadow uses a
-  narrower view than the caves (`sideView`), so its one monster is bigger.
-- **Pure rule** (tested): `slingshotToThrow(dx, dy, maxPull)` in `shared/src/cave/throw.ts`;
-  tests check that every place a cave monster can peek out, and every place the meadow
-  monster sways to, can be hit with some pull. `client/src/ui/slingshot-input.ts` turns
-  touches into pulls for any scene; `ThrowStage` draws the fork, the bands and the aim
-  (`setPull`).
+- **Caves and catching throw with crosshairs and a trigger**: put a finger on the screen and
+  the crosshairs sit a little above it (so the finger never hides what you aim at), follow it
+  and stay where it lifts; the big round trigger (bottom right) throws. The ball flies in an
+  arc to exactly the point under the crosshairs — a monster there, else the ground — and
+  white dots in the scene show the arc while you aim. Something standing still is hit by
+  aiming well; something moving has moved on by the time the ball arrives, so timing counts.
+- **Pure rule** (tested): `aimToThrow(target)` in `shared/src/cave/throw.ts` (the flight takes
+  0.5–1.2 s, longer further away); tests check it lands on the target and that every place a
+  cave or meadow monster shows itself can be hit. `client/src/ui/aim-input.ts` (`AimInput`)
+  draws the crosshairs and the trigger for any scene; `ThrowStage.aimAt`/`throwAt` find the
+  point under them (a raycast) and throw. On a tall screen the camera looks down from higher
+  up and further forward, scaled by how tall the screen is (`ThrowStage.resize`), and the
+  picture moves until the ball in the hand sits near the bottom — on a phone and an iPad
+  standing up alike; the meadow uses a narrower view than the caves (`sideView`).
 
 ### Minigames: working the land (protocol v14)
 

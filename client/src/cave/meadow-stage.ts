@@ -8,7 +8,7 @@ import { MONSTER_SIZE, ThrowStage, type LivingMonster, type StageMonster } from 
  * Where the wild monster stands, in 3D: a sunny meadow by default (a clear sky, a big red
  * rising sun, green hills, pines and susuki grass), or another scene (scenery.ts) — a forest
  * glade, a lake shore, the mountains, dunes, snow, a volcano, cherry blossom. Catching: the monster shifts from side to side and you shoot the
- * ball at it with the slingshot. The ball, its flight, the catch animation and the monster's
+ * ball at it (crosshairs and a trigger). The ball, its flight, the catch animation and the monster's
  * faces are ThrowStage's; the battle engine decides whether a hit catches it. In a battle
  * (battle-stage.ts) it stands its ground instead: that's the "battle" phase.
  */

@@ -1,5 +1,5 @@
 /**
- * Throwing balls in the cave and the meadow: pulling a slingshot back and letting go becomes a throw in 3D, the ball flies
+ * Throwing balls in the cave and the meadow: aiming with the crosshairs and pressing the trigger becomes a throw in 3D, the ball flies
  * in an arc under gravity, and a hit near a monster's middle catches more easily. Pure
  * functions, so the feel can be tested without a browser; the 3D scene only draws them.
  *
@@ -20,32 +20,22 @@ export const BALL_START: Vec3 = { x: 0, y: 0.9, z: -1 };
 /** How far from a monster's middle the ball may pass and still hit it (it's generous: the youngest player is 6). */
 export const HIT_RADIUS = 0.75;
 
-/** Pulls shorter than this (as a share of the longest pull) are let go without a throw. */
-export const MIN_PULL = 0.15;
-/** How far to the side the slingshot can aim: the tangent of its widest angle (about 35°). */
-const MAX_AIM = 0.7;
-/** A pull this close to straight back (tangent, about 5°) throws straight ahead: small wobbles of the finger don't count. */
-const STRAIGHT = 0.09;
+/** The longest and shortest a throw takes (seconds): near things quickly, far ones in a higher arc. */
+const FLIGHT = { min: 0.5, max: 1.2, perMetre: 0.055, base: 0.45 };
 
 /**
- * Pulling the slingshot back and letting go → the ball's launch velocity. `dx`/`dy` is how
- * far the finger pulled from where it pressed, in pixels (screen y grows downwards, so
- * pulling back towards yourself is dy > 0), `maxPull` the longest pull that counts. The
- * longer the pull, the further and higher the ball flies; it goes the opposite way of the
- * pull, so pulling down and to the right aims left (nearly straight back throws straight
- * ahead, and the aim turns gently from there). Undefined for a pull too short to throw
- * or one that doesn't pull back (downwards) at all.
+ * Aiming with the crosshairs → the ball's launch velocity: it leaves the hand (BALL_START)
+ * and comes down exactly on `target` (the point under the crosshairs), in an arc that takes
+ * longer the further away it is. Aiming well is all it takes to hit something that stands
+ * still; something that moves has moved on a little by the time the ball gets there.
  */
-export function slingshotToThrow(dx: number, dy: number, maxPull: number): Vec3 | undefined {
-  if (maxPull <= 0 || dy <= 0) return undefined;
-  const pull = Math.min(1, Math.hypot(dx, dy) / maxPull);
-  if (pull < MIN_PULL) return undefined;
-  // From a gentle lob up to a long, high throw.
-  const speed = 0.5 + 3.5 * ((pull - MIN_PULL) / (1 - MIN_PULL));
-  const z = -(3 + 3.4 * speed);
-  const slant = -dx / dy;
-  const aim = Math.sign(slant) * Math.min(MAX_AIM, Math.max(0, Math.abs(slant) - STRAIGHT) * 0.8);
-  return { x: aim * -z || 0, y: 2.4 + 1.2 * speed, z };
+export function aimToThrow(target: Vec3): { v: Vec3; t: number } {
+  const dx = target.x - BALL_START.x;
+  const dy = target.y - BALL_START.y;
+  const dz = target.z - BALL_START.z;
+  const distance = Math.hypot(dx, dz);
+  const t = Math.min(FLIGHT.max, Math.max(FLIGHT.min, FLIGHT.base + distance * FLIGHT.perMetre));
+  return { v: { x: dx / t, y: (dy + 0.5 * GRAVITY * t * t) / t, z: dz / t }, t };
 }
 
 /** Where the ball is `t` seconds after the throw. */

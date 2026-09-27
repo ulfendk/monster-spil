@@ -78,7 +78,7 @@ const strings = {
   cave_open: "En grotte er åbnet!",
   cave_closed: "Grotten er lukket",
   cave_visited: "Du har været derinde",
-  cave_throw: "Træk tilbage og slip!",
+  cave_throw: "Sigt og tryk på knappen!",
   cave_caught: "Fanget!",
   catch_missed: "Bolden ramte ikke!",
   chop_hint: "Tryk når den er i det grønne!",

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { caveCatchChance, caveRocks, createRng, rollVariant, type CaveVisit, type CreatureInstance, type Rng, type Vec3 } from "@shared";
+import { caveCatchChance, caveRocks, createRng, rollVariant, type CaveVisit, type CreatureInstance, type Rng } from "@shared";
 import { variantConfig } from "../content/load-variants";
 import { pictureKey, variantSparkles } from "../gfx/variants";
 import { caveKindFor } from "../content/load-caves";
@@ -18,7 +18,7 @@ import { CAVE_ICON, POINTS_ICON } from "../ui/icons";
 import { t } from "../i18n/da";
 import type { CaveStage } from "../cave/cave-stage";
 import { recordProgress } from "../progress/record";
-import { SlingshotInput } from "../ui/slingshot-input";
+import { AimInput } from "../ui/aim-input";
 
 export interface CaveSceneData {
   save: SaveData;
@@ -27,9 +27,9 @@ export interface CaveSceneData {
 }
 
 /**
- * Inside a cave: monsters peek out from behind rocks and you shoot balls at them with a slingshot. The cave
+ * Inside a cave: monsters peek out from behind rocks and you throw balls at them (crosshairs and a trigger). The cave
  * itself is 3D (cave/cave-stage.ts, three.js, loaded only now) in a canvas under this
- * scene; this scene draws the buttons and texts on top, turns pulls into throws and does
+ * scene; this scene draws the buttons and texts on top, turns aim into throws and does
  * the catching, which works like catching in the wild: caught monsters go into the save
  * and count on the scoreboard. The visit (who is in there, how many balls) came from the
  * server when the player went in.
@@ -45,7 +45,7 @@ export class CaveScene extends Phaser.Scene {
   private variants: Array<string | undefined> = [];
   private throwing = false;
   private done = false;
-  private slingshot?: SlingshotInput;
+  private aiming?: AimInput;
   private hud: Phaser.GameObjects.GameObject[] = [];
   private toast?: Phaser.GameObjects.Container;
 
@@ -100,10 +100,11 @@ export class CaveScene extends Phaser.Scene {
       this.time.delayedCall(kind ? 2300 : 0, () => {
         if (!this.done && this.balls === this.caveData.visit.balls) this.say(`${ic("ball")} ${t("cave_throw")}`, 3000);
       });
-      this.slingshot = new SlingshotInput(this, () => this.stage, () => !this.done && !this.throwing && this.balls > 0, (v) => this.shoot(v));
+      this.aiming = new AimInput(this, () => this.stage, () => !this.done && !this.throwing && this.balls > 0, (x, y) => this.shoot(x, y));
     });
     onRelayout(this, () => {
       this.fitStage();
+      this.aiming?.layout();
       this.drawHud();
     });
   }
@@ -125,18 +126,19 @@ export class CaveScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ throwing
 
-  /** A whole pull of the slingshot, `dx`/`dy` pixels back from where the finger pressed (for testing in dev builds). */
-  sling(dx: number, dy: number): void {
-    this.slingshot?.pull(dx, dy);
+  /** Aims at a point on the screen and pulls the trigger (for testing in dev builds). */
+  aimAndFire(x: number, y: number): void {
+    this.aiming?.aim(x, y);
+    this.aiming?.fire();
   }
 
-  /** The slingshot was let go: a ball flies. */
-  private shoot(v: Vec3): void {
+  /** The trigger: a ball flies to where the crosshairs point. */
+  private shoot(x: number, y: number): void {
     if (!this.stage || this.done || this.throwing || this.balls <= 0) return;
     this.throwing = true;
     this.balls--;
     this.drawHud();
-    void this.stage.throwBall(v).then(async (result) => {
+    void this.stage.throwAt(x, y).then(async (result) => {
       if (result.hit && this.stage) {
         const index = result.hit.index;
         const speciesId = this.caveData.visit.speciesIds[index]!;

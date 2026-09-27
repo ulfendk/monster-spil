@@ -163,7 +163,7 @@ export {
   ROCK_AREA,
 } from "./cave/caves.js";
 export type { CaveConfig, CaveDecor, CaveKind, CaveLook, CaveParticles, CaveSettings, CaveSpotOptions, CaveState, CaveView, CaveVisit } from "./cave/caves.js";
-export { BALL_START, ballAt, caveCatchChance, closestApproach, GRAVITY, HIT_RADIUS, hitPrecision, landingTime, MIN_PULL, slingshotToThrow } from "./cave/throw.js";
+export { BALL_START, ballAt, caveCatchChance, closestApproach, GRAVITY, HIT_RADIUS, hitPrecision, landingTime, aimToThrow } from "./cave/throw.js";
 export type { Vec3 } from "./cave/throw.js";
 export {
   award,

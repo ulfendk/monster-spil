@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { CreatureSpecies, Vec3 } from "@shared";
+import type { CreatureSpecies } from "@shared";
 import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip } from "../ui/rich-text";
 import { CSS, FONT } from "../ui/theme";
@@ -10,7 +10,7 @@ import { sceneKind } from "../content/load-scenes";
 import { playCreatureSound } from "../audio/creature-sound";
 import type { MeadowStage } from "../cave/meadow-stage";
 import type { BattleStage } from "../cave/battle-stage";
-import { SlingshotInput } from "../ui/slingshot-input";
+import { AimInput } from "../ui/aim-input";
 
 /** How a throw went, for the battle engine's catch action. */
 export type ThrowOutcome = { hit: false } | { hit: true; precision: number };
@@ -35,7 +35,7 @@ export interface CatchSceneData {
 /**
  * Catching a wild monster, in 3D: it stands in a sunny meadow (cave/meadow-stage.ts, three.js,
  * loaded only now) in a canvas under this scene, alive and shifting about, and you shoot one
- * ball at it with the slingshot. A miss uses the turn; a hit lets the battle engine roll the catch (a hit near
+ * ball at it (crosshairs and a trigger). A miss uses the turn; a hit lets the battle engine roll the catch (a hit near
  * the middle helps), and the ball glows or bursts open accordingly. Then it's back to the
  * battle, which shows the turn.
  */
@@ -46,7 +46,7 @@ export class CatchScene extends Phaser.Scene {
   private borrowed = false;
   private canvas?: HTMLCanvasElement;
   private thrown = false;
-  private slingshot?: SlingshotInput;
+  private aiming?: AimInput;
   private hint?: Phaser.GameObjects.Container;
 
   constructor() {
@@ -62,6 +62,7 @@ export class CatchScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.teardown());
     onRelayout(this, () => {
       this.fitStage();
+      this.aiming?.layout();
       this.drawHint();
     });
     const battleStage = this.catchData.stage;
@@ -115,11 +116,11 @@ export class CatchScene extends Phaser.Scene {
       });
   }
 
-  /** The slingshot is up: say how, and listen for the pull. */
+  /** Ready to throw: say how, and bring up the crosshairs and the trigger. */
   private startAiming(): void {
     if (import.meta.env.DEV) (window as unknown as { __catch?: CatchScene }).__catch = this;
     this.drawHint();
-    this.slingshot = new SlingshotInput(this, () => this.stage, () => !this.thrown, (v) => this.shoot(v));
+    this.aiming = new AimInput(this, () => this.stage, () => !this.thrown, (x, y) => this.shoot(x, y));
   }
 
   private fitStage(): void {
@@ -143,18 +144,19 @@ export class CatchScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ the throw
 
-  /** A whole pull of the slingshot, `dx`/`dy` pixels back from where the finger pressed (for testing in dev builds). */
-  sling(dx: number, dy: number): void {
-    this.slingshot?.pull(dx, dy);
+  /** Aims at a point on the screen and pulls the trigger (for testing in dev builds). */
+  aimAndFire(x: number, y: number): void {
+    this.aiming?.aim(x, y);
+    this.aiming?.fire();
   }
 
-  /** The slingshot was let go: the one throw. */
-  private shoot(v: Vec3): void {
+  /** The trigger: the one throw, to where the crosshairs point. */
+  private shoot(x: number, y: number): void {
     if (!this.stage || this.thrown) return;
     this.thrown = true;
     this.hint?.destroy();
     const stage = this.stage;
-    void stage.throwBall(v).then(async (result) => {
+    void stage.throwAt(x, y).then(async (result) => {
       if (!result.hit) {
         this.drawHint(`${ic("miss")} ${t("catch_missed")}`);
         stage.end();

@@ -9,7 +9,7 @@ import type { LivingMonster, StageMonster } from "./throw-stage";
  * (seen from behind) stands close in front, and every move plays out between them — fire,
  * water, leaves, lightning or rocks fly by the move's type, a claw or a bite dashes in, the
  * one hit flashes and shakes, one who faints sinks into the grass. Catching happens in the
- * same meadow: my monster steps aside, the slingshot comes up (ThrowStage), and afterwards
+ * same meadow: my monster steps aside, the crosshairs come up (ThrowStage), and afterwards
  * the battle picks up again.
  *
  * BattleScene (Phaser, on top) decides everything and tells this what to show.
@@ -56,7 +56,7 @@ export class BattleStage extends MeadowStage {
     this.mineSpot.y = living.size / 2;
     living.sprite.position.copy(this.mineSpot);
     this.mine = { ...living, phase: "battle", timer: 0, nextAct: Infinity, home: this.mineSpot.clone(), offset: new THREE.Vector3() };
-    this.end(); // no slingshot until someone wants to catch
+    this.end(); // no ball until someone wants to catch
   }
 
   // ------------------------------------------------------------ what BattleScene uses
@@ -112,7 +112,7 @@ export class BattleStage extends MeadowStage {
     return this.project({ x: this.mineSpot.x, y: this.mineSpot.y - this.mineSize / 2, z: this.mineSpot.z });
   }
 
-  /** Catching: my monster steps aside, the wild one starts shifting about, the slingshot comes up. */
+  /** Catching: my monster steps aside, the wild one starts shifting about, a ball is ready. */
   async beginCatch(): Promise<void> {
     const from = this.mine.offset.clone();
     await this.tween(0.35, (k) => this.mine.offset.lerpVectors(from, new THREE.Vector3(-2.6, 0, 1.2), k * k));
@@ -121,7 +121,7 @@ export class BattleStage extends MeadowStage {
     this.holdBall();
   }
 
-  /** Back to the battle: the slingshot goes, the wild one (if it's still here) goes back to its spot, mine comes back. */
+  /** Back to the battle: the ball goes, the wild one (if it's still here) goes back to its spot, mine comes back. */
   async endCatch(): Promise<void> {
     this.end();
     this.stopSwaying();

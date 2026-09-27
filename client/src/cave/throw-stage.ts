@@ -1,11 +1,11 @@
 import * as THREE from "three";
-import { BALL_START, HIT_RADIUS, ballAt, createRng, hitPrecision, landingTime, type Rng, type Vec3 } from "@shared";
+import { BALL_START, HIT_RADIUS, aimToThrow, ballAt, createRng, hitPrecision, landingTime, type Rng, type Vec3 } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 
 /**
  * What every 3D throwing scene shares (three.js, loaded only when one opens): the camera,
- * the slingshot with the temari ball in its pouch (pull back, aim, let go — dots show where it
- * will fly), the ball's flight (the shared, tested physics in
+ * the temari ball in your hand, aiming (a point in the scene under the crosshairs, and dots
+ * showing the arc the ball will fly to it), the ball's flight (the shared, tested physics in
  * shared/src/cave/throw.ts) with a hit test fine enough that a fast ball can't skip through
  * a monster, the catch animation, and monsters that feel alive — they breathe, blink, cry
  * with their mouth open and jump when startled. A scene (the cave, the meadow) adds the
@@ -68,13 +68,9 @@ export abstract class ThrowStage<M extends LivingMonster> {
   /** Where the camera stands (resize moves it up on a tall screen; a scene may shake it about this point). */
   protected readonly cameraBase = new THREE.Vector3(0, 1.6, 1.5);
   protected ball!: THREE.Mesh;
-  /** The slingshot: a wooden fork, its bands (tip → pouch → tip) and the aiming dots. */
-  private sling!: THREE.Group;
-  /** The two rubber bands, from each tip to the pouch (unit boxes, stretched every frame). */
-  private bands: THREE.Mesh[] = [];
+  /** Dots along the arc the ball would fly to where the crosshairs point. */
   private aimDots: THREE.Mesh[] = [];
-  /** How far the pouch is pulled back (world offset from BALL_START), while aiming. */
-  private pulled?: THREE.Vector3;
+  private readonly raycaster = new THREE.Raycaster();
   protected readonly monsters: M[] = [];
   protected readonly rng: Rng;
   private readonly clock = new THREE.Clock();
@@ -101,7 +97,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
   protected start(): void {
     this.ball = this.makeBall();
     this.scene.add(this.ball);
-    this.makeSlingshot();
+    this.makeAimDots();
     this.holdBall();
     // The first frame waits for the next animation frame, so a subclass's constructor finishes first.
     this.frame = requestAnimationFrame(this.loop);
@@ -134,7 +130,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
    */
   resize(width: number, height: number, band?: { top: number; bottom: number }): void {
     // A tall screen looks down from higher up and a little further forward, over the
-    // slingshot: the horizon moves up, the slingshot sits near the bottom, and the ground —
+    // ball in the hand: the horizon moves up, the ball sits near the bottom, and the ground —
     // where the monsters are — fills more of the screen than the sky.
     const tall = !band && height > width;
     // How tall: 0 for a square screen (or wider), 1 for a phone standing up — an iPad standing
@@ -148,7 +144,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     const vfov = (2 * Math.atan(Math.tan((this.sideView * Math.PI) / 360) / (width / bandH)) * 180) / Math.PI;
     const fov = Math.min(95, Math.max(50, vfov));
     this.frameView(width, height, band, fov);
-    // The slingshot sits near the bottom, where the thumb pulls it, on every screen: on a
+    // The ball in the hand sits near the bottom on every screen: on a
     // tall one the picture moves up or down until it's there (a phone is taller than an iPad
     // standing up, so the same camera puts it higher on one and off the bottom of the other);
     // on a wide one only if it would be cut off.
@@ -195,35 +191,41 @@ export abstract class ThrowStage<M extends LivingMonster> {
     return this.monsters.filter((m) => m.phase !== "caught").length;
   }
 
-  /** Whether the slingshot is loaded and can be pulled (no ball in the air, nothing playing). */
+  /** Whether a ball is ready to throw (none in the air, nothing playing). */
   get ready(): boolean {
     return !this.flight && !this.busy && this.ball.visible;
   }
 
   /**
-   * Aiming: the pouch (and the ball in it) follows the finger — `pull` is how far it's
-   * pulled, as a share of the longest pull (x right, y down, screen-wise) — and dots show
-   * the first part of the throw `v` it would make. Undefined lets go of it without a throw.
+   * The point in the scene under the crosshairs (canvas pixels): a monster there (one that
+   * can be hit right now), else the ground, else — aimed at the sky — somewhere far off.
    */
-  setPull(pull?: { x: number; y: number }, v?: Vec3): void {
-    if (!pull || !this.ready) {
-      this.pulled = undefined;
-      if (this.ready) this.ball.position.set(BALL_START.x, BALL_START.y, BALL_START.z);
-      this.showAim(undefined);
-      return;
-    }
-    // Never further than the longest pull.
-    const length = Math.hypot(pull.x, pull.y);
-    const k = length > 1 ? 1 / length : 1;
-    this.pulled = new THREE.Vector3(pull.x * k * 0.32, -pull.y * k * 0.3, Math.min(1, length) * 0.55);
-    this.ball.position.set(BALL_START.x + this.pulled.x, BALL_START.y + this.pulled.y, BALL_START.z + this.pulled.z);
-    this.showAim(v);
+  private pointAt(sx: number, sy: number): THREE.Vector3 {
+    const ndc = new THREE.Vector2((sx / this.canvasSize.width) * 2 - 1, 1 - (sy / this.canvasSize.height) * 2);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const targets = this.monsters.filter((m) => m.phase !== "caught" && m.sprite.visible && this.canBeHit(m)).map((m) => m.sprite);
+    const hit = this.raycaster.intersectObjects(targets, false)[0];
+    if (hit) return hit.point;
+    const ray = this.raycaster.ray;
+    const ground = ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    if (ground && ground.distanceTo(this.camera.position) < 30) return ground;
+    return ray.at(20, new THREE.Vector3());
+  }
+
+  /** Aiming: dots show the arc the ball would fly to the point under the crosshairs; undefined hides them. */
+  aimAt(sx?: number, sy?: number): void {
+    if (sx === undefined || sy === undefined || !this.ready) return this.showAim(undefined);
+    this.showAim(aimToThrow(this.pointAt(sx, sy)).v);
+  }
+
+  /** The trigger: the ball flies to the point under the crosshairs. */
+  throwAt(sx: number, sy: number): Promise<ThrowResult> {
+    return this.throwBall(aimToThrow(this.pointAt(sx, sy)).v);
   }
 
   /** Throws the ball; resolves when it hits a monster or comes to rest. */
   throwBall(v: Vec3): Promise<ThrowResult> {
     if (this.flight || this.busy) return Promise.resolve({});
-    this.pulled = undefined;
     this.showAim(undefined);
     return new Promise((resolve) => {
       this.flight = { v, t: 0, end: landingTime(v), resolve };
@@ -265,11 +267,9 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.busy = false;
   }
 
-  /** No ball in the slingshot any more (the visit or the throw is over). */
+  /** No ball in the hand any more (the visit or the throw is over). */
   end(): void {
     this.ball.visible = false;
-    this.sling.visible = false;
-    this.pulled = undefined;
     this.showAim(undefined);
   }
 
@@ -296,7 +296,6 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.updateFlight(dt);
     this.updateScenery(dt, this.time);
     for (const a of this.animated) a(this.time);
-    this.updateBands();
     for (let i = this.effects.length - 1; i >= 0; i--) if (!this.effects[i]!(dt)) this.effects.splice(i, 1);
     this.renderer.render(this.scene, this.camera);
   }
@@ -336,50 +335,15 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.ball.rotation.set(0, 0, 0);
     (this.ball.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.2;
     this.ball.visible = true;
-    this.sling.visible = true;
-    this.pulled = undefined;
   }
 
-  // ------------------------------------------------------------ the slingshot
+  // ------------------------------------------------------------ aiming
 
-  /** Where the bands are tied on, either side of the ball's resting place. */
-  private static readonly TIPS = [new THREE.Vector3(BALL_START.x - 0.22, BALL_START.y + 0.04, BALL_START.z), new THREE.Vector3(BALL_START.x + 0.22, BALL_START.y + 0.04, BALL_START.z)] as const;
-
-  /** A forked branch with a bound grip, two red bands, and the dots that show the aim. */
-  private makeSlingshot(): void {
-    this.sling = new THREE.Group();
-    const wood = new THREE.MeshStandardMaterial({ color: KANAGAWA.boatYellow1, roughness: 0.9 });
-    const grip = new THREE.MeshStandardMaterial({ color: KANAGAWA.sumiInk5, roughness: 1 });
-    const crotch = new THREE.Vector3(BALL_START.x, BALL_START.y - 0.2, BALL_START.z);
-    const stick = (from: THREE.Vector3, to: THREE.Vector3, radius: number, material: THREE.Material) => {
-      const length = from.distanceTo(to);
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.85, radius, length, 8), material);
-      mesh.position.copy(from).lerp(to, 0.5);
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
-      this.sling.add(mesh);
-    };
-    const [left, right] = ThrowStage.TIPS;
-    stick(crotch, left, 0.028, wood);
-    stick(crotch, right, 0.028, wood);
-    stick(new THREE.Vector3(crotch.x, crotch.y - 0.5, crotch.z + 0.05), crotch, 0.036, wood);
-    stick(new THREE.Vector3(crotch.x, crotch.y - 0.42, crotch.z + 0.04), new THREE.Vector3(crotch.x, crotch.y - 0.12, crotch.z + 0.01), 0.042, grip);
-    for (const tip of [left, right]) {
-      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), grip);
-      knot.position.copy(tip);
-      this.sling.add(knot);
-    }
-    const rubber = new THREE.MeshStandardMaterial({ color: KANAGAWA.autumnRed, roughness: 0.7 });
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    this.bands = [left, right].map(() => {
-      const band = new THREE.Mesh(box, rubber);
-      this.sling.add(band);
-      return band;
-    });
-    this.scene.add(this.sling);
-
+  /** The dots that show the arc of the throw while aiming. */
+  private makeAimDots(): void {
     const dot = new THREE.SphereGeometry(0.045, 8, 6);
     const dotMaterial = new THREE.MeshBasicMaterial({ color: KANAGAWA.fujiWhite, transparent: true, opacity: 0.85, fog: false });
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
       const mesh = new THREE.Mesh(dot, dotMaterial);
       mesh.visible = false;
       this.aimDots.push(mesh);
@@ -387,28 +351,14 @@ export abstract class ThrowStage<M extends LivingMonster> {
     }
   }
 
-  /** The bands run from the tips to the pouch: to the back of the ball while it's held, straight across once it's gone. */
-  private updateBands(): void {
-    const held = this.ball.visible && !this.flight && !this.busy;
-    const pouch = held ? this.ball.position.clone().add(new THREE.Vector3(0, 0, 0.12)) : new THREE.Vector3(BALL_START.x, BALL_START.y + 0.04, BALL_START.z);
-    const up = new THREE.Vector3(0, 1, 0);
-    ThrowStage.TIPS.forEach((tip, i) => {
-      const band = this.bands[i]!;
-      const along = pouch.clone().sub(tip);
-      band.position.copy(tip).addScaledVector(along, 0.5);
-      band.scale.set(0.022, Math.max(0.001, along.length()), 0.022);
-      band.quaternion.setFromUnitVectors(up, along.normalize());
-    });
-  }
-
-  /** Dots along the first part of where the ball would fly (fading out), or none. */
+  /** Dots along where the ball would fly (fading towards the end), or none. */
   private showAim(v: Vec3 | undefined): void {
     const end = v ? landingTime(v) : 0;
     this.aimDots.forEach((dot, i) => {
       dot.visible = Boolean(v);
       if (!v) return;
-      // About the first half of the flight: enough to aim with, not a guarantee.
-      const p = ballAt(v, ((i + 1) / this.aimDots.length) * end * 0.55);
+      // Most of the arc, stopping short of the target (the crosshairs show that).
+      const p = ballAt(v, ((i + 1) / (this.aimDots.length + 2)) * end * 0.8);
       dot.position.set(p.x, p.y, p.z);
       dot.scale.setScalar(1 - i * 0.06);
     });
