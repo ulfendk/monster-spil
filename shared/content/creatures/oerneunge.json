@@ -8,6 +8,6 @@
   "spriteBack": "creatures/oerneunge_back.png",
   "sound": "creatures/oerneunge.wav",
   "evolutions": ["Ørnefalk", "Tordenørn"],
-  "ride": true,
+  "ride": "fly",
   "catchRate": 0
 }

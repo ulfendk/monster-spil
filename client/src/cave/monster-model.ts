@@ -26,6 +26,27 @@ export interface MonsterModelSpec {
   variant?: string;
   /** Its evolution stage (1–3): later stages are richer in colour, with a bigger crest, a chest mark, and at 3 a mantle and a crown. */
   stage?: number;
+  /** Built to be ridden: a serpent stretches out long instead of sitting coiled. */
+  pose?: "ride";
+}
+
+/**
+ * A model's moving parts, for animating it as it's ridden (world3d/mount-gaits.ts). Every
+ * pivot sits where the part turns: a foot where it meets the ground, an arm at the shoulder,
+ * a wing where it joins the back.
+ */
+export interface MountRig {
+  /** Everything but the feet, turning about the middle of where the feet stand. */
+  body: THREE.Group;
+  feet: THREE.Group[];
+  arms: THREE.Group[];
+  tail?: THREE.Group;
+  /** Wings: their pivot, which side (−1 left, 1 right) and how they rest. */
+  wings: Array<{ pivot: THREE.Group; side: number; rest: THREE.Euler }>;
+  /** A long body (a snake), from just behind the head to the tip of the tail. */
+  spine?: THREE.Group[];
+  /** A head that leads a long body. */
+  head?: THREE.Group;
 }
 
 export interface MonsterModel {
@@ -34,6 +55,8 @@ export interface MonsterModel {
   seat: THREE.Vector3;
   /** Little movements of its own, if it has any (wings flapping, flames flickering): call every frame with the time in seconds. */
   tick?(seconds: number): void;
+  /** Its moving parts, for riding animations. */
+  rig?: MountRig;
   setFace(face: "normal" | "blink" | "talk"): void;
   /** A flash of colour (a hit), or null to stop. */
   setTint(colour: number | null): void;
@@ -148,6 +171,32 @@ export class Builder {
     return mesh;
   }
 
+  /** An outline shape (px, y down) pushed out `depth` px, with its (0, 0) left where it is (for a pivot there). */
+  slab(points: Array<[number, number]>, depth: number): THREE.BufferGeometry {
+    const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x * S, -y * S)));
+    const g = new THREE.ExtrudeGeometry(shape, { depth: depth * S, bevelEnabled: true, bevelThickness: 0.8 * S, bevelSize: 0.8 * S, bevelSegments: 1 });
+    g.translate(0, 0, (-depth / 2) * S);
+    return g;
+  }
+
+  /** Puts parts already made into a new group turning about `pivot` (they keep their places). */
+  pivot(parts: THREE.Object3D[], pivot: THREE.Vector3, parent: THREE.Object3D = this.root): THREE.Group {
+    const group = new THREE.Group();
+    group.position.copy(pivot);
+    parent.add(group);
+    for (const part of parts) {
+      part.position.sub(pivot);
+      group.add(part);
+    }
+    return group;
+  }
+
+  /** Everything on the root but `keep` into one body group, turning about height `y` (the feet's level). */
+  wrapBody(keep: THREE.Object3D[], y: number): THREE.Group {
+    const parts = this.root.children.filter((c) => !keep.includes(c));
+    return this.pivot(parts, new THREE.Vector3(0, y, 0));
+  }
+
   /** An outline shape (px, y down) pushed out `depth` px, centred on itself. */
   shape(points: Array<[number, number]>, depth: number): THREE.BufferGeometry {
     const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x * S, -y * S)));
@@ -185,6 +234,7 @@ export interface Built {
   face: (face: "normal" | "blink" | "talk") => void;
   seat: THREE.Vector3;
   tick?: (seconds: number) => void;
+  rig?: MountRig;
 }
 
 /** Monsters with a model made by hand for them (from a drawing), by species id. */
@@ -198,14 +248,17 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   const built: Built = handmade
     ? handmade(b, spec.species, spec.stage ?? 1)
     : spec.look === "serpent"
-      ? { face: serpent(b, spec.species), seat: P(64, 30, -6) }
+      ? spec.pose === "ride"
+        ? longSnake(b, spec.species)
+        : { face: serpent(b, spec.species), seat: P(64, 30, -6) }
       : spec.look === "eagle"
-        ? { face: eagle(b, spec.species), seat: P(64, 60, -4) }
+        ? eagle(b, spec.species)
         : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
   return {
     root: b.root,
     seat: built.seat,
     ...(built.tick ? { tick: built.tick } : {}),
+    ...(built.rig ? { rig: built.rig } : {}),
     setFace: built.face,
     setTint(colour) {
       for (const m of b.toon) {
@@ -237,15 +290,19 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
 
   b.part(bodyGeometry(), colour, P(64, cy), new THREE.Vector3(w * S, h * S, d * S));
   b.part(sphere(), shade(colour, 12), P(64, cy + h * 0.2, d * 0.24), new THREE.Vector3(w * 0.6 * S, h * 0.46 * S, d * 0.55 * S), false);
+  const feet: THREE.Group[] = [];
+  const arms: THREE.Group[] = [];
+  const footY = cy + h / 2 - 3;
   for (const side of [-1, 1]) {
     // Feet: rounded paws with three toe bumps.
     const fx = 64 + side * w * 0.26;
-    const fy = cy + h / 2 - 3;
-    b.part(sphere(), shade(colour, -14), P(fx, fy, d * 0.12), new THREE.Vector3(20 * S, 12 * S, 20 * S));
-    for (const t of [-1, 0, 1]) b.part(sphere(), shade(colour, -8), P(fx + t * 5.5, fy + 2, d * 0.12 + 9), new THREE.Vector3(6 * S, 6 * S, 6 * S), false);
-    // Little arms at the sides, held forward.
+    const paw = b.part(sphere(), shade(colour, -14), P(fx, footY, d * 0.12), new THREE.Vector3(20 * S, 12 * S, 20 * S));
+    const toes = [-1, 0, 1].map((t) => b.part(sphere(), shade(colour, -8), P(fx + t * 5.5, footY + 2, d * 0.12 + 9), new THREE.Vector3(6 * S, 6 * S, 6 * S), false));
+    feet.push(b.pivot([paw, ...toes], P(fx, footY + 5, d * 0.12)));
+    // Little arms at the sides, held forward (turning at the shoulder).
     const arm = b.part(sphere(), shade(colour, -6), P(64 + side * w * 0.47, cy + h * 0.08, d * 0.16), new THREE.Vector3(11 * S, 20 * S, 12 * S));
     arm.rotation.set(-0.5, 0, side * 0.55);
+    arms.push(b.pivot([arm], P(64 + side * w * 0.42, cy - h * 0.02, d * 0.1)));
   }
   if (!dragon && species.type !== "lyn" && species.type !== "sten") {
     // Ears, varying by monster: none, pointed or round.
@@ -266,16 +323,58 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
   }
   // The tail, at the back.
   // (A cone points up; tipped over backwards it points away from the face, a little up and to the side.)
-  const tail = b.part(new THREE.ConeGeometry(0.5, 1, 6), shade(colour, -8), P(64 + w * 0.12, cy + h * 0.22, -d * 0.52), new THREE.Vector3(12 * S, 26 * S, 12 * S));
-  tail.rotation.set(-Math.PI / 2 - 0.45, 0, -0.35);
+  const tailMesh = b.part(new THREE.ConeGeometry(0.5, 1, 6), shade(colour, -8), P(64 + w * 0.12, cy + h * 0.22, -d * 0.52), new THREE.Vector3(12 * S, 26 * S, 12 * S));
+  tailMesh.rotation.set(-Math.PI / 2 - 0.45, 0, -0.35);
+  const tail = b.pivot([tailMesh], P(64 + w * 0.06, cy + h * 0.2, -d * 0.4));
+
+  // Wings: a dragon's (or a species' own, from its JSON), joined to the upper back.
+  const wingKind = dragon ? "bat" : species.wings;
+  const wings: MountRig["wings"] = [];
+  if (wingKind) {
+    const wingColour = wingKind === "bat" ? shade(colour, -24) : new THREE.Color(colour).lerp(new THREE.Color(KANAGAWA.washi), 0.6).getHex();
+    const bat: Array<[number, number]> = [[0, 2], [16, -22], [44, -34], [38, -16], [46, -2], [32, 2], [30, 16], [10, 12]];
+    const feather: Array<[number, number]> = [[0, 0], [16, -20], [38, -30], [50, -26], [46, -16], [38, -14], [44, -6], [34, -4], [38, 4], [26, 4], [26, 12], [14, 8], [6, 12]];
+    for (const side of [-1, 1]) {
+      const pts = (wingKind === "bat" ? bat : feather).map(([x, y]) => [x * side, y] as [number, number]);
+      const shoulder = P(64 + side * w * 0.3, cy - h * 0.14, -d * 0.3);
+      const m = b.part(b.slab(pts, 3), wingColour, shoulder.clone());
+      if (wingKind === "bat") {
+        // Finger bones from the shoulder to each point of the edge.
+        for (const [x, y] of [[44, -34], [46, -2], [30, 16]] as const) {
+          // (Made at the wing's own coordinates: from its shoulder, which is the wing's origin.)
+          const bone = b.flat(new THREE.CylinderGeometry(0.9 * S, 0.9 * S, Math.hypot(x, y) * S, 5), shade(wingColour, -22), new THREE.Vector3((x * side * S) / 2, (-y * S) / 2, 1.8 * S));
+          bone.rotation.z = Math.atan2(-y, x * side) - Math.PI / 2;
+          m.add(bone);
+        }
+      }
+      const rest = new THREE.Euler(0, side * 0.5, side * 0.15);
+      const pivot = b.pivot([m], shoulder);
+      pivot.rotation.copy(rest);
+      wings.push({ pivot, side, rest });
+    }
+  }
+
+  if (species.shell) {
+    // A spiral shell on its back, standing up like a wheel: grooves winding in to the middle.
+    const shellColour = new THREE.Color(KANAGAWA.katanaGray).lerp(new THREE.Color(colour), 0.35).getHex();
+    const groove = shade(shellColour, -22);
+    const R = w * 0.56;
+    const centre = P(64, cy - h * 0.22, -d * 0.62);
+    const shell = b.part(sphere(), shellColour, centre.clone(), new THREE.Vector3(d * 0.55 * S, R * 2 * S, R * 2 * S));
+    const parts: THREE.Object3D[] = [shell];
+    for (const [k, off] of [[0.78, 0.08], [0.55, 0.16], [0.33, 0.22]] as const) {
+      for (const side of [-1, 1]) {
+        const ring = b.flat(new THREE.TorusGeometry(R * k * S, 1.4 * S, 6, 28), groove, centre.clone().add(new THREE.Vector3(side * d * 0.27 * S * (1 - off), (R * off * S) / 2, (-R * off * S) / 2)));
+        ring.rotation.y = Math.PI / 2;
+        parts.push(ring);
+      }
+    }
+    // A glow in the grooves of a fiery one.
+    if (species.type === "ild") for (const side of [-1, 1]) parts.push(b.flat(sphere(), KANAGAWA.surimiOrange, centre.clone().add(new THREE.Vector3(side * d * 0.26 * S, R * 0.1 * S, -R * 0.1 * S)), new THREE.Vector3(2 * S, R * 0.35 * S, R * 0.35 * S)));
+    b.pivot(parts, centre);
+  }
 
   if (dragon) {
-    const wing = shade(colour, -24);
-    for (const side of [-1, 1]) {
-      const g = b.shape([[0, 0], [side * 42, -32], [side * 36, -8], [side * 42, 12], [side * 26, 22]], 3);
-      const m = b.part(g, wing, P(64 + side * 34, cy - 8, -d * 0.35));
-      m.rotation.y = side * 0.5;
-    }
     for (const side of [-1, 1]) {
       const horn = b.part(new THREE.ConeGeometry(0.5, 1, 7), KANAGAWA.oldWhite, P(64 + side * w * 0.22, top - 4), new THREE.Vector3(12 * S, 28 * S, 12 * S));
       horn.rotation.z = -side * 0.25;
@@ -356,8 +455,9 @@ function creature(b: Builder, species: CreatureSpecies, dragon: boolean, stage: 
       if (fang) fang.visible = face !== "talk";
       open.visible = face === "talk";
     },
-    // On top, a little behind the crest.
-    seat: P(64, top + h * 0.1, -d * 0.2),
+    // On top, a little behind the crest — or on top of the shell.
+    seat: species.shell ? P(64, cy - h * 0.22 - w * 0.56 + 4, -d * 0.62) : P(64, top + h * 0.1, -d * 0.2),
+    rig: { body: b.wrapBody(feet, P(64, footY + 5).y), feet, arms, tail, wings },
   };
 }
 
@@ -445,28 +545,118 @@ function serpent(b: Builder, species: CreatureSpecies): (face: "normal" | "blink
 
 // ------------------------------------------------------------ a giant eagle
 
-function eagle(b: Builder, species: CreatureSpecies): (face: "normal" | "blink" | "talk") => void {
+function eagle(b: Builder, species: CreatureSpecies): Built {
   const body = shade(TYPE_COLOURS[species.type], -30);
-  const wing = shade(body, -16);
+  const wingColour = shade(body, -16);
+  const wings: MountRig["wings"] = [];
   for (const side of [-1, 1]) {
-    const pts: Array<[number, number]> = [[side * 0, -16], [side * 26, -38], [side * 48, -34]];
-    for (let f = 0; f < 5; f++) pts.push([side * (48 - f * 4), -22 + f * 9], [side * (38 - f * 5), -18 + f * 9]);
-    pts.push([side * 2, 16]);
-    const m = b.part(b.shape(pts, 3), wing, P(64 + side * 30, 70, -10));
-    m.rotation.y = side * 0.35;
+    // A broad wing of long feathers, from the shoulder.
+    const pts: Array<[number, number]> = [[0, 4], [22, -20], [46, -28], [58, -22]];
+    for (let f = 0; f < 5; f++) pts.push([56 - f * 5, -12 + f * 9], [46 - f * 6, -8 + f * 9]);
+    pts.push([4, 22]);
+    const shoulder = P(64 + side * 12, 64, -8);
+    const m = b.part(b.slab(pts.map(([x, y]) => [x * side, y] as [number, number]), 3), wingColour, shoulder.clone());
+    const rest = new THREE.Euler(0, side * 0.35, side * 0.1);
+    const pivot = b.pivot([m], shoulder);
+    pivot.rotation.copy(rest);
+    wings.push({ pivot, side, rest });
   }
   b.part(sphere(), body, P(64, 76), new THREE.Vector3(44 * S, 58 * S, 38 * S));
   b.part(sphere(), shade(body, 16), P(64, 86, 10), new THREE.Vector3(26 * S, 30 * S, 22 * S), false);
   b.part(sphere(), KANAGAWA.fujiWhite, P(64, 38), new THREE.Vector3(34 * S, 30 * S, 30 * S));
   const beak = b.part(new THREE.ConeGeometry(6 * S, 14 * S, 6), KANAGAWA.carpYellow, P(64, 46, 16));
   beak.rotation.x = Math.PI / 2 + 0.5;
-  for (const side of [-1, 1]) b.part(new THREE.CylinderGeometry(1.8 * S, 1.8 * S, 16 * S, 5), KANAGAWA.carpYellow, P(64 + side * 12, 110), 1, false);
+  const feet: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const leg = b.part(new THREE.CylinderGeometry(1.8 * S, 1.8 * S, 16 * S, 5), KANAGAWA.carpYellow, P(64 + side * 12, 110), 1, false);
+    const claw = b.part(sphere(), KANAGAWA.carpYellow, P(64 + side * 12, 118, 3), new THREE.Vector3(8 * S, 3 * S, 9 * S), false);
+    feet.push(b.pivot([leg, claw], P(64 + side * 12, 102)));
+  }
   const eyes: THREE.Object3D[] = [];
   for (const side of [-1, 1]) {
     eyes.push(b.flat(sphere(), KANAGAWA.surimiOrange, P(64 + side * 7, 35, 13), new THREE.Vector3(9 * S, 9 * S, 4 * S)));
     eyes.push(b.flat(sphere(), INK, P(64 + side * 7, 35, 15), 5.6 * S));
   }
-  return (face) => {
-    for (const e of eyes) e.visible = face !== "blink";
+  return {
+    face: (face) => {
+      for (const e of eyes) e.visible = face !== "blink";
+    },
+    seat: P(64, 52, -10),
+    rig: { body: b.wrapBody(feet, P(64, 120).y), feet, arms: [], wings },
+  };
+}
+
+// ------------------------------------------------------------ a serpent stretched out, to ride
+
+/**
+ * A serpent as it's ridden: not coiled but long — a hooded head held up in front, then a
+ * body of round segments, banded, thinning to the tail's tip. Each segment is a pivot the
+ * riding animation swings from side to side in a travelling S (world3d/mount-gaits.ts); the
+ * forked tongue flicks now and then (`tick`).
+ */
+function longSnake(b: Builder, species: CreatureSpecies): Built {
+  const colour = shade(TYPE_COLOURS[species.type], -6);
+  const band = shade(colour, -14);
+  const belly = shade(colour, 18);
+  const spine: THREE.Group[] = [];
+  const N = 11;
+  for (let i = 0; i < N; i++) {
+    const r = 17 * (1 - (i / N) * 0.72);
+    const z = 8 - i * 13;
+    const y = 118 - r * 0.8;
+    const seg = b.part(sphere(), i % 3 === 1 ? band : colour, P(64, y, z), new THREE.Vector3(r * 2 * S, r * 1.6 * S, r * 2.2 * S));
+    const under = b.part(sphere(), belly, P(64, y + r * 0.35, z), new THREE.Vector3(r * 1.5 * S, r * 0.9 * S, r * 1.9 * S), false);
+    const parts: THREE.Object3D[] = [seg, under];
+    if (i === N - 1) {
+      const tip = b.part(new THREE.ConeGeometry(0.5, 1, 8), colour, P(64, y, z - r * 1.6), new THREE.Vector3(r * 1.1 * S, r * 2.6 * S, r * 1.1 * S));
+      tip.rotation.x = -Math.PI / 2;
+      parts.push(tip);
+    }
+    spine.push(b.pivot(parts, P(64, y, z)));
+  }
+  // The head, raised on its neck in front of the first segment.
+  const head = new THREE.Group();
+  head.position.copy(P(64, 92, 26));
+  b.root.add(head);
+  const neck = b.part(new THREE.CylinderGeometry(9 * S, 14 * S, 26 * S, 12), colour, P(64, 104, 16));
+  neck.rotation.x = 0.55;
+  const hood = b.part(sphere(), band, new THREE.Vector3(0, 3 * S, -5 * S), new THREE.Vector3(34 * S, 28 * S, 12 * S), false);
+  const hoodMark = b.part(sphere(), belly, new THREE.Vector3(0, 4 * S, -1.5 * S), new THREE.Vector3(18 * S, 14 * S, 6 * S), false);
+  head.add(hoodMark);
+  const skull = b.part(sphere(), colour, new THREE.Vector3(0, 0, 4 * S), new THREE.Vector3(26 * S, 22 * S, 30 * S));
+  const snout = b.part(sphere(), shade(colour, 6), new THREE.Vector3(0, -3 * S, 16 * S), new THREE.Vector3(18 * S, 13 * S, 16 * S));
+  for (const m of [hood, skull, snout]) head.add(m);
+  const eyes: THREE.Object3D[] = [];
+  for (const side of [-1, 1]) {
+    const eye = b.flat(sphere(), KANAGAWA.carpYellow, new THREE.Vector3(side * 8 * S, 4 * S, 14 * S), new THREE.Vector3(8 * S, 9 * S, 5 * S));
+    const slit = b.flat(sphere(), INK, new THREE.Vector3(side * 8.6 * S, 4 * S, 16.5 * S), new THREE.Vector3(2 * S, 7 * S, 2 * S));
+    head.add(eye, slit);
+    eyes.push(eye, slit);
+  }
+  const tongue = new THREE.Group();
+  tongue.position.set(0, -6 * S, 24 * S);
+  head.add(tongue);
+  const stem = b.flat(new THREE.BoxGeometry(1.6 * S, 1 * S, 10 * S), KANAGAWA.autumnRed, new THREE.Vector3(0, 0, 5 * S));
+  const forks = [-1, 1].map((side) => {
+    const f = b.flat(new THREE.BoxGeometry(1.2 * S, 1 * S, 5 * S), KANAGAWA.autumnRed, new THREE.Vector3(side * 1.5 * S, 0, 11.5 * S));
+    f.rotation.y = side * 0.5;
+    return f;
+  });
+  tongue.add(stem, ...forks);
+  for (const e of eyes) e.userData.open = e.scale.y;
+  return {
+    face: (face) => {
+      for (const e of eyes) e.scale.y = face === "blink" ? (e.userData.open as number) * 0.15 : (e.userData.open as number);
+    },
+    // Astride the second segment, just behind the neck.
+    seat: P(64, 118 - 17 * 1.6 * 0.9, 8 - 13),
+    tick: (t) => {
+      // The tongue flicks out and back every couple of seconds.
+      const k = (t * 0.6) % 1;
+      const out = k < 0.12 ? Math.sin((k / 0.12) * Math.PI) : 0;
+      tongue.scale.z = 0.05 + out;
+      tongue.visible = out > 0.02;
+    },
+    rig: { body: b.wrapBody([], 0), feet: [], arms: [], wings: [], spine, head },
   };
 }

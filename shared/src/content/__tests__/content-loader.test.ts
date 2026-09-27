@@ -5,6 +5,7 @@ import path from "node:path";
 import type { CreatureSpecies } from "../../types/creature.js";
 import type { Move } from "../../types/move.js";
 import { indexCreatures, indexMoves, validateContent } from "../content-loader.js";
+import { RIDE_GAITS, rideGait } from "../../creature/riding.js";
 
 const contentDir = path.join(import.meta.dirname, "../../../content");
 
@@ -80,9 +81,11 @@ test("every monster can be found somewhere (or is a starter or a reward)", () =>
   for (const id of found) assert.ok(loadCreatures().some((s) => s.id === id), `unknown monster ${id}`);
 });
 
-test("some monsters can be ridden, and the flag is always a plain true", () => {
+test("some monsters can be ridden, each in a way of moving the game knows", () => {
   const species = loadCreatures();
   const riders = species.filter((s) => s.ride !== undefined);
   assert.ok(riders.length >= 5, "a few monsters to ride");
-  for (const s of riders) assert.equal(s.ride, true, `${s.id}: "ride" is true or left out`);
+  for (const s of riders) assert.ok(rideGait(s), `${s.id}: "ride" is true or one of ${RIDE_GAITS.join(", ")}`);
+  for (const s of species) if (s.wings !== undefined) assert.ok(s.wings === "bat" || s.wings === "feather", `${s.id}: wings are "bat" or "feather"`);
+  for (const s of species) if (s.shell !== undefined) assert.equal(s.shell, true, `${s.id}: "shell" is true or left out`);
 });

@@ -195,3 +195,5 @@ export { bondForNext, bondFromWin, canEvolve, care, evolve, stageCount, stageNam
 export type { CareKind, NurtureConfig } from "./creature/evolution.js";
 export { hasKey, questSpots, questState } from "./world/castles.js";
 export type { CastleConfig, CastleDef, CastleProgress, QuestSpot } from "./world/castles.js";
+export { RIDE_GAITS, RIDE_STEP_TIME, rideGait } from "./creature/riding.js";
+export type { RideGait } from "./creature/riding.js";

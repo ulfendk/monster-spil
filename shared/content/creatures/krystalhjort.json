@@ -7,6 +7,6 @@
   "spriteFront": "creatures/krystalhjort_front.png",
   "spriteBack": "creatures/krystalhjort_back.png",
   "sound": "creatures/krystalhjort.wav",
-  "ride": true,
+  "ride": "bound",
   "catchRate": 0.25
 }

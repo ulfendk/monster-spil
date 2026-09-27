@@ -6,6 +6,7 @@ import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
 import { buildFoodModel, foodModelFor, STILL_MODELS, type FoodModelIcon } from "./food-models";
 import { buildAvatarModel, type AvatarModel } from "./avatar-model";
+import { RideAnimator } from "./mount-gaits";
 import { PeekLayer } from "./peeks";
 import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
@@ -56,6 +57,7 @@ interface Mirror {
   /** The monster a player rides, and the group that carries it and its rider (bobbing along). */
   mount?: MonsterModel;
   ride?: THREE.Group;
+  rideAnim?: RideAnimator;
   /** Walking: where it was last frame, how much it's walking (eased), the step's phase, which way it faces. */
   walk?: { x: number; z: number; amount: number; phase: number; heading?: number };
   shadow?: THREE.Mesh;
@@ -270,6 +272,7 @@ export class Map3D {
       else if (m.avatar) {
         m.avatar.dispose();
         m.mount?.dispose();
+        m.rideAnim?.dispose();
       }
       else if (m.food) {
         // (The food's geometry and look are shared by all food: nothing to free.)
@@ -343,7 +346,9 @@ export class Map3D {
       if (m.avatarKey !== key || !m.avatar) {
         m.avatar?.dispose();
         m.mount?.dispose();
+        m.rideAnim?.dispose();
         m.mount = undefined;
+        m.rideAnim = undefined;
         m.object.clear();
         m.avatar = buildAvatarModel(spec, (icon) => this.iconTexture(icon));
         m.ride = new THREE.Group();
@@ -351,15 +356,14 @@ export class Map3D {
         const mountSpec = ridden ? placeholderSpec(ridden.key) : undefined;
         if (ridden && mountSpec) {
           // Riding: the monster under them, and they sit on its back (a little smaller, legs astride).
-          m.mount = buildMonsterModel({ ...mountSpec, ...(ridden.variant ? { variant: ridden.variant } : {}), ...(ridden.stage ? { stage: ridden.stage } : {}) });
+          m.mount = buildMonsterModel({ ...mountSpec, ...(ridden.variant ? { variant: ridden.variant } : {}), ...(ridden.stage ? { stage: ridden.stage } : {}), pose: "ride" });
           m.mount.root.scale.setScalar(MOUNT_SCALE);
           m.mount.root.position.y = 0.42 * MOUNT_SCALE;
           m.ride.add(m.mount.root);
-          m.avatar.root.position.copy(m.mount.seat).multiplyScalar(MOUNT_SCALE).add(m.mount.root.position);
-          m.avatar.root.position.y -= 0.02;
-          m.avatar.root.scale.setScalar(0.72);
-        }
-        m.ride.add(m.avatar.root);
+          // It moves in its own way (a snake slithers, a dragon flies), with the rider on its back.
+          m.rideAnim = new RideAnimator(m.mount, ridden.gait, this.stage.scene, (x, z) => this.stage.heightAt(x, z));
+          m.rideAnim.seatRider(m.avatar.root, 0.72 / MOUNT_SCALE);
+        } else m.ride.add(m.avatar.root);
         m.avatarKey = key;
       }
       m.object.visible = visible;
@@ -370,20 +374,15 @@ export class Map3D {
       // it turns back to the camera, leaning back a little so the face shows from up there.
       const dt = Math.max(1, this.scene.game.loop.delta) / 1000;
       const w = (m.walk ??= { x, z, amount: 0, phase: 0 });
-      const speed = Math.hypot(x - w.x, z - w.z) / dt;
+      const moved = Math.hypot(x - w.x, z - w.z);
+      const speed = moved / dt;
       const moving = speed > 0.3;
       w.amount += ((moving ? 1 : 0) - w.amount) * Math.min(1, dt * 10);
       w.phase += dt * (moving ? 9 + speed * 1.5 : 9);
       if (moving) w.heading = Math.atan2(x - w.x, z - w.z);
       w.x = x;
       w.z = z;
-      if (m.mount && m.ride) {
-        // On its back: the rider sits still while the monster bobs and rocks along.
-        m.avatar.walk(w.phase, 0);
-        m.ride.position.y = Math.abs(Math.sin(w.phase)) * 0.06 * w.amount;
-        m.ride.rotation.z = Math.sin(w.phase) * 0.06 * w.amount;
-        m.mount.tick?.(performance.now() / 1000);
-      } else m.avatar.walk(w.phase, w.amount);
+      if (!m.mount) m.avatar.walk(w.phase, w.amount);
       const cam = this.stage.camera.position;
       const toCamera = Math.atan2(cam.x - x, cam.z - z);
       const target = w.heading !== undefined && w.amount > 0.05 ? w.heading : toCamera;
@@ -392,7 +391,16 @@ export class Map3D {
       const current = m.object.rotation.y;
       const turn = Math.atan2(Math.sin(target - current), Math.cos(target - current));
       m.object.rotation.order = "YXZ";
-      m.object.rotation.set(m.mount ? -0.12 : -0.5 * (1 - w.amount * 0.6), current + turn * Math.min(1, dt * 12), 0);
+      // (A ridden monster turns more slowly: it's big.)
+      const turned = turn * Math.min(1, dt * (m.mount ? 5 : 12));
+      m.object.rotation.set(m.mount ? -0.12 : -0.5 * (1 - w.amount * 0.6), current + turned, 0);
+      if (m.mount && m.rideAnim) {
+        // On its back: the rider sits still while the monster moves in its own way.
+        m.avatar.walk(w.phase, 0);
+        const t = performance.now() / 1000;
+        m.rideAnim.update(dt, moved, turned / dt, t);
+        m.mount.tick?.(t);
+      }
       m.object.traverse((o) => {
         const material = (o as THREE.Mesh).material as THREE.Material | undefined;
         if (material) {
@@ -400,7 +408,9 @@ export class Map3D {
           material.opacity = Math.min(1, alpha);
         }
       });
-      this.updateShadow(m, visible, 0, cx, cy, T * 0.75, alpha);
+      // A ridden monster casts a bigger shadow — smaller and fainter the higher it flies.
+      const up = m.rideAnim?.height ?? 0;
+      this.updateShadow(m, visible, 0, cx, cy, T * 0.75 * (m.mount ? 1.6 : 1) * (1 - Math.min(0.5, up * 0.5)), alpha * (1 - Math.min(0.5, up * 0.4)));
       return;
     }
     if (m.food) {

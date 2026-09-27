@@ -38,7 +38,7 @@ import { C, CSS, FONT } from "../ui/theme";
 import { recordProgress } from "../progress/record";
 import { badgesById, levelConfig, ridingOn } from "../content/load-progress";
 import { profileChanged } from "../progress/record";
-import type { MountView } from "@shared";
+import { RIDE_STEP_TIME, rideGait, type MountView, type RideGait } from "@shared";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
 import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
@@ -69,8 +69,6 @@ const TILE_SIZE = 64;
 /** `pendingMeet` for walking over to a waiting monster (the UFO's alien): this prefix + its spawn id. */
 const SPAWN_MEET = "spawn:";
 const MOVE_DURATION_MS = 200;
-/** Riding a monster: each step takes this much of the time walking does. */
-const RIDE_TIME_FACTOR = 0.65;
 /** The connection button shows the state: others online, connecting, offline, code needed. */
 const STATUS_ICON: Record<PresenceStatus, string> = { online: "team", connecting: "hourglass", offline: "offline", needCode: "key", off: "gear" };
 
@@ -1053,6 +1051,13 @@ export class OverworldScene extends Phaser.Scene {
     this.drawBag();
   }
 
+  /** Riding: how long a step takes compared with walking (a snail is slow, flying a little quicker — riding.ts). */
+  private rideStepFactor(): number {
+    const mount = ridingOn(this.save);
+    const gait = rideGait(mount ? this.content.speciesById[mount.speciesId] : undefined);
+    return gait ? RIDE_STEP_TIME[gait] : 1;
+  }
+
   /** Whether the monster chosen to ride is still mine, and one that can be ridden. */
   private canRide(): boolean {
     const c = this.save.mount ? this.save.creatures.find((m) => m.instanceId === this.save.mount) : undefined;
@@ -1069,10 +1074,11 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /** What the 3D map needs to draw a ridden monster: its picture's key (which says which model), variant and stage. */
-  private mountHint(mount: MountView | undefined): { mount?: { key: string; variant?: string; stage?: number } } {
+  private mountHint(mount: MountView | undefined): { mount?: { key: string; gait: RideGait; variant?: string; stage?: number } } {
     const species = mount ? this.content.speciesById[mount.speciesId] : undefined;
-    if (!mount || !species?.ride) return {};
-    return { mount: { key: species.spriteFront, ...(mount.variant ? { variant: mount.variant } : {}), ...(mount.stage ? { stage: mount.stage } : {}) } };
+    const gait = rideGait(species);
+    if (!mount || !species || !gait) return {};
+    return { mount: { key: species.spriteFront, gait, ...(mount.variant ? { variant: mount.variant } : {}), ...(mount.stage ? { stage: mount.stage } : {}) } };
   }
 
   update(): void {
@@ -2004,7 +2010,7 @@ export class OverworldScene extends Phaser.Scene {
       x: next.x * TILE_SIZE + TILE_SIZE / 2,
       y: next.y * TILE_SIZE + TILE_SIZE / 2,
       // Same walking speed either way, so a diagonal (√2 tiles) takes longer.
-      duration: MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1) * (ridingOn(this.save) ? RIDE_TIME_FACTOR : 1),
+      duration: MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1) * this.rideStepFactor(),
       onComplete: () => {
         this.playerTile = next;
         this.isMoving = false;

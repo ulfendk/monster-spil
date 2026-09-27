@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import type { RideGait } from "@shared";
 
 /**
  * How a thing on the map stands in the 3D map (client/src/world3d/map-3d.ts), for the few
@@ -14,7 +15,7 @@ export interface MapHint {
   /** Belongs to the spot this many pixels further south on the 2D map (a label drawn above its owner). */
   dy?: number;
   /** A player's face: stands as their animal figure in 3D, with the headwear and badges this says (read every frame) — riding the monster whose front picture is `mount.key`, if they are. */
-  avatar?: () => { id: string; look?: string; badges: string[]; mount?: { key: string; variant?: string; stage?: number } };
+  avatar?: () => { id: string; look?: string; badges: string[]; mount?: { key: string; gait: RideGait; variant?: string; stage?: number } };
 }
 
 const KEY = "map3d";

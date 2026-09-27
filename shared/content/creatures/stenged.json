@@ -8,6 +8,6 @@
   "spriteBack": "creatures/stenged_back.png",
   "sound": "creatures/stenged.wav",
   "evolutions": ["Klippebuk"],
-  "ride": true,
+  "ride": "bound",
   "catchRate": 0.4
 }

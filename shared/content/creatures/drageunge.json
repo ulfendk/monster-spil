@@ -8,6 +8,6 @@
   "spriteBack": "creatures/drageunge_back.png",
   "sound": "creatures/drageunge.wav",
   "evolutions": ["Ungdrage", "Ilddrage"],
-  "ride": true,
+  "ride": "fly",
   "catchRate": 0
 }

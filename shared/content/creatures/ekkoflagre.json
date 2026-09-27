@@ -8,5 +8,6 @@
   "spriteBack": "creatures/ekkoflagre_back.png",
   "sound": "creatures/ekkoflagre.wav",
   "evolutions": ["Ekkoflagermus"],
+  "wings": "bat",
   "catchRate": 0.45
 }

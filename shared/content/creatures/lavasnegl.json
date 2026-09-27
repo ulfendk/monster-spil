@@ -8,6 +8,7 @@
   "spriteBack": "creatures/lavasnegl_back.png",
   "sound": "creatures/lavasnegl.wav",
   "evolutions": ["Lavaskjold"],
-  "ride": true,
+  "ride": "glide",
+  "shell": true,
   "catchRate": 0.4
 }

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { CreatureSpecies } from "@shared";
 import { KANAGAWA } from "../../ui/theme";
-import { Builder, INK, P, S, bodyGeometry, flameShape, shade, sphere, type Built } from "../monster-model";
+import { Builder, INK, P, S, bodyGeometry, shade, sphere, type Built } from "../monster-model";
 
 /**
  * Flammeskæl, made by hand after the drawing it came from (docs/drawings/ildflagrer.jpg):
@@ -209,12 +209,19 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
     },
     // On top of the head, just behind the mane.
     seat: P(CX, TOP + 6, -14),
+    rig: {
+      body: b.wrapBody([], P(CX, CY + H / 2).y),
+      feet: [],
+      arms: [],
+      wings: wings.map((pivot, i) => ({ pivot, side: i === 0 ? -1 : 1, rest: new THREE.Euler(0, (i === 0 ? -1 : 1) * 0.25, 0) })),
+    },
     tick: (t) => {
-      // Wings beat (the left one mirrors the right).
+      // Wings beat (the left one mirrors the right) — unless a rider's flight is beating them.
       const beat = Math.sin(t * 6) * 0.32;
       wings.forEach((wing, i) => {
+        if (wing.userData.driven) return;
         const side = i === 0 ? -1 : 1;
-        wing.rotation.set(0, side * (0.45 + beat), side * beat * 0.4);
+        wing.rotation.set(0, side * (0.25 + beat), side * beat * 0.4);
       });
       // Flames flicker, each in its own time.
       [...maneFlames, ...torchFlames].forEach((f, i) => {

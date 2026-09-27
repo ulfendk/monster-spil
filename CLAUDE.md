@@ -369,16 +369,31 @@ games" — with no schema state: plain messages typed in
 
 ## Riding monsters (protocol v15)
 
-- **Some monsters can be ridden:** `"ride": true` in the species JSON (the big ones: Mosbjørn,
-  Flodtrold, Snetrold, Krystalhjort, Tordenbuk, Stenged, the dragon's, serpent's and eagle's
-  babies, Svanefjer, Lavasnegl, Flammeskæl). In the garden such a monster gets a **Rid**
-  button (**Stå af** to get off) that makes it `SaveData.mount` and sets `riding`; a saddle
-  button then appears on the left of the map (under the garden) to hop on and off. Riding,
-  each step takes `RIDE_TIME_FACTOR` (0.65) of the time.
-- **In 3D** (`Map3D`, the avatar hint's `mount: {key, variant, stage}`): the monster's model
-  stands under the player's figure (`MOUNT_SCALE`), the figure sits a little smaller on its
-  `seat`, and the two bob and rock along together; the monster's own `tick` runs. The 2D map
-  shows nothing different.
+- **Some monsters can be ridden:** `"ride"` in the species JSON names how it moves
+  (`shared/src/creature/riding.ts`: `waddle` — also what `true` means — `stomp` for the bears
+  and trolls, `bound` for the deer, goat and stone buck, `slither` for the serpent's baby,
+  `glide` for the lava snail, `fly` for the dragon's and eagle's babies, Svanefjer and
+  Flammeskæl). In the garden such a monster gets a **Rid** button (**Stå af** to get off) that
+  makes it `SaveData.mount` and sets `riding`; a saddle button then appears on the left of the
+  map (under the garden) to hop on and off. Each gait has its pace, `RIDE_STEP_TIME` (a snail
+  1.35× a walking step, flying 0.85×). A test checks every `ride` is a known gait.
+- **Looks that go with it** (species JSON, drawn by `monster-model.ts`): `"wings": "bat" |
+  "feather"` (dragons and eagles have theirs anyway) and `"shell": true` (a spiral shell on
+  the back; the rider sits on it).
+- **In 3D** (`Map3D`, the avatar hint's `mount: {key, gait, variant, stage}`): the monster's
+  model (built with `pose: "ride"` — a serpent then stretches out long: a hooded head, banded
+  segments, a flicking tongue) stands under the figure (`MOUNT_SCALE`), and
+  `world3d/mount-gaits.ts` (`RideAnimator`) moves it through its **rig** (`MountRig` on the
+  model: pivots for body, feet, arms, tail, wings, a snake's spine and head). Paced by
+  distance, not time, so feet never skate: waddling and stomping step foot to foot with sway,
+  arm swing and tail wag (stomps squash on landing and raise dust); bounds crouch, spring nose
+  up with feet tucked and land nose down in dust; a snake's S-curve runs from head to tail,
+  the head steady and looking along it; a snail stretches and pulls, leaving a fading shiny
+  trail; fliers rise with strong wing beats (a gust ring at take-off and landing), lean in,
+  bank into turns and glide down to land, wings folding and fluttering at rest. The rider sits
+  on the body (or the snake's second segment), so they move with it; a ridden monster turns
+  more slowly and casts a bigger shadow that shrinks as it flies up. A handmade model's own
+  wing flapping stands aside while a gait drives its wings (`userData.driven`).
 - **Everyone sees it:** the profile (`profileOf` → `ridingOn(save)`) carries `mount
   {speciesId, variant?, stage?}`; the server cleans it (`cleanMount`: slugs, stage 2–3),
   keeps it on `LobbyPlayer.mount` and drops it when a profile comes without one (got off).

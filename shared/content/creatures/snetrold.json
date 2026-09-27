@@ -8,6 +8,6 @@
   "spriteBack": "creatures/snetrold_back.png",
   "sound": "creatures/snetrold.wav",
   "evolutions": ["Iskæmpe"],
-  "ride": true,
+  "ride": "stomp",
   "catchRate": 0.35
 }

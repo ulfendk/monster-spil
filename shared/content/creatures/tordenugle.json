@@ -8,5 +8,6 @@
   "spriteBack": "creatures/tordenugle_back.png",
   "sound": "creatures/tordenugle.wav",
   "evolutions": ["Stormugle"],
+  "wings": "feather",
   "catchRate": 0.35
 }

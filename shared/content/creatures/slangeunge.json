@@ -8,6 +8,6 @@
   "spriteBack": "creatures/slangeunge_back.png",
   "sound": "creatures/slangeunge.wav",
   "evolutions": ["Klitslange", "Ørkenkobra"],
-  "ride": true,
+  "ride": "slither",
   "catchRate": 0
 }

@@ -27,8 +27,12 @@ export interface CreatureSpecies {
   catchRate: number;
   /** The names of its later evolution stages (none: it doesn't evolve). */
   evolutions?: string[];
-  /** Big enough to ride on the map (the player sits on its back). */
-  ride?: boolean;
+  /** Big enough to ride on the map (the player sits on its back), and how it moves then (creature/riding.ts; `true` = waddle). */
+  ride?: true | "waddle" | "stomp" | "bound" | "slither" | "glide" | "fly";
+  /** Wings on its model: a bat's or a bird's (dragons' and eagles' kinds have their own). */
+  wings?: "bat" | "feather";
+  /** A spiral shell on its back (a snail). */
+  shell?: boolean;
 }
 
 /**

@@ -8,6 +8,6 @@
   "spriteBack": "creatures/mosbjoern_back.png",
   "sound": "creatures/mosbjoern.wav",
   "evolutions": ["Skovbjørn"],
-  "ride": true,
+  "ride": "stomp",
   "catchRate": 0.3
 }
