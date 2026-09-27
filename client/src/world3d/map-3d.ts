@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import * as THREE from "three";
 import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } from "./map-stage";
 import { mapHint } from "../gfx/map-hints";
+import { placeholderSpec } from "../gfx/placeholder-sprites";
+import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
 import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 
@@ -37,7 +39,9 @@ type Kind = "stand" | "flat" | "float";
 
 interface Mirror {
   kind: "stand" | "flat";
-  object: THREE.Mesh | THREE.Sprite;
+  /** A sprite or a ground decal — or the root of a monster's 3D model. */
+  object: THREE.Object3D;
+  model?: MonsterModel;
   shadow?: THREE.Mesh;
   textureKey?: string;
   seen: boolean;
@@ -241,7 +245,8 @@ export class Map3D {
       if (m.seen) continue;
       this.stage.scene.remove(m.object);
       if (m.shadow) this.stage.scene.remove(m.shadow);
-      (m.object.material as THREE.Material).dispose();
+      if (m.model) m.model.dispose();
+      else ((m.object as THREE.Mesh).material as THREE.Material).dispose();
       (m.shadow?.material as THREE.Material | undefined)?.dispose();
       this.mirrors.delete(o);
     }
@@ -301,11 +306,23 @@ export class Map3D {
     const cy = g.y + (0.5 - g.originY) * h + (hint?.dy ?? 0);
     const alpha = g.alpha * (shape ? g.fillAlpha : 1);
     const visible = g.visible && alpha > 0.01 && w > 0.5 && h > 0.5;
-    const material = m.object.material as THREE.SpriteMaterial | THREE.MeshBasicMaterial;
+    if (m.model) {
+      // A monster the game draws itself, as its 3D model: standing on its spot, turned to the camera.
+      const lift = hint?.lift ?? 0;
+      m.object.visible = visible;
+      m.object.position.set(cx / T, h / T / 2 + lift, cy / T);
+      m.object.scale.set((w / T) * (g.flipX ? -1 : 1), h / T, w / T);
+      const cam = this.stage.camera.position;
+      m.object.rotation.set(0, Math.atan2(cam.x - m.object.position.x, cam.z - m.object.position.z), -g.rotation);
+      m.model.setOpacity(Math.min(1, alpha));
+      this.updateShadow(m, visible, hint?.lift ?? 0, cx, cy, w, alpha);
+      return;
+    }
+    const material = (m.object as THREE.Mesh).material as THREE.SpriteMaterial | THREE.MeshBasicMaterial;
     material.opacity = Math.min(1, alpha);
     if (shape) material.color.setHex(g.fillColor);
     else material.color.setHex(g.isTinted ? g.tintTopLeft : 0xffffff);
-    if (!shape) this.retexture(m, g);
+    if (!shape && !m.model) this.retexture(m, g);
     m.object.visible = visible;
     const depth = (g as unknown as { depth: number }).depth ?? 0;
     if (kind === "flat") {
@@ -320,12 +337,16 @@ export class Map3D {
       m.object.scale.set((w / T) * (g.flipX ? -1 : 1), h / T, 1);
       (material as THREE.SpriteMaterial).rotation = -g.rotation;
     }
-    if (m.shadow) {
-      m.shadow.visible = visible && (hint?.lift ?? 0) < 0.5;
-      m.shadow.position.set(cx / T, 0.015, cy / T + 0.04);
-      m.shadow.scale.set((w / T) * 0.85, 1, (w / T) * 0.38);
-      (m.shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * Math.min(1, alpha);
-    }
+    this.updateShadow(m, visible, hint?.lift ?? 0, cx, cy, w, alpha);
+  }
+
+  private updateShadow(m: Mirror, visible: boolean, lift: number, cx: number, cy: number, w: number, alpha: number): void {
+    if (!m.shadow) return;
+    const T = this.T;
+    m.shadow.visible = visible && lift < 0.5;
+    m.shadow.position.set(cx / T, 0.015, cy / T + 0.04);
+    m.shadow.scale.set((w / T) * 0.85, 1, (w / T) * 0.38);
+    (m.shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * Math.min(1, alpha);
   }
 
   private make(o: Phaser.GameObjects.GameObject, kind: "stand" | "flat"): Mirror {
@@ -333,15 +354,21 @@ export class Map3D {
     const round = o instanceof Phaser.GameObjects.Arc || o instanceof Phaser.GameObjects.Ellipse;
     const picture = o instanceof Phaser.GameObjects.Image;
     const map = round ? this.disc : picture ? this.textureFor(g) : null;
-    let object: THREE.Mesh | THREE.Sprite;
-    if (kind === "stand") {
+    // A monster the game draws itself (the dragon, a beast, a waiting monster) stands there as its 3D model.
+    const spec = picture && kind === "stand" ? placeholderSpec(g.texture.key) : undefined;
+    let object: THREE.Object3D;
+    let model: MonsterModel | undefined;
+    if (spec) {
+      model = buildMonsterModel(spec);
+      object = model.root;
+    } else if (kind === "stand") {
       object = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, alphaTest: 0.35, fog: true }));
     } else {
       object = new THREE.Mesh(this.flatPlane, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, fog: true }));
     }
     object.userData.source = o;
     this.stage.scene.add(object);
-    const mirror: Mirror = { kind, object, seen: true, textureKey: picture ? this.keyOf(g) : undefined };
+    const mirror: Mirror = { kind, object, seen: true, textureKey: picture ? this.keyOf(g) : undefined, ...(model ? { model } : {}) };
     // The bigger standing things (players, monsters, the dragon) get a soft shadow at their feet, and can be tapped.
     const big = Math.max(Math.abs(g.displayWidth), Math.abs(g.displayHeight)) >= TOKEN_PX;
     if (kind === "stand" && (o instanceof Phaser.GameObjects.Arc || big)) {
@@ -360,7 +387,7 @@ export class Map3D {
     const key = this.keyOf(g);
     if (m.textureKey === key) return;
     m.textureKey = key;
-    const material = m.object.material as THREE.SpriteMaterial;
+    const material = (m.object as THREE.Sprite).material;
     material.map = this.textureFor(g);
     material.needsUpdate = true;
   }

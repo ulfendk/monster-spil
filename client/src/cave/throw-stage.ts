@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { BALL_START, HIT_RADIUS, aimToThrow, ballAt, createRng, hitPrecision, landingTime, type Rng, type Vec3 } from "@shared";
 import { KANAGAWA } from "../ui/theme";
+import { buildMonsterModel, type MonsterModel, type MonsterModelSpec } from "./monster-model";
 
 /**
  * What every 3D throwing scene shares (three.js, loaded only when one opens): the camera,
@@ -27,6 +28,8 @@ export interface StageMonster {
   /** A rare variant: drawn this much bigger or smaller, and twinkling. */
   scale?: number;
   sparkly?: boolean;
+  /** A monster the game draws itself: shown as a 3D model (monster-model.ts) instead of its picture. */
+  model?: MonsterModelSpec;
 }
 
 export interface ThrowResult {
@@ -38,8 +41,13 @@ export const MONSTER_SIZE = 1.9;
 
 /** A monster in a throwing scene. `phase` is the scene's own; "caught" is common to all. */
 export interface LivingMonster {
-  sprite: THREE.Sprite;
-  faces: { normal: THREE.Texture; blink?: THREE.Texture; talk?: THREE.Texture };
+  /** The monster in the scene: its picture (a sprite), or its 3D model's root. */
+  sprite: THREE.Object3D;
+  /** Its 3D model, if it has one (a picture sprite otherwise). */
+  model?: MonsterModel;
+  /** Where a model turns to look (the camera, unless set: my monster in a battle looks at the wild one). */
+  lookAt?: () => THREE.Vector3;
+  faces: { normal?: THREE.Texture; blink?: THREE.Texture; talk?: THREE.Texture };
   /** Seconds until the next blink, and how long the eyes stay shut / the mouth open. */
   nextBlink: number;
   faceTimer: number;
@@ -204,7 +212,7 @@ export abstract class ThrowStage<M extends LivingMonster> {
     const ndc = new THREE.Vector2((sx / this.canvasSize.width) * 2 - 1, 1 - (sy / this.canvasSize.height) * 2);
     this.raycaster.setFromCamera(ndc, this.camera);
     const targets = this.monsters.filter((m) => m.phase !== "caught" && m.sprite.visible && this.canBeHit(m)).map((m) => m.sprite);
-    const hit = this.raycaster.intersectObjects(targets, false)[0];
+    const hit = this.raycaster.intersectObjects(targets, true)[0];
     if (hit) return hit.point;
     const ray = this.raycaster.ray;
     const ground = ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
@@ -419,9 +427,18 @@ export abstract class ThrowStage<M extends LivingMonster> {
     return texture;
   }
 
-  /** A monster's sprite and faces, added to the scene (hidden until the scene shows it). */
-  protected makeLiving(m: StageMonster, baseSize = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size" | "sparkly"> {
+  /** A monster — its 3D model, or its picture as a sprite with its faces — added to the scene (hidden until the scene shows it). */
+  protected makeLiving(m: StageMonster, baseSize = MONSTER_SIZE): Pick<LivingMonster, "sprite" | "model" | "faces" | "nextBlink" | "faceTimer" | "wobble" | "startle" | "size" | "sparkly"> {
     const size = baseSize * (m.scale ?? 1);
+    const common = { nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size, sparkly: m.sparkly };
+    if (m.model) {
+      const model = buildMonsterModel(m.model);
+      model.root.scale.setScalar(size);
+      model.root.visible = false;
+      model.root.userData.speciesId = m.speciesId;
+      this.scene.add(model.root);
+      return { sprite: model.root, model, faces: {}, ...common };
+    }
     const faces = {
       normal: this.texture(m.image),
       ...(m.blink ? { blink: this.texture(m.blink) } : {}),
@@ -432,17 +449,38 @@ export abstract class ThrowStage<M extends LivingMonster> {
     sprite.visible = false;
     sprite.userData.speciesId = m.speciesId;
     this.scene.add(sprite);
-    return { sprite, faces, nextBlink: 1 + this.rng.next() * 3, faceTimer: 0, wobble: this.rng.next() * Math.PI * 2, startle: 0, size, sparkly: m.sparkly };
+    return { sprite, faces, ...common };
   }
 
   protected setFace(m: M, face: "normal" | "blink" | "talk", seconds = 0): void {
+    m.faceTimer = seconds;
+    if (m.model) return m.model.setFace(face);
     const map = m.faces[face] ?? m.faces.normal;
-    const material = m.sprite.material as THREE.SpriteMaterial;
-    if (material.map !== map) {
+    const material = (m.sprite as THREE.Sprite).material;
+    if (map && material.map !== map) {
       material.map = map;
       material.needsUpdate = true;
     }
-    m.faceTimer = seconds;
+  }
+
+  /** Fades a monster (a picture or a model). */
+  protected setOpacity(m: M, opacity: number): void {
+    if (m.model) return m.model.setOpacity(opacity);
+    const material = (m.sprite as THREE.Sprite).material;
+    material.transparent = true;
+    material.opacity = opacity;
+  }
+
+  /** Tilts a monster to the side (radians): looking about, wobbling. */
+  protected setTilt(m: M, angle: number): void {
+    if (m.model) m.sprite.rotation.z = angle;
+    else (m.sprite as THREE.Sprite).material.rotation = angle;
+  }
+
+  /** A flash of colour on a monster (a hit), or null to stop. */
+  protected setTint(m: M, colour: number | null): void {
+    if (m.model) return m.model.setTint(colour);
+    (m.sprite as THREE.Sprite).material.color.set(colour ?? 0xffffff);
   }
 
   /** It calls out: mouth open, and the Phaser scene plays its sound. */
@@ -457,9 +495,14 @@ export abstract class ThrowStage<M extends LivingMonster> {
    */
   protected animateMonster(m: M, dt: number, time: number): void {
     const breath = Math.sin(time * 3 + m.wobble);
-    m.sprite.scale.set(m.size * (1 - 0.025 * breath), m.size * (1 + 0.04 * breath), 1);
-    const material = m.sprite.material as THREE.SpriteMaterial;
-    material.rotation = this.sways(m) ? Math.sin(time * 0.9 + m.wobble) * 0.09 : 0;
+    m.sprite.scale.set(m.size * (1 - 0.025 * breath), m.size * (1 + 0.04 * breath), m.model ? m.size * (1 - 0.025 * breath) : 1);
+    this.setTilt(m, this.sways(m) ? Math.sin(time * 0.9 + m.wobble) * 0.09 : 0);
+    if (m.model) {
+      // A model turns to look at the camera (or at what it's facing), turning its head about a little.
+      const target = m.lookAt?.() ?? this.camera.position;
+      const p = m.sprite.position;
+      m.sprite.rotation.y = Math.atan2(target.x - p.x, target.z - p.z) + (this.sways(m) ? Math.sin(time * 0.7 + m.wobble) * 0.25 : 0);
+    }
     // A rare, twinkling one: a little glint now and then.
     if (m.sparkly && m.sprite.visible && this.rng.next() < dt * 1.2) {
       const p = m.sprite.position;

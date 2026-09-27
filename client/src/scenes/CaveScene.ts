@@ -3,7 +3,7 @@ import { caveCatchChance, caveRocks, createRng, rollVariant, type CaveVisit, typ
 import { variantConfig } from "../content/load-variants";
 import { pictureKey, variantSparkles } from "../gfx/variants";
 import { caveKindFor } from "../content/load-caves";
-import { faceFrameKey } from "../gfx/placeholder-sprites";
+import { faceFrameKey, placeholderSpec } from "../gfx/placeholder-sprites";
 import { playCreatureSound } from "../audio/creature-sound";
 import type { GameContent } from "../content/load-content";
 import type { SaveData } from "../save/schema";
@@ -83,7 +83,8 @@ export class CaveScene extends Phaser.Scene {
         const variant = this.variants[i];
         const image = key ? picture(pictureKey(this, key, variant)) : undefined;
         if (!key || !image) return [];
-        return [{ speciesId: id, image, blink: picture(pictureKey(this, faceFrameKey(key, "blink"), variant)), talk: picture(pictureKey(this, faceFrameKey(key, "talk"), variant)), sparkly: variantSparkles(variant) }];
+        const spec = placeholderSpec(key);
+        return [{ speciesId: id, image, blink: picture(pictureKey(this, faceFrameKey(key, "blink"), variant)), talk: picture(pictureKey(this, faceFrameKey(key, "talk"), variant)), sparkly: variantSparkles(variant), ...(spec ? { model: { ...spec, ...(variant ? { variant } : {}) } } : {}) }];
       });
       const kind = caveKindFor(this.caveData.visit.kind);
       const look = kind?.look ?? { walls: "sumiInk6", floor: "sumiInk5", fog: "sumiInk0", glow: ["waveAqua2", "oniViolet"], decor: "crystals" as const, particles: "none" as const };

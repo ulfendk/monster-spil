@@ -55,7 +55,8 @@ export class BattleStage extends MeadowStage {
     living.sprite.visible = true;
     this.mineSpot.y = living.size / 2;
     living.sprite.position.copy(this.mineSpot);
-    this.mine = { ...living, phase: "battle", timer: 0, nextAct: Infinity, home: this.mineSpot.clone(), offset: new THREE.Vector3() };
+    // Mine looks at the wild one (so a model shows its back to the camera, like the back picture).
+    this.mine = { ...living, phase: "battle", timer: 0, nextAct: Infinity, home: this.mineSpot.clone(), offset: new THREE.Vector3(), lookAt: () => this.wild.sprite.position };
     this.end(); // no ball until someone wants to catch
   }
 
@@ -170,13 +171,11 @@ export class BattleStage extends MeadowStage {
   /** A monster faints: it wobbles and sinks into the grass. */
   async faint(side: Side): Promise<void> {
     const m = this.monsterOn(side);
-    const material = m.sprite.material as THREE.SpriteMaterial;
-    material.transparent = true;
     this.fainting.add(m);
-    await this.tween(0.3, (k) => (material.rotation = Math.sin(k * Math.PI * 3) * 0.3));
+    await this.tween(0.3, (k) => this.setTilt(m, Math.sin(k * Math.PI * 3) * 0.3));
     await this.tween(0.6, (k) => {
       m.offset.y = -m.size * 1.05 * k * k;
-      material.opacity = 1 - k * 0.8;
+      this.setOpacity(m, 1 - k * 0.8);
     });
     m.sprite.visible = false;
   }
@@ -222,15 +221,14 @@ export class BattleStage extends MeadowStage {
     this.sparkle(at, close ? KANAGAWA.fujiWhite : fx.spark);
     if (impact !== "weak") this.sparkle(at, fx.main);
     if (impact === "strong") this.shake = 0.35;
-    const material = target.sprite.material as THREE.SpriteMaterial;
     const base = target.offset.x;
     void this.tween(0.45, (k) => {
-      // Three quick red-white flashes while it's knocked back and forth.
+      // Three quick red flashes while it's knocked back and forth.
       const flash = Math.floor(k * 6) % 2 === 0 && k < 0.9;
-      material.color.set(flash ? KANAGAWA.peachRed : 0xffffff);
+      this.setTint(target, flash ? KANAGAWA.peachRed : null);
       target.offset.x = base + Math.sin(k * Math.PI * 6) * 0.12 * (1 - k) * (impact === "strong" ? 2 : 1);
     }).then(() => {
-      material.color.set(0xffffff);
+      this.setTint(target, null);
       target.offset.x = base;
     });
   }

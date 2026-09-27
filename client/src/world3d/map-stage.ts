@@ -202,7 +202,11 @@ export class MapStage {
   /** The nearest of `objects` under a point on the canvas. */
   pick<T extends THREE.Object3D>(sx: number, sy: number, objects: T[]): T | undefined {
     this.pointRay(sx, sy);
-    return this.raycaster.intersectObjects(objects, false)[0]?.object as T | undefined;
+    // (A model is a group of parts: the hit is a part; give back the object that was asked about.)
+    const hit = this.raycaster.intersectObjects(objects, true)[0]?.object;
+    let o: THREE.Object3D | null | undefined = hit;
+    while (o && !objects.includes(o as T)) o = o.parent;
+    return o as T | undefined;
   }
 
   private pointRay(sx: number, sy: number): void {

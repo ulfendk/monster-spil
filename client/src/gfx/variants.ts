@@ -41,6 +41,25 @@ export function pictureKey(scene: Phaser.Scene, key: string, variant: string | u
   return out;
 }
 
+/** One colour as a variant has it (for the 3D models' parts): golden, dark, snow-white… Unchanged for an ordinary one. */
+export function variantColour(colour: number, variant: string | undefined): number {
+  const look = variantOf(variant)?.look;
+  if (!look) return colour;
+  const px = new Uint8ClampedArray([(colour >> 16) & 255, (colour >> 8) & 255, colour & 255, 255]);
+  const tint = look.tint ? (KANAGAWA as Record<string, number>)[look.tint] : undefined;
+  recolour(px, {
+    hue: look.hue ?? 0,
+    hueTo: look.hueTo,
+    minSaturation: look.minSaturation ?? 0,
+    saturation: look.saturation ?? 1,
+    lighten: look.lighten ?? 0,
+    darken: look.darken ?? 0,
+    tint: tint === undefined ? undefined : [(tint >> 16) & 255, (tint >> 8) & 255, tint & 255],
+    tintAmount: look.tintAmount ?? 0.5,
+  });
+  return (px[0]! << 16) | (px[1]! << 8) | px[2]!;
+}
+
 /** How much bigger (or smaller) a variant is drawn. */
 export function variantScale(variant: string | undefined): number {
   return variantOf(variant)?.look.size ?? 1;

@@ -4,7 +4,7 @@ import { getLayout, onRelayout } from "../ui/layout";
 import { ic, richChip } from "../ui/rich-text";
 import { CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
-import { faceFrameKey } from "../gfx/placeholder-sprites";
+import { faceFrameKey, placeholderSpec } from "../gfx/placeholder-sprites";
 import { pictureKey, variantScale, variantSparkles } from "../gfx/variants";
 import { sceneKind } from "../content/load-scenes";
 import { playCreatureSound } from "../audio/creature-sound";
@@ -98,6 +98,7 @@ export class CatchScene extends Phaser.Scene {
             talk: picture(pictureKey(this, faceFrameKey(species.spriteFront, "talk"), variant)),
             scale: variantScale(variant),
             sparkly: variantSparkles(variant),
+            ...(placeholderSpec(species.spriteFront) ? { model: { ...placeholderSpec(species.spriteFront)!, ...(variant ? { variant } : {}) } } : {}),
           },
           this.catchData.seed,
           false,

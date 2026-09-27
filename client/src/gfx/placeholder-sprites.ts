@@ -37,6 +37,22 @@ export type BossLook = "dragon" | "serpent" | "eagle";
 /** A face other than the normal one: eyes shut (a blink) or mouth open (a cry). */
 export type FaceFrame = "blink" | "talk";
 
+/** What a picture drawn here shows: its species and how it's drawn (the 3D scenes model it from this). */
+export interface PlaceholderSpec {
+  species: CreatureSpecies;
+  look?: BossLook;
+}
+
+const drawnHere = new Map<string, PlaceholderSpec>();
+
+/**
+ * The species behind a picture drawn here (a placeholder, front or back), or undefined for a
+ * real picture (a kid's drawing) — those stay flat pictures in 3D.
+ */
+export function placeholderSpec(key: string): PlaceholderSpec | undefined {
+  return drawnHere.get(key);
+}
+
 /** The texture key of a monster's front picture with this face — only ordinary placeholder monsters have them. */
 export function faceFrameKey(frontKey: string, frame: FaceFrame): string {
   return `${frontKey}#${frame}`;
@@ -49,6 +65,7 @@ export function generatePlaceholderSprites(scene: Phaser.Scene, species: Creatur
     const look = looks[s.id];
     for (const [key, isBack] of [[s.spriteFront, false], [s.spriteBack, true]] as const) {
       if (scene.textures.exists(key)) continue;
+      drawnHere.set(key, { species: s, ...(look ? { look } : {}) });
       if (look === "serpent") drawSerpent(scene, s, key, isBack);
       else if (look === "eagle") drawEagle(scene, s, key, isBack);
       else drawCreature(scene, s, key, isBack, look === "dragon");
@@ -164,7 +181,7 @@ function drawEagle(scene: Phaser.Scene, species: CreatureSpecies, key: string, i
 }
 
 /** The body's size from the stats: defence makes it wider, HP taller (clamped to fit the texture). */
-function bodyShape(species: CreatureSpecies): { w: number; h: number } {
+export function bodyShape(species: CreatureSpecies): { w: number; h: number } {
   const { hp, forsvar } = species.baseStats;
   return {
     w: Phaser.Math.Clamp(46 + forsvar * 2.4, 62, 94),
@@ -173,7 +190,7 @@ function bodyShape(species: CreatureSpecies): { w: number; h: number } {
 }
 
 /** A small, stable per-species shift (-12..+12) so two monsters of one type differ in shade. */
-function speciesShade(id: string): number {
+export function speciesShade(id: string): number {
   let hash = 0;
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return (hash % 25) - 12;

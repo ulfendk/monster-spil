@@ -145,6 +145,27 @@ the photo and SVG under `creatures/drawings/`, and a preview PNG next to the pho
 Scenes size monster pictures with `spriteFit` (`client/src/gfx/creature-sprite.ts`), so
 any picture size shows like a 128 px placeholder.
 
+## Monsters in 3D
+
+- **In the 3D scenes (battles, catching, caves) and on the 3D map, a monster the game draws
+  itself is a 3D model** (`client/src/cave/monster-model.ts`, `buildMonsterModel`), made
+  after its placeholder picture: the body shaped by its stats, a lighter belly, feet, a
+  kawaii face (eyes with a glint, cheeks, a smile, a fang for strong attackers), its type's
+  head feature (flame crest, wave scales, leaves and a bud, zigzag horns, a rocky cap), a
+  tail; dragons get wings and horns, serpents coils and a hood, eagles spread wings. Toon
+  shading in three flat bands and an ink outline (the back faces of a slightly bigger copy),
+  so it still looks like woodblock. Built in the picture's 128-px box, so it takes exactly the
+  place a picture sprite of the same size would.
+- **A kid's drawing stays its picture.** `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`)
+  knows which textures were drawn by the game; only those become models. Rare variants
+  recolour a model's parts (`variantColour`).
+- **In the stages** (`ThrowStage`): `LivingMonster.sprite` is the sprite or the model's root
+  and `model` the model; `setFace` (a blink closes the eyes, a cry opens the mouth),
+  `setTint`, `setOpacity` and `setTilt` work on either. Models turn to face the camera — my
+  monster in a battle faces the wild one (`lookAt`), so you see its back and tail. On the map
+  (`Map3D`) the dragon, visiting beasts and waiting monsters stand as models turned to the
+  camera.
+
 ## Placeholder sprites
 
 No real art exists yet. `client/src/gfx/placeholder-sprites.ts` draws a simple

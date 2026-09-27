@@ -26,7 +26,7 @@ import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant, mySpecies } from "../battle-participant";
 import type { CatchSceneData } from "./CatchScene";
 import type { BattleStage, Impact, Side } from "../cave/battle-stage";
-import { faceFrameKey } from "../gfx/placeholder-sprites";
+import { faceFrameKey, placeholderSpec } from "../gfx/placeholder-sprites";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
 import { passOut, persist } from "../save/game-state";
@@ -219,8 +219,9 @@ export class BattleScene extends Phaser.Scene {
               talk: variantPicture(faceFrameKey(foe.spriteFront, "talk"), foeVariant),
               scale: variantScale(foeVariant),
               sparkly: variantSparkles(foeVariant),
+              model: modelSpec(foe, foeVariant),
             },
-            { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant), sparkly: variantSparkles(mineVariant) },
+            { speciesId: mine.id, image: mineImage, scale: variantScale(mineVariant), sparkly: variantSparkles(mineVariant), model: modelSpec(mine, mineVariant) },
             Math.floor(this.rng.next() * 2 ** 31),
             sceneKind(this.battleData.scene).look
           );
@@ -962,6 +963,12 @@ export class BattleScene extends Phaser.Scene {
 
     this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
   }
+}
+
+/** A monster the game draws itself is shown as a 3D model; a kid's drawing stays its picture. */
+function modelSpec(species: CreatureSpecies, variant: string | undefined) {
+  const spec = placeholderSpec(species.spriteFront);
+  return spec ? { ...spec, ...(variant ? { variant } : {}) } : undefined;
 }
 
 function pickWildMoveId(species: CreatureSpecies): string {
