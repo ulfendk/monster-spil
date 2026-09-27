@@ -28,8 +28,13 @@ export interface CatchSceneData {
   stage?: BattleStage;
   /** A hit: the battle works out the turn now and says whether it's caught. */
   decide: (thrown: ThrowOutcome) => boolean;
-  /** The throw is over (and its animation done): back to the battle — and, with `retry`, straight back here for another ball once the monster has had its turn. */
-  done: (thrown: ThrowOutcome, retry?: boolean) => void;
+  /** The throw is over (and its animation done): back to the battle. */
+  done: (thrown: ThrowOutcome) => void;
+  /**
+   * Not caught, and the player tries again right here: the battle counts the throw as its turn
+   * (a catch turn has no counter-attack) and says whether the battle goes on — then another ball.
+   */
+  again: (thrown: ThrowOutcome) => boolean;
   /** No 3D here (e.g. no WebGL): the battle throws the old way. */
   unavailable: () => void;
 }
@@ -148,8 +153,8 @@ export class CatchScene extends Phaser.Scene {
   // ------------------------------------------------------------ the throw
 
   /**
-   * Not caught (a miss, or it broke free): try again, or back to the battle. Either way the
-   * monster has its turn first; "try again" brings the ball straight back up after it.
+   * Not caught (a miss, or it broke free): try again right here with a new ball, or back to
+   * the battle. Either way the throw counts as the turn.
    */
   private offerRetry(thrown: ThrowOutcome): void {
     this.aiming?.destroy();
@@ -160,7 +165,11 @@ export class CatchScene extends Phaser.Scene {
     const y = layout.height - layout.safe.bottom - layout.px(30) - h / 2;
     const choose = (retry: boolean) => {
       for (const b of buttons) b.destroy();
-      this.catchData.done(thrown, retry);
+      if (!retry || !this.catchData.again(thrown)) return this.catchData.done(thrown);
+      // Another ball, right here.
+      this.thrown = false;
+      this.stage?.readyBall();
+      this.startAiming();
     };
     const buttons = [
       createButton(this, layout.width / 2 - w / 2 - layout.px(12), y, t("catch_retry"), () => choose(true), { width: w, height: h, fontSize: layout.font(28), backgroundColor: C.catch, icon: CATCH_ICON }),

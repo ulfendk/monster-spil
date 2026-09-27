@@ -6,6 +6,7 @@ import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
 import { buildFoodModel, foodModelFor, type FoodModelIcon } from "./food-models";
 import { buildAvatarModel, type AvatarModel } from "./avatar-model";
+import { PeekLayer } from "./peeks";
 import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 
@@ -86,6 +87,8 @@ export class Map3D {
   private centred = false;
   private sinceSync = 0;
   private readonly T: number;
+  /** Monsters peeking out of the tall grass (OverworldScene decides where and who). */
+  readonly peeks: PeekLayer;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -110,6 +113,7 @@ export class Map3D {
       throw error;
     }
     this.disc = this.makeDisc();
+    this.peeks = new PeekLayer(this.stage);
     this.stage.view = Map3D.loadView();
     options.ground.setVisible(false);
     options.grass.setVisible(false);
@@ -213,6 +217,7 @@ export class Map3D {
     this.scene.scale.off("resize", this.fit, this);
     for (const t of this.textures.values()) t.dispose();
     this.disc.dispose();
+    this.peeks.destroy();
     this.stage.destroy();
     this.canvas.remove();
   }
@@ -240,6 +245,7 @@ export class Map3D {
     const sx = shake.isRunning ? shake._offsetX : 0;
     const sy = shake.isRunning ? shake._offsetY : 0;
     this.stage.lookAt((this.centre.x - sx) / this.T, (this.centre.y - sy) / this.T);
+    this.peeks.update();
 
     for (const m of this.mirrors.values()) m.seen = false;
     this.moved = [];

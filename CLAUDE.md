@@ -553,9 +553,9 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   (`CatchSceneData.stage`), my monster steps aside, the wild one starts shifting about and the
   crosshairs come up; you get **one** ball. A miss uses the turn ("Bolden ramte ikke!", log
   kind `catch-miss`); a hit lets the engine roll the catch, and the ball glows or bursts
-  open accordingly. Not caught: "Prøv igen" or "Tilbage" (`CatchScene.offerRetry`) — either
-  way the turn plays out, and after "Prøv igen" the ball comes straight back up
-  (`BattleScene.retryCatch`). Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
+  open accordingly. Not caught: "Prøv igen" or "Tilbage" (`CatchScene.offerRetry`). "Prøv
+  igen" stays right there with a new ball: the battle counts the throw as its turn in the
+  background (`CatchSceneData.again`; a catch turn has no counter-attack). Without a 3D battle, `CatchScene` opens its own `MeadowStage`.
 - **Scenes:** a wild battle (and its catching) takes place in a scene that fits where you
   stand — the meadow, Dybskoven's forest glade, Storsøen's shore, Højfjeldet's mountains,
   Sandklitterne's dunes, and snow, volcano and cherry-blossom scenes for other worlds.
@@ -878,6 +878,12 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   step, arms swing, a bob and a rock) and faces the way it goes; standing, it turns back to
   the camera. Food on the map is modelled too
   (`world3d/food-models.ts`: apple, strawberry, banana, carrot, grapes), turning and bobbing.
+- **Monsters peeking out of the grass** (3D only): now and then (at most two at a time) a
+  monster that lives here gives itself away in tall grass a few steps from me — its model
+  sunk into the grass with just its ears, crest or horns out, rustling, popping up now and
+  then to look about (a kid's drawing: two blinking eyes). It's real: stepping onto that tile
+  meets exactly that monster (`OverworldScene.updatePeeks`/`peekerAt`; drawn by
+  `world3d/peeks.ts`, `Map3D.peeks`). They leave after a while or when I go far away.
 - **Taps** go through `Map3D.tileAt`: a player, monster or the dragon under the finger first
   (their sprites), else the ground under it. Dragging to walk is unchanged (the camera never
   turns, so up on the screen is north). Phaser's camera shake shakes the 3D camera too.

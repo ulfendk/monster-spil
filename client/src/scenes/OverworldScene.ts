@@ -30,6 +30,7 @@ import { ic, richChip, richText } from "../ui/rich-text";
 import { addIcon } from "../gfx/icon-art";
 import { addAvatar, avatarKey } from "../gfx/avatar-sprites";
 import { setAirborne, setMapHint } from "../gfx/map-hints";
+import { placeholderSpec } from "../gfx/placeholder-sprites";
 import type { Map3D } from "../world3d/map-3d";
 import { Minimap } from "../gfx/minimap";
 import type { MinimapDot } from "../gfx/minimap";
@@ -148,6 +149,9 @@ export class OverworldScene extends Phaser.Scene {
   private caves!: CaveLayer;
   /** The map in 3D (world3d/map-3d.ts), once three.js has loaded; without it the 2D map shows. */
   private map3d?: Map3D;
+  /** Monsters peeking out of the tall grass near me (3D only): where, who, and until when. */
+  private peekers = new Map<number, { x: number; y: number; speciesId: string; until: number }>();
+  private peekTimer?: Phaser.Time.TimerEvent;
   /** Camera mode (3D only): dragging turns and tilts the camera and pinching zooms, instead of walking. */
   private cameraMode = false;
   /** The fingers on the screen in camera mode (screen px), and whether they moved (a tap otherwise). */
@@ -412,6 +416,7 @@ export class OverworldScene extends Phaser.Scene {
    */
   private start3d(): void {
     this.map3d = undefined;
+    this.peekers = new Map();
     let alive = true;
     this.events.once("shutdown", () => (alive = false));
     const ids = this.areaMeta.terrain;
@@ -429,8 +434,55 @@ export class OverworldScene extends Phaser.Scene {
         });
         if (import.meta.env.DEV) (window as unknown as { __map3d?: Map3D }).__map3d = this.map3d;
         this.buildHud(); // now with the camera button
+        this.peekTimer = this.time.addEvent({ delay: 1500, loop: true, callback: () => this.updatePeeks() });
       })
       .catch((error: unknown) => console.warn("3D map unavailable:", error));
+  }
+
+  // ------------------------------------------------------------ monsters peeking out (3D)
+
+  /**
+   * Now and then a monster that lives here gives itself away in the tall grass near me (its
+   * ears or crest peeking out, the grass rustling). It really is there: walking in, I meet it.
+   * At most two at a time; each stays a while, and leaves if I go far away.
+   */
+  private updatePeeks(): void {
+    const map3d = this.map3d;
+    if (!map3d) return;
+    const now = this.time.now;
+    for (const [id, p] of this.peekers) {
+      const far = Math.hypot(p.x - this.playerTile.x, p.y - this.playerTile.y) > 12;
+      if (now > p.until || far) {
+        map3d.peeks.remove(id);
+        this.peekers.delete(id);
+      }
+    }
+    if (this.peekers.size >= 2 || this.isPassedOut() || Math.random() > 0.4) return;
+    // A tall-grass tile a few steps away (not next to me: I should have to walk there), free.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const x = this.playerTile.x + Math.round((Math.random() - 0.5) * 12);
+      const y = this.playerTile.y + Math.round((Math.random() - 0.5) * 10);
+      const d = Math.max(Math.abs(x - this.playerTile.x), Math.abs(y - this.playerTile.y));
+      if (d < 2 || !this.grassLayer.getTileAt(x, y) || this.playerAt({ x, y })) continue;
+      if ([...this.peekers.values()].some((p) => p.x === x && p.y === y)) continue;
+      const speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, x, y));
+      const species = speciesId ? this.content.speciesById[speciesId] : undefined;
+      if (!species) return;
+      const id = map3d.peeks.add(x, y, placeholderSpec(species.spriteFront));
+      this.peekers.set(id, { x, y, speciesId: species.id, until: now + 14000 + Math.random() * 8000 });
+      return;
+    }
+  }
+
+  /** A monster peeking out on this tile: it's met (and it leaves the grass). */
+  private peekerAt(x: number, y: number): string | undefined {
+    for (const [id, p] of this.peekers) {
+      if (p.x !== x || p.y !== y) continue;
+      this.map3d?.peeks.remove(id, true);
+      this.peekers.delete(id);
+      return p.speciesId;
+    }
+    return undefined;
   }
 
   // ------------------------------------------------------------ camera mode (3D)
@@ -1738,8 +1790,10 @@ export class OverworldScene extends Phaser.Scene {
     const zone = this.world.zoneAt(this.playerTile.x, this.playerTile.y);
     // In a disaster's zone its rare monster turns up (at the zone's own rate); tall grass there still has its usual ones.
     const inGrass = !!this.grassLayer.getTileAt(this.playerTile.x, this.playerTile.y);
-    let speciesId: string | undefined;
-    if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
+    let speciesId: string | undefined = this.peekerAt(this.playerTile.x, this.playerTile.y);
+    if (speciesId) {
+      // The monster that was peeking out: found it!
+    } else if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
     else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, this.playerTile.x, this.playerTile.y));
     const species = speciesId ? this.content.speciesById[speciesId] : undefined;
     if (!species) return false;

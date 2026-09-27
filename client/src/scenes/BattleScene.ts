@@ -137,8 +137,6 @@ export class BattleScene extends Phaser.Scene {
   private feedbackY = 0;
   /** False once the scene has shut down (a late-loading meadow is then thrown away). */
   private alive = false;
-  /** The player chose "try again" after a failed catch: catch again as soon as the turn has played out. */
-  private retryCatch = false;
   /** Scenes under this one hidden while the meadow shows (a duel over the meeting screen and the map). */
   private hiddenUnder: string[] = [];
 
@@ -151,7 +149,6 @@ export class BattleScene extends Phaser.Scene {
     this.busy = false;
     this.finished = false;
     this.passedOut = false;
-    this.retryCatch = false;
     this.duel = data.duel;
     this.raid = data.raid;
     this.team = data.team;
@@ -718,11 +715,16 @@ export class BattleScene extends Phaser.Scene {
         worked = this.wildTurn({ kind: "catch", throw: thrown });
         return worked.outcome === "caught";
       },
-      done: (thrown, retry) => {
+      again: (thrown) => {
+        // The failed throw was this turn (a catch turn has no counter-attack): count it, and throw again.
+        this.battleState = worked ?? this.wildTurn({ kind: "catch", throw: thrown });
+        worked = undefined;
+        this.updateHpBars();
+        return this.battleState.outcome === "ongoing";
+      },
+      done: (thrown) => {
         this.scene.stop("Catch");
         this.scene.wake();
-        // Try again: once the monster has had its turn (and if the battle goes on), the ball comes straight back up.
-        this.retryCatch = Boolean(retry);
         const next = worked ?? this.wildTurn({ kind: "catch", throw: thrown });
         if (!this.stage) return this.presentTurn(next);
         // Back to the battle in the meadow: my monster steps back in, then the turn plays out.
@@ -827,15 +829,9 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** A wild battle goes on: the buttons again — or, after "try again", straight back to the ball. */
+  /** A wild battle goes on: the buttons again. */
   private nextWildTurn(): void {
     this.busy = false;
-    if (this.retryCatch && !this.finished) {
-      this.retryCatch = false;
-      this.time.delayedCall(350, () => this.performCatch());
-      return;
-    }
-    this.retryCatch = false;
     this.renderActions();
   }
 

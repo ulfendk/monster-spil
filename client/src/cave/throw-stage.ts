@@ -278,6 +278,11 @@ export abstract class ThrowStage<M extends LivingMonster> {
     this.busy = false;
   }
 
+  /** A new ball in the hand (trying again). */
+  readyBall(): void {
+    if (!this.flight && !this.busy) this.holdBall();
+  }
+
   /** No ball in the hand any more (the visit or the throw is over). */
   end(): void {
     this.ball.visible = false;
