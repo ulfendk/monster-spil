@@ -40,6 +40,8 @@ export interface AreaLook3d {
   peak?: "snow" | "volcano";
   sky?: string;
   fog?: string;
+  /** What the water is: water (default) or glowing lava. */
+  water?: "water" | "lava";
 }
 
 /**

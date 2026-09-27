@@ -55,6 +55,7 @@
   "look3d": {
     "tree": "deadPine",
     "peak": "volcano",
+    "water": "lava",
     "sky": "sumiInk5",
     "fog": "sumiInk4"
   },

@@ -342,7 +342,7 @@ writeWorld("ildbjerget", volcano.c, {
   encounterRate: 0.1,
   playerStart: volcano.links.west,
   scene: "vulkan",
-  look3d: { tree: "deadPine", peak: "volcano", sky: "sumiInk5", fog: "sumiInk4" },
+  look3d: { tree: "deadPine", peak: "volcano", water: "lava", sky: "sumiInk5", fog: "sumiInk4" },
   links: [
     link("bro-startskoven", "bridge", volcano.links.west, "startskoven", "bro-ildbjerget"),
     link("tunnel-snedalen", "tunnel", volcano.links.south, "snedalen", "tunnel-ildbjerget"),

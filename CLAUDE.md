@@ -832,12 +832,18 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   following the player. `OverworldScene` keeps running the 2D map underneath unchanged —
   tiles, collisions, walking, tweens — and without WebGL (or offline before the chunk was
   cached) that 2D map simply shows.
-- **`map-stage.ts` (`MapStage`)** draws the terrain: the ground is the area's own tile art
-  (the tileset as a padded atlas on per-tile quads, in 16×16-tile chunks so only what the
-  camera sees is drawn); trees are Japanese pines, mountains snow-capped peaks and tall
-  grass susuki tufts on golden meadow — low-poly models in the Kanagawa palette, instanced
-  per chunk. Tiles are compared with what's drawn every 300 ms, and a chunk with a changed
-  tile (a felled tree, a hole, a disaster) is rebuilt.
+- **`map-stage.ts` (`MapStage`)** draws the terrain as one natural landscape over the tile
+  grid (the grid, walking and collisions are unchanged): a heightfield with a vertex every half
+  tile — gentle hills everywhere, real mountains with ridged crests where the mountain tiles
+  are (snow up high; on a volcano, a glow), beds where the water is under a rippling
+  see-through water surface with foam along the shores (`look3d.water: "lava"` makes it glow:
+  Ildbjerget). Colours are the average colours of the world's own tiles (read from its
+  tileset, so snow, ash and cherry worlds follow), blended across ragged, noisy edges instead
+  of tile borders, with a painted texture in the shader. Tall grass is golden meadow with
+  swaying susuki; trees, stumps, fallen logs, boulders and rubble, and the UFO wreck are
+  instanced low-poly models; craters, holes and fissures are dips. Chunks of 16×16 tiles; a
+  changed tile rebuilds the land around it. `heightAt(x, z)` gives the land's height: the
+  bridge stands everything on it, and taps hit the land itself.
 - **`map-3d.ts` (`Map3D`) is the bridge**: every frame, just before Phaser draws, it looks at
   the scene's map objects (scroll factor 1). Pictures and circles (players, monsters, the
   dragon, food, icons) become upright sprites standing on their spot (hidden from Phaser's

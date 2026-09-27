@@ -276,7 +276,8 @@ export class Map3D {
   private float(o: Moved["object"]): void {
     const hint = mapHint(o);
     this.moved.push({ object: o, x: o.x, y: o.y, scaleX: o.scaleX, scaleY: o.scaleY, sfx: o.scrollFactorX, sfy: o.scrollFactorY, visible: o.visible });
-    const p = this.stage.project(o.x / this.T, hint?.lift ?? 0, (o.y + (hint?.dy ?? 0)) / this.T);
+    const gx = o.x / this.T, gz = (o.y + (hint?.dy ?? 0)) / this.T;
+    const p = this.stage.project(gx, (hint?.lift ?? 0) + this.stage.heightAt(gx, gz), gz);
     const s = Phaser.Math.Clamp(p.perTile / this.T, 0.55, 1.5);
     o.setScrollFactor(0);
     o.setPosition(p.x, p.y);
@@ -310,7 +311,7 @@ export class Map3D {
       // A monster the game draws itself, as its 3D model: standing on its spot, turned to the camera.
       const lift = hint?.lift ?? 0;
       m.object.visible = visible;
-      m.object.position.set(cx / T, h / T / 2 + lift, cy / T);
+      m.object.position.set(cx / T, this.stage.heightAt(cx / T, cy / T) + h / T / 2 + lift, cy / T);
       m.object.scale.set((w / T) * (g.flipX ? -1 : 1), h / T, w / T);
       const cam = this.stage.camera.position;
       m.object.rotation.set(0, Math.atan2(cam.x - m.object.position.x, cam.z - m.object.position.z), -g.rotation);
@@ -325,13 +326,15 @@ export class Map3D {
     if (!shape && !m.model) this.retexture(m, g);
     m.object.visible = visible;
     const depth = (g as unknown as { depth: number }).depth ?? 0;
+    // Everything stands (or lies) on the land, which rolls.
+    const ground = this.stage.heightAt(cx / T, cy / T);
     if (kind === "flat") {
-      m.object.position.set(cx / T, 0.02 + depth * 0.002, cy / T);
+      m.object.position.set(cx / T, ground + 0.03 + depth * 0.002, cy / T);
       m.object.scale.set(w / T, 1, h / T);
       m.object.rotation.y = -g.rotation;
     } else {
       const lift = hint?.lift ?? 0;
-      m.object.position.set(cx / T, h / T / 2 + lift, cy / T);
+      m.object.position.set(cx / T, ground + h / T / 2 + lift, cy / T);
       // Things drawn over each other on the 2D map (a face on its circle) stay in that order.
       m.object.position.add(this.stage.camera.position.clone().sub(m.object.position).normalize().multiplyScalar(depth * 0.012));
       m.object.scale.set((w / T) * (g.flipX ? -1 : 1), h / T, 1);
@@ -344,7 +347,7 @@ export class Map3D {
     if (!m.shadow) return;
     const T = this.T;
     m.shadow.visible = visible && lift < 0.5;
-    m.shadow.position.set(cx / T, 0.015, cy / T + 0.04);
+    m.shadow.position.set(cx / T, this.stage.heightAt(cx / T, cy / T) + 0.02, cy / T + 0.04);
     m.shadow.scale.set((w / T) * 0.85, 1, (w / T) * 0.38);
     (m.shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * Math.min(1, alpha);
   }

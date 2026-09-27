@@ -413,7 +413,7 @@ export class OverworldScene extends Phaser.Scene {
           tileset: this.textures.get(tilesetKey(this.areaMeta.id)).getSourceImage() as HTMLImageElement,
           look: this.areaMeta.look3d,
           tileSize: TILE_SIZE,
-          ids: ids ? { ground: ids.ground, grass: ids.grass, tree: ids.tree, mountain: ids.mountain, water: ids.water, flood: ids.flood } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
+          ids: ids ? { ...ids } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
           focus: () => ({ x: this.player.x, y: this.player.y }),
         });
         if (import.meta.env.DEV) (window as unknown as { __map3d?: Map3D }).__map3d = this.map3d;
