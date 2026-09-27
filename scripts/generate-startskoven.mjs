@@ -350,7 +350,8 @@ writeFileSync(path.join(AREAS, "startskoven-tileset.png"), encodePng(drawTileset
 // The sidecar is hand-written, so patch only the two values this map depends on and leave the rest as is.
 const metaPath = path.join(AREAS, "startskoven.meta.json");
 const metaText = readFileSync(metaPath, "utf8")
-  .replace(/"collisionGids":\s*\[[^\]]*\]/, `"collisionGids": [${BLOCKING.join(", ")}]`)
+  // (Trees block while the map is made; in the game you walk through a forest at half speed.)
+  .replace(/"collisionGids":\s*\[[^\]]*\]/, `"collisionGids": [${BLOCKING.filter((g) => g !== TREE).join(", ")}]`)
   .replace(/"playerStart":\s*\{[^}]*\}/, `"playerStart": { "x": ${START.x}, "y": ${START.y} }`)
   .replace(/"minimap":\s*\{[^}]*\}/, `"minimap": { "tree": [${TREE}, ${LOG}], "water": [${WATER}], "path": [${PATH}], "mountain": [${MOUNTAIN}, ${CRACK}, ${WRECK}], "burnt": [${BURNT}], "crater": [${CRATER}, ${RUBBLE}], "flood": [${FLOOD}], "sand": [${SAND}], "hole": [${HOLE}], "stump": [${STUMP}] }`)
   .replace(/"terrain":\s*\{[^}]*\}/, `"terrain": ${JSON.stringify({ ground: GROUND, tree: TREE, grass: GRASS, water: WATER, path: PATH, mountain: MOUNTAIN, burnt: BURNT, crater: CRATER, flood: FLOOD, log: LOG, crack: CRACK, rubble: RUBBLE, wreck: WRECK, sand: SAND, stump: STUMP, hole: HOLE }).replace(/,/g, ", ").replace(/:/g, ": ")}`);

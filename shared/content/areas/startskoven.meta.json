@@ -4,7 +4,8 @@
   "tilesetImagePath": "areas/startskoven-tileset.png",
   "encounterZoneLayer": "graes",
   "collisionLayer": "bund",
-  "collisionGids": [2, 4, 6, 10, 11, 13],
+  "collisionGids": [4, 6, 10, 11, 13],
+  "slow": [{ "gids": [2], "speed": 0.5 }],
   "encounterTable": [
     { "speciesId": "gnistrot", "weight": 3 },
     { "speciesId": "stenbid", "weight": 2 },

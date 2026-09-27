@@ -41,3 +41,15 @@ export function chooseStep(from: Tile, dir: Step, vx: number, vy: number, walkab
   if (free(second)) return second;
   return undefined;
 }
+
+/** How fast you get across a tile with this ground id: 1 normally, less in slow ground (forest: 0.5). */
+export function groundSpeed(meta: { slow?: Array<{ gids: number[]; speed: number }> }, gid: number | undefined): number {
+  let speed = 1;
+  for (const s of meta.slow ?? []) if (gid !== undefined && s.gids.includes(gid)) speed = Math.min(speed, Math.max(0.1, s.speed));
+  return speed;
+}
+
+/** The map's outermost row: always its wall, whatever lies there. */
+export function isMapEdge(x: number, y: number, width: number, height: number): boolean {
+  return x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1;
+}

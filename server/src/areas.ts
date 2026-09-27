@@ -47,7 +47,9 @@ export async function loadAreas(fixed: Array<{ areaId: string; x: number; y: num
     ground.forEach((gid, i) => {
       const x = i % map.width;
       const y = Math.floor(i / map.width);
-      if (gid !== 0 && !meta.collisionGids.includes(gid) && !grass[i]) spots.push({ x, y });
+      // (Open ground and paths: not in a forest, though you can walk there.)
+      const slow = meta.slow?.some((s) => s.gids.includes(gid)) ?? false;
+      if (gid !== 0 && !meta.collisionGids.includes(gid) && !slow && !grass[i]) spots.push({ x, y });
     });
     const base: BaseArea | undefined = meta.terrain
       ? { id: meta.id, width: map.width, height: map.height, ground, grass, blocking: meta.collisionGids, tiles: meta.terrain, start: meta.playerStart, fixed: mine }

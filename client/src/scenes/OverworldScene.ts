@@ -38,7 +38,7 @@ import { C, CSS, FONT } from "../ui/theme";
 import { recordProgress } from "../progress/record";
 import { badgesById, levelConfig, ridingOn } from "../content/load-progress";
 import { profileChanged } from "../progress/record";
-import { RIDE_STEP_TIME, rideGait, type MountView, type RideGait } from "@shared";
+import { RIDE_STEP_TIME, groundSpeed, isMapEdge, rideGait, type MountView, type RideGait } from "@shared";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
 import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
@@ -1945,7 +1945,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private isWalkable(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
+    if (isMapEdge(x, y, this.map.width, this.map.height)) return false; // the map's wall (and beyond it)
     const boss = this.dragon ? this.visibleBoss() : undefined;
     if (boss && boss.lair.x === x && boss.lair.y === y) return false; // nobody walks through the dragon
     if (this.beasts?.blocks(x, y)) return false; // nor through a visiting beast
@@ -1955,47 +1955,48 @@ export class OverworldScene extends Phaser.Scene {
     return !!tile && !tile.collides;
   }
 
-  /** Naive BFS — the map is small enough that this is plenty fast. */
+  /**
+   * The quickest way there, step by step (up, down and sideways): a tile of forest costs twice
+   * a plain one, so a path goes round a wood when that's quicker, and through it when not.
+   * (Costs are whole numbers, so a bucket per cost is all the priority queue it needs.)
+   */
   private findPath(start: TileCoord, goal: TileCoord): TileCoord[] {
     if (!this.isWalkable(goal.x, goal.y)) return [];
-
-    const key = (c: TileCoord) => `${c.x},${c.y}`;
-    const visited = new Set<string>([key(start)]);
-    const cameFrom = new Map<string, TileCoord>();
-    const queue: TileCoord[] = [start];
-    let found = false;
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (current.x === goal.x && current.y === goal.y) {
-        found = true;
-        break;
-      }
-      const neighbours: TileCoord[] = [
-        { x: current.x + 1, y: current.y },
-        { x: current.x - 1, y: current.y },
-        { x: current.x, y: current.y + 1 },
-        { x: current.x, y: current.y - 1 },
-      ];
-      for (const n of neighbours) {
-        const k = key(n);
-        if (!visited.has(k) && this.isWalkable(n.x, n.y)) {
-          visited.add(k);
-          cameFrom.set(k, current);
-          queue.push(n);
+    const W = this.map.width;
+    const H = this.map.height;
+    const index = (x: number, y: number) => y * W + x;
+    const cost = new Int32Array(W * H).fill(-1);
+    const from = new Int32Array(W * H).fill(-1);
+    const buckets: number[][] = [[index(start.x, start.y)]];
+    cost[index(start.x, start.y)] = 0;
+    const target = index(goal.x, goal.y);
+    for (let c = 0; c < buckets.length; c++) {
+      const bucket = buckets[c];
+      if (!bucket) continue;
+      for (let b = 0; b < bucket.length; b++) {
+        const i = bucket[b]!;
+        if (cost[i] !== c) continue; // reached more cheaply already
+        if (i === target) {
+          const path: TileCoord[] = [];
+          for (let k = target; k !== index(start.x, start.y); k = from[k]!) path.unshift({ x: k % W, y: Math.floor(k / W) });
+          return path;
+        }
+        const x = i % W;
+        const y = Math.floor(i / W);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!this.isWalkable(nx, ny)) continue;
+          const n = index(nx, ny);
+          const next = c + Math.round(1 / groundSpeed(this.areaMeta, this.groundLayer.getTileAt(nx, ny)?.index));
+          if (cost[n] !== -1 && cost[n]! <= next) continue;
+          cost[n] = next;
+          from[n] = i;
+          (buckets[next] ??= []).push(n);
         }
       }
     }
-
-    if (!found) return [];
-
-    const path: TileCoord[] = [];
-    let cur = goal;
-    while (!(cur.x === start.x && cur.y === start.y)) {
-      path.unshift(cur);
-      cur = cameFrom.get(key(cur))!;
-    }
-    return path;
+    return [];
   }
 
   private advancePath(): void {
@@ -2010,7 +2011,8 @@ export class OverworldScene extends Phaser.Scene {
       x: next.x * TILE_SIZE + TILE_SIZE / 2,
       y: next.y * TILE_SIZE + TILE_SIZE / 2,
       // Same walking speed either way, so a diagonal (√2 tiles) takes longer.
-      duration: MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1) * this.rideStepFactor(),
+      // (Through a forest at half speed; riding at the monster's own pace.)
+      duration: (MOVE_DURATION_MS * (diagonal ? DIAGONAL_TIME_FACTOR : 1) * this.rideStepFactor()) / groundSpeed(this.areaMeta, this.groundLayer.getTileAt(next.x, next.y)?.index),
       onComplete: () => {
         this.playerTile = next;
         this.isMoving = false;

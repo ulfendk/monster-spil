@@ -1030,6 +1030,20 @@ covers √2 tiles at the same speed, so it takes longer). A short tap without a 
 is still a tap: on another player or the dragon it offers 🤝/⚔️ (walking over with
 BFS pathfinding if needed); on the ground it does nothing.
 
+**Forests can be walked through, slowly.** Trees are no longer in the areas' `collisionGids`;
+the sidecar's `slow: [{gids: [tree], speed: 0.5}]` says a step onto one takes twice as long
+(`groundSpeed` in `shared/src/world/steps.ts`; riding multiplies in). The map's **outermost
+row is always its wall** (`isMapEdge`, used by the client's `isWalkable` and the shared
+`walkableNow`, so the server's connectivity checks agree), which keeps the tree border round
+Startskoven and Snedalen shut. Tapping somewhere walks the quickest way (`findPath`: forest
+costs double, so it goes round a wood when that's quicker). Food, the dragon's perches and
+the beasts still keep to open ground (the server's food spots skip `slow` tiles). The world
+generators still treat trees as blocking while they make a map (so every part is reachable
+on foot) and write the sidecar this way. In 3D, pines near anyone lean away and shrink a
+little as they pass (`MapStage.pushTrees`, fed every frame by `Map3D` with the players'
+spots); pines between a player and the camera give way from further off, duck lower and lean
+sideways, so the player always shows in a forest.
+
 ## Look and feel (Kanagawa)
 
 - **All colours and the font live in `client/src/ui/theme.ts`** — the Kanagawa

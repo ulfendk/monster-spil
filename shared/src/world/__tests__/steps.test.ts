@@ -50,3 +50,13 @@ test("a blocked diagonal target slides along the axis the finger leans towards",
 test("boxed in: no step", () => {
   assert.equal(chooseStep(from, { dx: 1, dy: 1 }, 70, 70, world("6,5", "5,6", "6,6")), undefined);
 });
+
+test("forest is walked at half speed; the map's outer row is its wall", async () => {
+  const { groundSpeed, isMapEdge } = await import("../steps.js");
+  const meta = { slow: [{ gids: [2], speed: 0.5 }] };
+  assert.equal(groundSpeed(meta, 2), 0.5);
+  assert.equal(groundSpeed(meta, 1), 1);
+  assert.equal(groundSpeed({}, 2), 1);
+  assert.ok(isMapEdge(0, 5, 10, 10) && isMapEdge(9, 5, 10, 10) && isMapEdge(4, 9, 10, 10));
+  assert.ok(!isMapEdge(1, 1, 10, 10));
+});

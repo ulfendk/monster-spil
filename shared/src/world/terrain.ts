@@ -1,3 +1,5 @@
+import { isMapEdge } from "./steps.js";
+
 /**
  * The map as it is now: the area's base map (the Tiled file) plus the changes natural
  * disasters have made. Pure functions over plain data, shared by the server (which
@@ -120,7 +122,8 @@ export function blocks(base: BaseArea, state: TileState): boolean {
 }
 
 export function walkableNow(base: BaseArea, terrain: AreaTerrain, x: number, y: number): boolean {
-  return inside(base, x, y) && !blocks(base, tileNow(base, terrain, x, y));
+  // (The outermost row is the map's wall, whatever lies there — see isMapEdge.)
+  return inside(base, x, y) && !isMapEdge(x, y, base.width, base.height) && !blocks(base, tileNow(base, terrain, x, y));
 }
 
 /**

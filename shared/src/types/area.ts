@@ -55,8 +55,10 @@ export interface AreaMeta {
   tilesetImagePath: string;
   encounterZoneLayer: string;
   collisionLayer: string;
-  /** Tile GIDs on collisionLayer that block movement */
+  /** Tile GIDs on collisionLayer that block movement (the map's outermost row always blocks too — its wall). */
   collisionGids: number[];
+  /** Ground you can walk through, but slowly: forest at half speed (world/steps.ts `groundSpeed`). */
+  slow?: Array<{ gids: number[]; speed: number }>;
   /** Who turns up in tall grass that lies in none of the `regions`. */
   encounterTable: EncounterTableEntry[];
   /** Parts of the map with their own wild monsters; the first one a tile lies in wins. */

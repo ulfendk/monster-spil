@@ -121,7 +121,10 @@ function writeWorld(id, c, meta, palette) {
     tilesetImagePath: `areas/${id}-tileset.png`,
     encounterZoneLayer: "graes",
     collisionLayer: "bund",
-    collisionGids: BLOCKING,
+    // Trees block while the map is made (so every part stays reachable on foot), but in the game
+    // you can walk through a forest, slowly.
+    collisionGids: BLOCKING.filter((g) => g !== 2),
+    slow: [{ gids: [2], speed: 0.5 }],
     ...meta,
     terrain: TERRAIN,
     minimap: MINIMAP,

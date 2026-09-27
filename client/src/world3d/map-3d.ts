@@ -264,6 +264,10 @@ export class Map3D {
       if (kind === "float") this.float(o as Moved["object"]);
       else this.mirror(o, kind);
     }
+    // Everyone walking through a forest pushes the pines aside.
+    const walkers: Array<{ x: number; z: number }> = [];
+    for (const m of this.mirrors.values()) if (m.seen && m.avatar && m.walk && m.object.visible) walkers.push({ x: m.walk.x, z: m.walk.z });
+    this.stage.pushTrees(walkers);
     for (const [o, m] of this.mirrors) {
       if (m.seen) continue;
       this.stage.scene.remove(m.object);

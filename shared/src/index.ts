@@ -56,7 +56,7 @@ export {
 export type { BossDefinition, FightBoss, FightState, RaidState, RaidView, RaidTurnResult } from "./raid/raid.js";
 export { SCORE_POINTS, SCOREBOARD_DAYS, inWindow, scoreboard } from "./score/scoreboard.js";
 export type { ScoreEvent, ScoreKind, ScorePlayer, ScoreRow } from "./score/scoreboard.js";
-export { DIAGONAL_TIME_FACTOR, chooseStep, dragDirection } from "./world/steps.js";
+export { DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, groundSpeed, isMapEdge } from "./world/steps.js";
 export type { Step } from "./world/steps.js";
 export {
   MAX_TEAM,

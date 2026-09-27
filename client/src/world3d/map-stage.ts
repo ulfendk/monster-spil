@@ -94,6 +94,10 @@ interface Chunk {
   land: THREE.Mesh;
   water: THREE.Mesh;
   models: Record<ModelKind, THREE.InstancedMesh>;
+  /** Each pine's place, turn and size (by instance), so one can be bent aside and put back. */
+  pines: Array<{ x: number; y: number; z: number; turn: number; scale: THREE.Vector3 }>;
+  /** Pines bent aside now (instance indices). */
+  bent: Set<number>;
 }
 
 /** A stable pseudo-random number (0…1) for a tile, so things keep their shape between rebuilds. */
@@ -241,6 +245,85 @@ export class MapStage {
     fog.far = distance + 40;
     this.camera.far = distance + 60;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Walking through a forest: pines close to anyone on the map (`points`, in tiles) lean away
+   * from them and shrink a little, as if pushed aside, and stand up again once they've passed.
+   * Call every frame.
+   */
+  pushTrees(points: ReadonlyArray<{ x: number; z: number }>): void {
+    const R = 1.1;
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const tilt = new THREE.Quaternion();
+    const axis = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const cols = Math.ceil(this.source.width / CHUNK);
+    const near = new Set<Chunk>();
+    for (const p of points) {
+      for (const [dx, dz] of [[-R, -R], [R, -R], [-R, R], [R, R]] as const) {
+        const cx = Math.floor((p.x + dx) / CHUNK);
+        const cy = Math.floor((p.z + dz) / CHUNK);
+        const chunk = this.chunks[cy * cols + cx];
+        if (chunk && cx >= 0 && cx < cols) near.add(chunk);
+      }
+    }
+    for (const chunk of new Set([...near, ...this.chunks.filter((c) => c.bent.size > 0)])) {
+      const mesh = chunk.models.pines;
+      const bentNow = new Set<number>();
+      chunk.pines.forEach((pine, i) => {
+        let lean = 0;
+        let shrink = 0;
+        let ax = 0;
+        let az = 0;
+        for (const p of points) {
+          const dx = pine.x - p.x;
+          const dz = pine.z - p.z;
+          // Split into towards the camera (`f`) and sideways (`side`): a pine between them and
+          // the camera gives way from further off, ducks lower and leans sideways, not at the camera.
+          let cfx = this.camera.position.x - p.x;
+          let cfz = this.camera.position.z - p.z;
+          const cl = Math.hypot(cfx, cfz) || 1;
+          cfx /= cl;
+          cfz /= cl;
+          const f = dx * cfx + dz * cfz;
+          const side = dx * -cfz + dz * cfx;
+          const inFront = f > 0;
+          const d = Math.hypot(side, inFront ? f * 0.45 : f);
+          if (d >= R) continue;
+          const k = 1 - d / R;
+          if (k > lean) {
+            lean = k;
+            shrink = inFront ? 0.55 : 0.3;
+            if (inFront) {
+              // Sideways, away from them (either way if it's dead ahead).
+              const s = Math.abs(side) > 0.02 ? Math.sign(side) : hash(Math.round(pine.x * 7), Math.round(pine.z * 7), 3) < 0.5 ? -1 : 1;
+              ax = s * -cfz;
+              az = s * cfx;
+            } else {
+              const dl = Math.hypot(dx, dz);
+              // (Right next to someone, lean any way, so it never stands in them.)
+              ax = dl > 0.01 ? dx / dl : 1;
+              az = dl > 0.01 ? dz / dl : 0;
+            }
+          }
+        }
+        if (lean <= 0 && !chunk.bent.has(i)) return;
+        q.setFromAxisAngle(up, pine.turn);
+        if (lean > 0) {
+          // Tipped over away from them (about the axis across that direction), and a little smaller.
+          axis.set(az, 0, -ax);
+          tilt.setFromAxisAngle(axis, 0.6 * lean);
+          q.premultiply(tilt);
+          bentNow.add(i);
+        }
+        m.compose(new THREE.Vector3(pine.x, pine.y, pine.z), q, pine.scale.clone().multiplyScalar(1 - shrink * lean));
+        mesh.setMatrixAt(i, m);
+      });
+      chunk.bent = bentNow;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   render(): void {
@@ -496,7 +579,7 @@ export class MapStage {
       this.scene.add(mesh);
       models[kind] = mesh;
     }
-    return { cx, cy, land, water, models };
+    return { cx, cy, land, water, models, pines: [], bent: new Set() };
   }
 
   /** Copies the land into a chunk (heights, colours, normals from the whole map, so chunk edges don't show) and places its models. */
@@ -532,11 +615,15 @@ export class MapStage {
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const counts: Record<ModelKind, number> = { pines: 0, tufts: 0, stumps: 0, logs: 0, rocks: 0, wrecks: 0 };
+    chunk.pines = [];
+    chunk.bent.clear();
     const place = (kind: ModelKind, x: number, z: number, scale: THREE.Vector3, turn: number, sink = 0) => {
       const mesh = chunk.models[kind];
       if (counts[kind] >= mesh.instanceMatrix.count) return;
       q.setFromAxisAngle(up, turn);
-      m.compose(new THREE.Vector3(x, this.heightAt(x, z) - sink, z), q, scale);
+      const y = this.heightAt(x, z) - sink;
+      m.compose(new THREE.Vector3(x, y, z), q, scale);
+      if (kind === "pines") chunk.pines[counts[kind]] = { x, y, z, turn, scale: scale.clone() };
       mesh.setMatrixAt(counts[kind]++, m);
     };
     let wet = false;
