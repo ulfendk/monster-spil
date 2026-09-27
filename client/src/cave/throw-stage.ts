@@ -137,19 +137,25 @@ export abstract class ThrowStage<M extends LivingMonster> {
     // slingshot: the horizon moves up, the slingshot sits near the bottom, and the ground —
     // where the monsters are — fills more of the screen than the sky.
     const tall = !band && height > width;
-    this.cameraBase.set(0, tall ? 3.2 : 1.6, tall ? 0.8 : 1.5);
+    // How tall: 0 for a square screen (or wider), 1 for a phone standing up — an iPad standing
+    // up is in between, and gets a camera in between.
+    const t = tall ? Math.min(1, Math.max(0, (height / width - 1) / 1.1)) : 0;
+    this.cameraBase.set(0, 1.6 + 1.6 * t, 1.5 - 0.7 * t);
     this.camera.position.copy(this.cameraBase);
-    this.camera.lookAt(0, tall ? -0.6 : 1.0, -8);
+    this.camera.lookAt(0, 1.0 - 1.6 * t, -8);
     this.camera.updateMatrixWorld();
     const bandH = Math.max(1, (band?.bottom ?? height) - (band?.top ?? 0));
     const vfov = (2 * Math.atan(Math.tan((this.sideView * Math.PI) / 360) / (width / bandH)) * 180) / Math.PI;
     const fov = Math.min(95, Math.max(50, vfov));
     this.frameView(width, height, band, fov);
-    // On a tall screen the slingshot would float in the middle: move the picture down so it
-    // sits near the bottom, where the thumb pulls it (there's sky to spare above).
+    // The slingshot sits near the bottom, where the thumb pulls it, on every screen: on a
+    // tall one the picture moves up or down until it's there (a phone is taller than an iPad
+    // standing up, so the same camera puts it higher on one and off the bottom of the other);
+    // on a wide one only if it would be cut off.
     const ball = this.project(BALL_START);
     const wanted = height * 0.86;
-    if (tall && ball.y < wanted) this.frameView(width, height, band, fov, { x: 0, y: ball.y - wanted });
+    const off = tall ? Math.abs(ball.y - wanted) > 1 : ball.y > height * 0.88;
+    if (!band && off) this.frameView(width, height, band, fov, { x: 0, y: ball.y - wanted });
   }
 
   /** How wide (degrees) the view must be at least from side to side: the caves spread out more than the meadow. */
