@@ -3,7 +3,7 @@ import { spriteFit } from "../gfx/creature-sprite";
 import { livesAt, livesInArea, nearestSpot, paintedTiles } from "@shared";
 import type { CreatureSpecies, SpotHint, Tile } from "@shared";
 import type { GameContent } from "../content/load-content";
-import { getAreaAssets } from "../content/load-areas";
+import { allAreaMetas, getAreaAssets, worldConfig } from "../content/load-areas";
 import type { SaveData } from "../save/schema";
 import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton, whenTapped } from "../ui/Button";
@@ -137,6 +137,10 @@ export class MonsterbogScene extends Phaser.Scene {
         } else if (livesUnderground(species.id)) {
           // Dug up with the shovel (some only out of the sand).
           addIcon(this, x, y + 76 * k, "shovel", Math.max(26, 34 * k));
+        } else {
+          // Lives in another world: that world's icon.
+          const world = worldConfig.worlds.find((w) => w.id !== data.save.position.areaId && allAreaMetas().some((m) => m.id === w.id && livesInArea(m, species.id)));
+          if (world) addIcon(this, x, y + 76 * k, world.icon, Math.max(26, 34 * k));
         }
       }
     });
@@ -232,7 +236,7 @@ export class MonsterbogScene extends Phaser.Scene {
     const meta = getAreaAssets(save.position.areaId).meta;
     if (!livesInArea(meta, species.id)) return undefined;
 
-    const map = this.cache.tilemap.get("area-map")?.data as { width: number; layers: Array<{ name: string; data?: number[] }> } | undefined;
+    const map = this.cache.tilemap.get(`area-map-${save.position.areaId}`)?.data as { width: number; layers: Array<{ name: string; data?: number[] }> } | undefined;
     const zone = map?.layers.find((l) => l.name === meta.encounterZoneLayer)?.data;
     if (!map || !zone) return undefined;
     return nearestSpot(position, paintedTiles(zone, map.width).filter((tile) => livesAt(meta, species.id, tile.x, tile.y)));

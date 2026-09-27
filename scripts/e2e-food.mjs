@@ -24,9 +24,10 @@ const a = await join("anna", 32, 24);
 const b = await join("bo", 10, 10);
 await wait(400);
 check("hello carries protocol version 6 or newer", a.got.hello?.protocolVersion >= 6);
-check("food is sent on join (a lot on the big map)", a.got.food.length >= 50 && a.got.food.every((f) => f.areaId === "startskoven"));
+// Every world grows food; Startskoven (the big map) has a lot of it.
+check("food is sent on join (a lot on the big map)", a.got.food.filter((f) => f.areaId === "startskoven").length >= 50);
 const onMap = a.got.food.length;
-const apple = a.got.food[0];
+const apple = a.got.food.find((f) => f.areaId === "startskoven");
 
 b.room.send("foodTake", { foodId: apple.id }); await wait(200);
 check("food far away can't be taken", b.got.taken.length === 0 && a.got.food.length === onMap);

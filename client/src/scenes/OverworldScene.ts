@@ -3,7 +3,7 @@ import { BAG_MAX, DIAGONAL_TIME_FACTOR, chooseStep, dragDirection, eatFood, isAd
 import type { CreatureInstance, CreatureSpecies, AreaMeta, LobbyPlayer, BossDefinition, BeastView, CaveView, CaveVisit, DisasterMessage } from "@shared";
 import type { SaveData } from "../save/schema";
 import type { GameContent } from "../content/load-content";
-import { getAreaAssets } from "../content/load-areas";
+import { allAreaMetas, getAreaAssets, hasArea, worldConfig } from "../content/load-areas";
 import { persist } from "../save/game-state";
 import type { BattleSceneData } from "./BattleScene";
 import type { CaveSceneData } from "./CaveScene";
@@ -38,7 +38,7 @@ import { recordProgress } from "../progress/record";
 import { levelConfig } from "../content/load-progress";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
-import { crossTarget, emptyTerrain, encounterTableAt, rollVariant, sceneAt, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import { variantConfig } from "../content/load-variants";
 import { sceneConfig } from "../content/load-scenes";
@@ -47,6 +47,8 @@ import type { MinigameData } from "./minigames/Minigame";
 export interface OverworldSceneData {
   save: SaveData;
   content: GameContent;
+  /** Just arrived from another world (by boat, tunnel or bridge): the map fades in and says welcome. */
+  arrived?: boolean;
 }
 
 interface TileCoord {
@@ -74,6 +76,12 @@ const BEAST_MEET = "__beast__:";
 const CAVE_MEET = "__cave__:";
 /** `pendingMeet` prefix meaning "I'm walking over to work on this tile" (a tree, water, a mountain). */
 const WORK_MEET = "__work__:";
+
+/** The icon for each way to another world. */
+const LINK_ICONS: Record<LinkKind, string> = { boat: "boat", tunnel: "tunnel", bridge: "bridge" };
+/** Each world's map and tileset are cached under their own keys. */
+export const mapKey = (areaId: string) => `area-map-${areaId}`;
+const tilesetKey = (areaId: string) => `area-tileset-${areaId}`;
 
 /** What can be done with a blocking tile next to me: fell it, swim across, climb over. */
 type LandWork = "cut" | "swim" | "climb";
@@ -153,21 +161,28 @@ export class OverworldScene extends Phaser.Scene {
   init(data: OverworldSceneData): void {
     this.save = data.save;
     this.content = data.content;
+    this.arrived = Boolean(data.arrived);
+    // A save from a world this build doesn't have (a newer device's game): back to the start.
+    if (!hasArea(this.save.position.areaId)) this.save.position = { areaId: worldConfig.worlds[0]!.id, x: 0, y: 0 };
   }
 
+  /** Just came from another world. */
+  private arrived = false;
+
   preload(): void {
+    // Each world's map and tileset under its own keys (they stay cached when you travel back).
     const area = getAreaAssets(this.save.position.areaId);
-    this.load.tilemapTiledJSON("area-map", area.mapUrl);
-    this.load.image("area-tileset", area.tilesetUrl);
+    this.load.tilemapTiledJSON(mapKey(area.meta.id), area.mapUrl);
+    this.load.image(tilesetKey(area.meta.id), area.tilesetUrl);
   }
 
   create(): void {
     const area = getAreaAssets(this.save.position.areaId);
     this.areaMeta = area.meta;
 
-    this.map = this.make.tilemap({ key: "area-map" });
+    this.map = this.make.tilemap({ key: mapKey(area.meta.id) });
     const tilesetName = this.map.tilesets[0]?.name;
-    const tileset = tilesetName ? this.map.addTilesetImage(tilesetName, "area-tileset") : null;
+    const tileset = tilesetName ? this.map.addTilesetImage(tilesetName, tilesetKey(area.meta.id)) : null;
     if (!tileset) throw new Error("Kunne ikke indlæse tileset til området");
 
     const groundLayer = this.map.createLayer(area.meta.collisionLayer, tileset, 0, 0);
@@ -280,7 +295,11 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.events.off("pause", stopSteering));
 
     const minimapIds = area.meta.minimap ?? {};
-    this.minimap = new Minimap(this, this.map, groundLayer, grassLayer, { ...minimapIds, tree: minimapIds.tree ?? area.meta.collisionGids }, `minimap-${area.meta.id}`);
+    this.minimap = new Minimap(this, this.map, groundLayer, grassLayer, { ...minimapIds, tree: minimapIds.tree ?? area.meta.collisionGids }, `minimap-${area.meta.id}`, () => {
+      this.closePopup();
+      this.scene.launch("WorldMap", { save: this.save });
+      this.scene.pause();
+    });
     this.minimap.refresh(); // the map may have changed since the picture was last drawn
 
     this.buildHud();
@@ -305,8 +324,75 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.events.off("resume", onResumeRecovery));
     this.drawBag();
     this.checkPassOut();
+    this.drawLinks();
+    if (this.arrived) {
+      this.cameras.main.fadeIn(450, 22, 22, 29);
+      const world = worldById(worldConfig, this.areaMeta.id);
+      if (world) this.time.delayedCall(500, () => this.showToast(`${ic(world.icon)} ${t("travel_welcome")} ${world.navn}`, 3200));
+    }
     this.start3d();
   }
+
+  // ------------------------------------------------------------ other worlds
+
+  /** The docks, tunnel mouths and bridges on this map: each with where it goes (and the level it needs). */
+  private drawLinks(): void {
+    for (const link of this.areaMeta.links ?? []) {
+      const c = this.tileCentre(link);
+      // A little behind its tile, so whoever stands on it (me, arriving) is always in front.
+      addIcon(this, c.x, c.y - TILE_SIZE * 0.35, LINK_ICONS[link.kind], TILE_SIZE * 0.95).setDepth(3.5);
+      const world = worldById(worldConfig, link.to.areaId);
+      if (!world) continue;
+      const locked = !canEnterWorld(worldConfig, world.id, myLevel());
+      const label = `${ic(world.icon)} ${world.navn}${locked ? `  ${ic("star")} ${world.minLevel}` : ""}`;
+      const chip = richChip(this, c.x, c.y - TILE_SIZE * 0.95, label, { fontFamily: FONT, fontSize: "18px", color: locked ? CSS.muted : CSS.text }).setDepth(7);
+      setMapHint(chip, { dy: TILE_SIZE * 0.95, lift: 1.25 });
+    }
+  }
+
+  /** Standing on a dock (a tunnel mouth, a bridge): go? — or, too early, which level it opens at. */
+  private offerTravel(link: AreaLink): void {
+    const world = worldById(worldConfig, link.to.areaId);
+    const name = world?.navn ?? link.to.areaId;
+    const title = `${ic(LINK_ICONS[link.kind])} ${name}`;
+    if (world && !canEnterWorld(worldConfig, world.id, myLevel())) {
+      return this.showPopup(`${title}   ${ic("star")} ${world.minLevel}`, [{ label: "✕", colour: C.buttonQuiet, onTap: () => {} }]);
+    }
+    this.showPopup(title, [
+      { label: "✓", colour: C.ok, onTap: () => this.travel(link) },
+      { label: "✕", colour: C.buttonQuiet, onTap: () => {} },
+    ]);
+  }
+
+  /** Off to the other world: a moment's journey, then the map there, standing at the other end. */
+  private travel(link: AreaLink): void {
+    const target = linkTarget(link, allAreaMetas());
+    if (!target || !hasArea(target.areaId) || !canEnterWorld(worldConfig, target.areaId, myLevel())) return;
+    this.pendingPath = [];
+    this.drag = undefined;
+    this.stick?.clear();
+    const stats = this.save.progress?.stats ?? {};
+    const home = worldConfig.worlds[0]?.id;
+    const firstVisit = target.areaId !== home && !(stats[`world:${target.areaId}`] ?? 0);
+    recordProgress({ kind: "travel", world: target.areaId, via: link.kind, firstVisit }, true);
+    this.save.position = { areaId: target.areaId, x: target.x, y: target.y };
+    void persist();
+    if (multiplayerEnabled) presence.moveTo({ areaId: target.areaId, x: target.x, y: target.y });
+    // The journey: the screen goes dark while the boat rows (the icon glides across), then the new world.
+    const layout = getLayout(this);
+    const veil = this.add.rectangle(0, 0, layout.width, layout.height, C.overlay, 1).setOrigin(0, 0).setScrollFactor(0).setDepth(60).setAlpha(0);
+    const icon = addIcon(this, layout.width * 0.2, layout.height / 2, LINK_ICONS[link.kind], layout.px(140)).setScrollFactor(0).setDepth(61).setAlpha(0);
+    const world = worldById(worldConfig, target.areaId);
+    const name = richText(this, layout.width / 2, layout.height / 2 + layout.px(110), `${world ? ic(world.icon) : ""} ${world?.navn ?? ""}`, { fontFamily: FONT, fontSize: layout.font(36), color: CSS.text })
+      .setScrollFactor(0)
+      .setDepth(61)
+      .setAlpha(0);
+    this.tweens.add({ targets: [veil, icon, name], alpha: 1, duration: 350 });
+    this.tweens.add({ targets: icon, x: layout.width * 0.8, duration: 1500, ease: "Sine.inOut" });
+    this.time.delayedCall(1600, () => this.scene.restart({ save: this.save, content: this.content, arrived: true }));
+  }
+
+  // ------------------------------------------------------------ 3D
 
   /**
    * Shows the map in 3D (three.js, loaded now): the 2D map keeps running underneath — tiles,
@@ -324,7 +410,8 @@ export class OverworldScene extends Phaser.Scene {
         this.map3d = new Map3D(this, {
           ground: this.groundLayer,
           grass: this.grassLayer,
-          tileset: this.textures.get("area-tileset").getSourceImage() as HTMLImageElement,
+          tileset: this.textures.get(tilesetKey(this.areaMeta.id)).getSourceImage() as HTMLImageElement,
+          look: this.areaMeta.look3d,
           tileSize: TILE_SIZE,
           ids: ids ? { ground: ids.ground, grass: ids.grass, tree: ids.tree, mountain: ids.mountain, water: ids.water, flood: ids.flood } : { ground: 1, extraTrees: this.areaMeta.collisionGids },
           focus: () => ({ x: this.player.x, y: this.player.y }),
@@ -521,6 +608,12 @@ export class OverworldScene extends Phaser.Scene {
     if (!tile) return;
     const tapped = this.playerAt(tile);
     if (tapped) return this.onTapPlayer(tapped);
+    const link = linkAt(this.areaMeta, tile.x, tile.y);
+    if (link) {
+      if (tile.x === this.playerTile.x && tile.y === this.playerTile.y) return this.offerTravel(link);
+      this.pendingPath = this.findPath(this.playerTile, tile);
+      return this.advancePath();
+    }
     const boss = this.visibleBoss();
     if (boss && tile.x === boss.lair.x && tile.y === boss.lair.y) return this.onTapDragon(boss);
     const beast = this.beasts.beastAt(tile.x, tile.y);
@@ -1337,12 +1430,13 @@ export class OverworldScene extends Phaser.Scene {
     const gap = layout.px(18);
     const buttonH = layout.touch(72);
     const buttonW = Math.min(layout.px(150), (layout.width - 40 - gap * (buttons.length + 1)) / buttons.length);
-    const panelW = Math.min(layout.width - 24, buttons.length * buttonW + (buttons.length + 1) * gap + layout.px(40));
     const panelH = buttonH + layout.px(110);
     const cx = layout.width / 2;
     const cy = layout.height - layout.safe.bottom - layout.px(16) - panelH / 2;
-    const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.95).setStrokeStyle(4, C.border);
     const name = richText(this, cx, cy - panelH / 2 + layout.px(40), title, { fontFamily: FONT, fontSize: layout.font(30), color: CSS.text });
+    // Wide enough for the buttons and for the title.
+    const panelW = Math.min(layout.width - 24, Math.max(buttons.length * buttonW + (buttons.length + 1) * gap + layout.px(40), name.width + layout.px(48)));
+    const bg = this.add.rectangle(cx, cy, panelW, panelH, C.background, 0.95).setStrokeStyle(4, C.border);
     const rowW = buttons.length * buttonW + (buttons.length - 1) * gap;
     const made = buttons.map((b, i) =>
       createButton(this, cx - rowW / 2 + buttonW / 2 + i * (buttonW + gap), cy + panelH / 2 - layout.px(24) - buttonH / 2, b.label, () => {
@@ -1353,6 +1447,7 @@ export class OverworldScene extends Phaser.Scene {
     this.popup = [bg, name, ...made];
     // Fixed on screen while the camera scrolls, drawn above the map.
     for (const object of this.popup) object.setScrollFactor(0).setDepth(20);
+    name.setDepth(21); // over the panel (it was measured before the panel was drawn)
   }
 
   private showToast(message: string, ms = 1600): void {
@@ -1557,6 +1652,17 @@ export class OverworldScene extends Phaser.Scene {
         this.isMoving = false;
         this.positionDirty = true;
         this.pickUpFood(next);
+        // Walked onto a dock, a tunnel mouth or a bridge: stop, and offer the trip.
+        const link = linkAt(this.areaMeta, next.x, next.y);
+        if (link) {
+          this.pendingPath = [];
+          this.pendingMeet = undefined;
+          this.drag = undefined;
+          this.stick?.clear();
+          this.savePosition();
+          this.offerTravel(link);
+          return;
+        }
 
         if (this.isEncounterTile(next.x, next.y) && this.rollEncounter()) {
           this.pendingPath = [];

@@ -119,10 +119,9 @@ monster book's hint points to the nearest tall grass where the monster lives. A 
 every region has tall grass and only known monsters, and another that every monster can be
 found somewhere (wild, caves, digging, disasters, or as a reward or starter). Never
 put game logic inside the Tiled export itself — re-exporting a map from Tiled
-must never clobber it. Milestone 1 ships exactly one area (`startskoven`), wired
-up via a small manual registry in `client/src/content/load-areas.ts` rather than
-a glob — switch that to glob-based auto-discovery once there are enough areas
-that a manual list becomes impractical.
+must never clobber it. Every area (world) in `shared/content/areas/` is found by
+`client/src/content/load-areas.ts` with `import.meta.glob` (and read by the server at
+runtime): adding a world is adding its map, tileset and sidecar — see "Worlds".
 
 **Drawings → monsters:** `npm run add-creature -- <photo> --navn "…" --type ild
 [--ryg <photo>] [--lyd <sound>] [--vild N]` (`scripts/add-creature.mjs`, pipeline in
@@ -318,6 +317,41 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   players against a running server. For real rendering, two headless Chromium
   instances with separate profiles (remote debugging) give genuinely separate
   saves; the Claude-in-Chrome window is often `hidden` and never renders frames.
+
+## Worlds
+
+- **Four worlds, each its own map:** Startskoven (160×120) and, beyond it, Kirsebærøen (an
+  island in bloom), Snedalen (a snowy valley) and Ildbjerget (ash, lava and a volcano), 64×48
+  each. They're joined by **row boats, tunnels and a bridge**: `links` in each map's sidecar
+  (`{id, kind: boat|tunnel|bridge, x, y, to: {areaId, link}}`), one at each end. Step onto a
+  dock (tunnel mouth, bridge) — or tap it — and a popup offers the trip; a short journey
+  (the screen goes dark while the boat rows across) and the overworld restarts in the other
+  world, standing at the other end, with "Velkommen til …".
+- **Level locks:** `shared/content/worlds.json` lists the worlds (name, icon, place on the
+  world map, `minLevel`: Kirsebærøen 3, Snedalen 5, Ildbjerget 8). Too early, the dock's label
+  and popup show the star and the level. Pure rules (tested) in `shared/src/world/worlds.ts`
+  (`linkAt`, `linkTarget`, `canEnterWorld`); tests check every link has a matching way back
+  and can be walked to without tall grass, and every world is listed.
+- **Made by a script:** `scripts/generate-worlds.mjs` (seeded) writes each new world's Tiled
+  map, its tileset (the same 16 tiles in the world's colours: `scripts/lib/tileset.mjs`,
+  shared with the Startskoven script, takes a palette) and its sidecar, and finds spots on
+  Startskoven for its dock, tunnel mouth and bridge (writing only its sidecar's `links`). A
+  world's sidecar also has its `scene` (where battles there take place), its encounter
+  table and `look3d` (the 3D map's trees — pine, sakura, snowPine, deadPine — peaks — snow,
+  volcano — and sky/mist colours). Some monsters live only in a new world (the monster book
+  shows that world's icon).
+- **The world map** (`WorldMapScene`, from the globe button on the open overview map):
+  worlds as islands joined by dashed trails with a boat/tunnel/bridge on each, "?" for those
+  not visited yet (with the level they open at), my figure where I am and dots for the
+  family by world.
+- **Exploring counts:** travel events give XP (`xp.travel`, and `xp.newWorld` for a first
+  visit) and counters `travel`, `boat`/`tunnel`/`bridge`, `world:<id>` and `worlds` (worlds
+  discovered), with badges for them.
+- **Server:** every map is loaded (food grows in every world; disasters strike in any).
+  The weekly dragon stays on its own map (everyone can reach it). Beasts and caves turn up
+  in a world where someone is (a player, or the dragon's map), so they're met.
+- Each world's map and tileset are cached under their own keys (`area-map-<id>`,
+  `area-tileset-<id>`, the minimap `minimap-<id>`).
 
 ## Family dragon and scoreboard (protocol v4)
 
@@ -585,8 +619,9 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   `client/src/battle-participant.ts`; HP is untouched so health bars and saves stay right).
 - **Badges** (`shared/content/badges.json`): `{id, navn, icon, stat, min}` — earned when a
   counter reaches `min`. Counters: catch, caveCatch, caveVisit, cave:<kind>, wildWin, duel,
-  duelWin, trade, food, bossDamage, dragonWin, beast:<id>, plus "species" and "level". A
-  test checks the file only uses those.
+  duelWin, trade, food, bossDamage, dragonWin, beast:<id>, variant, travel, boat, tunnel,
+  bridge, worlds, world:<id>, plus "species" and "level". A test checks the file only uses
+  those.
 - **Pure rules** (tested) in `shared/src/player/progress.ts`: `award(progress, event)` →
   XP, counters, level-up and new badges; `levelForXp`, `titleFor`, `lookFor`,
   `monsterBonus`, `progressFromHistory` (a save from before levels gets credit for its

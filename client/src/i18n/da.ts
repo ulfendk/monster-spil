@@ -23,6 +23,8 @@ const strings = {
   battle_caught: "Du fangede den!",
   battle_appears: "dukker op!",
   camera_mode: "Træk for at dreje. Knib for at zoome.",
+  travel_welcome: "Velkommen til",
+  world_map: "Verden",
   battle_effective_strong: "Effektivt!",
   battle_effective_weak: "Ikke så effektivt...",
   lobby_offline: "Ingen forbindelse",

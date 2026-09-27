@@ -66,11 +66,10 @@ test("every monster has a cry", () => {
 test("every monster can be found somewhere (or is a starter or a reward)", () => {
   const json = (file: string) => JSON.parse(readFileSync(path.join(contentDir, file), "utf-8"));
   const ids = (list: Array<{ speciesId: string; weight?: number }> = []) => list.filter((e) => e.weight !== 0).map((e) => e.speciesId);
-  const meta = json("areas/startskoven.meta.json");
+  const metas = readdirSync(path.join(contentDir, "areas")).filter((f) => f.endsWith(".meta.json")).map((f) => json(`areas/${f}`));
   const found = new Set<string>([
     "flammepels", "dryppel", "lovgro", // the starters (client/src/scenes/StarterScene.ts)
-    ...ids(meta.encounterTable),
-    ...(meta.regions ?? []).flatMap((r: { encounterTable: [] }) => ids(r.encounterTable)),
+    ...metas.flatMap((meta) => [...ids(meta.encounterTable), ...(meta.regions ?? []).flatMap((r: { encounterTable: [] }) => ids(r.encounterTable))]),
     ...json("caves.json").kinds.flatMap((k: { species: [] }) => ids(k.species)),
     ...ids(json("minigames.json").dig.monsters),
     ...ids(json("minigames.json").dig.sandMonsters),

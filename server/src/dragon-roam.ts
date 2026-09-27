@@ -91,8 +91,8 @@ export class DragonRoam {
     if (raid.hp <= 0) return "dragen sover (til mandag)";
     if (this.host.busy()) return "busy";
     const from = this.host.lair();
-    const areas = this.host.areas.filter((a) => a.base);
-    // A random map to land on (only one today), then a random perch on it.
+    // It stays on its own map (where everyone can reach it, whatever their level): a random perch there.
+    const areas = this.host.areas.filter((a) => a.base && a.areaId === from.areaId);
     const order = [...areas].sort(() => this.host.rand() - 0.5);
     for (const area of order) {
       const to = chooseLair(area.base!, this.host.terrain(area.areaId), {

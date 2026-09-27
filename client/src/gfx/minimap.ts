@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { getLayout } from "../ui/layout";
 import { createButton, whenTapped } from "../ui/Button";
+import { ic } from "../ui/rich-text";
 import { C, FONT, KANAGAWA } from "../ui/theme";
 import { addIcon } from "./icon-art";
 
@@ -58,7 +59,9 @@ export class Minimap {
     private readonly ground: Phaser.Tilemaps.TilemapLayer,
     private readonly grass: Phaser.Tilemaps.TilemapLayer,
     private readonly ids: MinimapIds,
-    private readonly key: string
+    private readonly key: string,
+    /** Opens the world map (a globe button under ✗ on the open map). */
+    private readonly onWorld?: () => void
   ) {
     if (!scene.textures.exists(key)) this.bake();
   }
@@ -122,6 +125,13 @@ export class Minimap {
       backgroundColor: C.buttonQuiet,
     });
     this.objects = [backdrop, frame, this.image, this.dots, ...Object.values(markers), close];
+    if (this.onWorld) {
+      const world = createButton(this.scene, width - safe.right - size / 2 - 12, safe.top + size * 1.5 + 24, ic("globe"), () => {
+        this.close();
+        this.onWorld?.();
+      }, { width: size, height: size, fontSize: layout.font(30), backgroundColor: C.button });
+      this.objects.push(world);
+    }
     for (const o of this.objects) (o as Phaser.GameObjects.Image).setScrollFactor(0).setDepth(DEPTH);
   }
 

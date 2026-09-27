@@ -1,0 +1,8 @@
+{
+  "worlds": [
+    { "id": "startskoven", "navn": "Startskoven", "icon": "leaf", "x": 0.3, "y": 0.5, "minLevel": 1 },
+    { "id": "kirsebaeroeen", "navn": "Kirsebærøen", "icon": "blossom", "x": 0.72, "y": 0.28, "minLevel": 3 },
+    { "id": "snedalen", "navn": "Snedalen", "icon": "snowflake", "x": 0.72, "y": 0.74, "minLevel": 5 },
+    { "id": "ildbjerget", "navn": "Ildbjerget", "icon": "volcano", "x": 0.5, "y": 0.9, "minLevel": 8 }
+  ]
+}

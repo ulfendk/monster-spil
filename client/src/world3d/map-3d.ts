@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import * as THREE from "three";
 import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } from "./map-stage";
 import { mapHint } from "../gfx/map-hints";
+import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
 
 /**
@@ -26,6 +27,8 @@ export interface Map3DOptions {
   tileset: HTMLImageElement | HTMLCanvasElement;
   tileSize: number;
   ids: MapTileIds;
+  /** How this world looks in 3D (its trees, peaks and sky). */
+  look?: AreaLook3d;
   /** Where the camera follows (map pixels): the player. */
   focus: () => { x: number; y: number };
 }
@@ -86,6 +89,7 @@ export class Map3D {
         tileset: options.tileset,
         tilePx: options.tileSize,
         ids: options.ids,
+        look: options.look,
         tileAt: (x, y) => ({ ground: options.ground.getTileAt(x, y)?.index ?? 0, grass: options.grass.getTileAt(x, y)?.index ?? 0 }),
       });
     } catch (error) {

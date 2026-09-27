@@ -82,7 +82,12 @@ export class CaveOpenings {
     if (this.data.active.length > 0) return "der er allerede en åben grotte";
     const kind = kindId ? this.host.config.kinds.find((k) => k.id === kindId) : pickCaveKind(this.host.config, () => this.host.rand());
     if (!kind) return kindId ? "den slags grotte findes ikke" : "caves.json har ingen slags grotter";
-    const order = this.host.areas.filter((a) => a.base).sort(() => this.host.rand() - 0.5);
+    // A world where someone is (a player, the dragon) first, so caves open where they're found.
+    const lively = (areaId: string) => (this.host.occupied(areaId).length > 0 ? 0 : 1);
+    const order = this.host.areas
+      .filter((a) => a.base)
+      .sort(() => this.host.rand() - 0.5)
+      .sort((a, b) => lively(a.areaId) - lively(b.areaId));
     for (const area of order) {
       const spot = chooseCaveSpot(area.base!, this.host.terrain(area.areaId), { occupied: this.host.occupied(area.areaId), rand: () => this.host.rand() });
       if (!spot) continue;

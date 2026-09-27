@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import type { AreaLook3d } from "@shared";
 import { KANAGAWA } from "../ui/theme";
+
+/** A palette colour by name, or the fallback. */
+const colour = (name: string | undefined, fallback: number) => (name ? ((KANAGAWA as Record<string, number>)[name] ?? fallback) : fallback);
 
 /**
  * The overworld in 3D (three.js, loaded only when the map opens): the map seen from above
@@ -35,6 +39,8 @@ export interface MapSource {
   tileset: HTMLImageElement | HTMLCanvasElement;
   tilePx: number;
   ids: MapTileIds;
+  /** How this world looks: its trees (pines, cherry trees, snowy or dead pines), peaks and sky. */
+  look?: AreaLook3d;
   /** The ground tile id and whether tall grass grows there, right now (0 = none). */
   tileAt(x: number, y: number): { ground: number; grass: number };
 }
@@ -112,8 +118,9 @@ export class MapStage {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene.background = new THREE.Color(KANAGAWA.springBlue);
-    this.scene.fog = new THREE.Fog(KANAGAWA.springBlue, 30, 60);
+    const look = source.look ?? {};
+    this.scene.background = new THREE.Color(colour(look.sky, KANAGAWA.springBlue));
+    this.scene.fog = new THREE.Fog(colour(look.fog, colour(look.sky, KANAGAWA.springBlue)), 30, 60);
     // (lookAt moves the fog with the camera's distance.)
     this.scene.add(new THREE.HemisphereLight(KANAGAWA.fujiWhite, KANAGAWA.autumnGreen, 1.7));
     const sun = new THREE.DirectionalLight(KANAGAWA.fujiWhite, 1.5);
@@ -125,8 +132,8 @@ export class MapStage {
     this.groundMaterial = this.makeGroundMaterial();
     this.modelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
     this.grassMaterial = this.makeGrassMaterial();
-    this.pineGeometry = MapStage.pine();
-    this.peakGeometry = MapStage.peak();
+    this.pineGeometry = MapStage.tree(look.tree ?? "pine");
+    this.peakGeometry = MapStage.peak(look.peak ?? "snow");
     this.tuftGeometry = MapStage.tuft();
 
     // Beyond the map's edge: forest floor, so the view never ends in empty sky.
@@ -437,13 +444,39 @@ export class MapStage {
     return g;
   }
 
-  /** A Japanese pine: a crooked trunk under three flat, layered canopies (like the tile art). */
-  private static pine(): THREE.BufferGeometry {
+  /**
+   * A tree, as the world has them: a Japanese pine (a crooked trunk under three flat, layered
+   * canopies, like the tile art), a pine with snow on it, a cherry tree in bloom, or a bare,
+   * burnt pine.
+   */
+  private static tree(kind: NonNullable<AreaLook3d["tree"]>): THREE.BufferGeometry {
     const parts: THREE.BufferGeometry[] = [];
     const trunk = new THREE.CylinderGeometry(0.06, 0.11, 1.0, 5);
     trunk.rotateZ(0.12);
     trunk.translate(0.03, 0.5, 0);
-    parts.push(MapStage.coloured(trunk, KANAGAWA.sumiInk5));
+    parts.push(MapStage.coloured(trunk, kind === "deadPine" ? KANAGAWA.sumiInk3 : KANAGAWA.sumiInk5));
+    if (kind === "sakura") {
+      const pink = KANAGAWA.sakuraPink;
+      const pale = new THREE.Color(KANAGAWA.sakuraPink).lerp(new THREE.Color(KANAGAWA.washi), 0.4).getHex();
+      for (const [r, x, y, z, c] of [[0.42, -0.2, 0.95, 0.05, pink], [0.4, 0.22, 1.05, -0.1, pale], [0.36, 0, 1.3, 0.12, pink], [0.3, 0.05, 0.95, -0.28, pale]] as const) {
+        const puff = new THREE.SphereGeometry(r, 8, 5);
+        puff.translate(x, y, z);
+        parts.push(MapStage.coloured(puff, c));
+      }
+      return mergeGeometries(parts)!;
+    }
+    if (kind === "deadPine") {
+      // Bare branches, burnt black.
+      for (const [len, y, turn, tilt] of [[0.5, 0.7, 0.3, 1.0], [0.4, 0.85, 2.4, 1.1], [0.35, 1.0, 4.2, 0.9]] as const) {
+        const branch = new THREE.CylinderGeometry(0.02, 0.035, len, 4);
+        branch.translate(0, len / 2, 0);
+        branch.rotateZ(tilt);
+        branch.rotateY(turn);
+        branch.translate(0.03, y, 0);
+        parts.push(MapStage.coloured(branch, KANAGAWA.sumiInk3));
+      }
+      return mergeGeometries(parts)!;
+    }
     const dark = KANAGAWA.winterGreen;
     const light = new THREE.Color(KANAGAWA.winterGreen).lerp(new THREE.Color(KANAGAWA.autumnGreen), 0.35).getHex();
     const layers: Array<[number, number, number, number]> = [
@@ -451,24 +484,31 @@ export class MapStage {
       [0.44, 1.02, 0.08, light],
       [0.3, 1.3, 0.02, light],
     ];
-    for (const [r, y, dx, colour] of layers) {
+    for (const [r, y, dx, c] of layers) {
       const canopy = new THREE.SphereGeometry(r, 9, 5);
       canopy.scale(1, 0.36, 1);
       canopy.translate(dx, y, 0);
-      parts.push(MapStage.coloured(canopy, colour));
+      parts.push(MapStage.coloured(canopy, c));
+      if (kind === "snowPine") {
+        const cap = new THREE.SphereGeometry(r * 0.9, 9, 4, 0, Math.PI * 2, 0, Math.PI / 2.5);
+        cap.scale(1, 0.34, 1);
+        cap.translate(dx, y + r * 0.08, 0);
+        parts.push(MapStage.coloured(cap, KANAGAWA.washi));
+      }
     }
     return mergeGeometries(parts)!;
   }
 
-  /** A mountain peak: a steep, five-sided cone of blue-grey rock with a snow cap. */
-  private static peak(): THREE.BufferGeometry {
+  /** A mountain peak: a steep, five-sided cone of blue-grey rock with a snow cap — or dark rock glowing at the top. */
+  private static peak(kind: NonNullable<AreaLook3d["peak"]>): THREE.BufferGeometry {
     const height = 1.9;
     const rock = new THREE.ConeGeometry(0.78, height, 5);
     rock.translate(0, height / 2, 0);
     const capH = 0.62;
     const cap = new THREE.ConeGeometry((0.78 * capH) / height + 0.02, capH, 5);
     cap.translate(0, height - capH / 2 + 0.01, 0);
-    return mergeGeometries([MapStage.coloured(rock, KANAGAWA.sumiInk6), MapStage.coloured(cap, KANAGAWA.fujiWhite)])!;
+    const volcano = kind === "volcano";
+    return mergeGeometries([MapStage.coloured(rock, volcano ? KANAGAWA.sumiInk4 : KANAGAWA.sumiInk6), MapStage.coloured(cap, volcano ? KANAGAWA.surimiOrange : KANAGAWA.fujiWhite)])!;
   }
 
   /** A tuft of susuki: pale stems leaning every way, each with a feathery plume. */

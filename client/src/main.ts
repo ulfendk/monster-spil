@@ -16,6 +16,7 @@ import { CaveScene } from "./scenes/CaveScene";
 import { MovedScene } from "./scenes/MovedScene";
 import { ProfileScene } from "./scenes/ProfileScene";
 import { CatchScene } from "./scenes/CatchScene";
+import { WorldMapScene } from "./scenes/WorldMapScene";
 import { ChopGame } from "./scenes/minigames/ChopGame";
 import { ClimbGame } from "./scenes/minigames/ClimbGame";
 import { SwimGame } from "./scenes/minigames/SwimGame";
@@ -40,7 +41,7 @@ const game = new Phaser.Game({
   dom: {
     createContainer: true,
   },
-  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene, CaveScene, MovedScene, ProfileScene, CatchScene, ChopGame, ClimbGame, SwimGame, DigGame],
+  scene: [BootScene, PreloadScene, GamesScene, SetupScene, RestoreScene, StarterScene, OverworldScene, BattleScene, MonsterbogScene, MonsterInfoScene, InteractScene, SettingsScene, ScoreboardScene, CaveScene, MovedScene, ProfileScene, CatchScene, WorldMapScene, ChopGame, ClimbGame, SwimGame, DigGame],
 });
 
 // Development only: lets automated checks drive scenes (e.g. at iPhone sizes) without guessing tap positions.

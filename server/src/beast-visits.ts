@@ -141,7 +141,9 @@ export class BeastVisits {
   /** Finds a place and brings the beast on. Returns why not, or undefined. */
   private appear(def: BeastDefinition, now: Date): string | undefined {
     const areas = this.host.areas.filter((a) => a.base);
-    const order = [...areas].sort(() => this.host.rand() - 0.5);
+    // A world where someone is (a player, the dragon) first, so beasts turn up where they're met.
+    const lively = (areaId: string) => (this.host.occupied(areaId).length > 0 ? 0 : 1);
+    const order = [...areas].sort(() => this.host.rand() - 0.5).sort((a, b) => lively(a.areaId) - lively(b.areaId));
     for (const area of order) {
       const others = this.data.active.filter((b) => b.areaId === area.areaId);
       const spot = chooseBeastSpot(area.base!, this.host.terrain(area.areaId), def.habitat, {

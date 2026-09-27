@@ -1,0 +1,136 @@
+{
+  "id": "kirsebaeroeen",
+  "tiledMapPath": "areas/kirsebaeroeen.json",
+  "tilesetImagePath": "areas/kirsebaeroeen-tileset.png",
+  "encounterZoneLayer": "graes",
+  "collisionLayer": "bund",
+  "collisionGids": [
+    2,
+    4,
+    6,
+    10,
+    11,
+    13
+  ],
+  "encounterTable": [
+    {
+      "speciesId": "blomsterbasse",
+      "weight": 3
+    },
+    {
+      "speciesId": "aakandefroe",
+      "weight": 3
+    },
+    {
+      "speciesId": "svanefjer",
+      "weight": 2
+    },
+    {
+      "speciesId": "perlemusling",
+      "weight": 2
+    },
+    {
+      "speciesId": "kloeverhop",
+      "weight": 2
+    },
+    {
+      "speciesId": "mosmus",
+      "weight": 2
+    },
+    {
+      "speciesId": "taagefisk",
+      "weight": 2
+    },
+    {
+      "speciesId": "svampenisse",
+      "weight": 1
+    }
+  ],
+  "encounterRate": 0.1,
+  "playerStart": {
+    "x": 7,
+    "y": 24
+  },
+  "scene": "kirsebaer",
+  "look3d": {
+    "tree": "sakura",
+    "sky": "springBlue",
+    "fog": "sakuraPink"
+  },
+  "links": [
+    {
+      "id": "baad-startskoven",
+      "kind": "boat",
+      "x": 7,
+      "y": 24,
+      "to": {
+        "areaId": "startskoven",
+        "link": "baad-kirsebaeroeen"
+      }
+    },
+    {
+      "id": "baad-snedalen",
+      "kind": "boat",
+      "x": 32,
+      "y": 41,
+      "to": {
+        "areaId": "snedalen",
+        "link": "baad-kirsebaeroeen"
+      }
+    }
+  ],
+  "terrain": {
+    "ground": 1,
+    "tree": 2,
+    "grass": 3,
+    "water": 4,
+    "path": 5,
+    "mountain": 6,
+    "burnt": 7,
+    "crater": 8,
+    "flood": 9,
+    "log": 10,
+    "crack": 11,
+    "rubble": 12,
+    "wreck": 13,
+    "sand": 14,
+    "stump": 15,
+    "hole": 16
+  },
+  "minimap": {
+    "tree": [
+      2,
+      10
+    ],
+    "water": [
+      4
+    ],
+    "path": [
+      5
+    ],
+    "mountain": [
+      6,
+      11,
+      13
+    ],
+    "burnt": [
+      7
+    ],
+    "crater": [
+      8,
+      12
+    ],
+    "flood": [
+      9
+    ],
+    "sand": [
+      14
+    ],
+    "hole": [
+      16
+    ],
+    "stump": [
+      15
+    ]
+  }
+}

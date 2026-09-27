@@ -1,0 +1,137 @@
+{
+  "id": "ildbjerget",
+  "tiledMapPath": "areas/ildbjerget.json",
+  "tilesetImagePath": "areas/ildbjerget-tileset.png",
+  "encounterZoneLayer": "graes",
+  "collisionLayer": "bund",
+  "collisionGids": [
+    2,
+    4,
+    6,
+    10,
+    11,
+    13
+  ],
+  "encounterTable": [
+    {
+      "speciesId": "magmamus",
+      "weight": 3
+    },
+    {
+      "speciesId": "dampskjold",
+      "weight": 2
+    },
+    {
+      "speciesId": "gloedsalamander",
+      "weight": 2
+    },
+    {
+      "speciesId": "gloedskorpion",
+      "weight": 2
+    },
+    {
+      "speciesId": "gnistflue",
+      "weight": 2
+    },
+    {
+      "speciesId": "lavasnegl",
+      "weight": 1
+    },
+    {
+      "speciesId": "stoevtrold",
+      "weight": 1
+    },
+    {
+      "speciesId": "kulsnude",
+      "weight": 1
+    }
+  ],
+  "encounterRate": 0.1,
+  "playerStart": {
+    "x": 6,
+    "y": 24
+  },
+  "scene": "vulkan",
+  "look3d": {
+    "tree": "deadPine",
+    "peak": "volcano",
+    "sky": "sumiInk5",
+    "fog": "sumiInk4"
+  },
+  "links": [
+    {
+      "id": "bro-startskoven",
+      "kind": "bridge",
+      "x": 6,
+      "y": 24,
+      "to": {
+        "areaId": "startskoven",
+        "link": "bro-ildbjerget"
+      }
+    },
+    {
+      "id": "tunnel-snedalen",
+      "kind": "tunnel",
+      "x": 33,
+      "y": 41,
+      "to": {
+        "areaId": "snedalen",
+        "link": "tunnel-ildbjerget"
+      }
+    }
+  ],
+  "terrain": {
+    "ground": 1,
+    "tree": 2,
+    "grass": 3,
+    "water": 4,
+    "path": 5,
+    "mountain": 6,
+    "burnt": 7,
+    "crater": 8,
+    "flood": 9,
+    "log": 10,
+    "crack": 11,
+    "rubble": 12,
+    "wreck": 13,
+    "sand": 14,
+    "stump": 15,
+    "hole": 16
+  },
+  "minimap": {
+    "tree": [
+      2,
+      10
+    ],
+    "water": [
+      4
+    ],
+    "path": [
+      5
+    ],
+    "mountain": [
+      6,
+      11,
+      13
+    ],
+    "burnt": [
+      7
+    ],
+    "crater": [
+      8,
+      12
+    ],
+    "flood": [
+      9
+    ],
+    "sand": [
+      14
+    ],
+    "hole": [
+      16
+    ],
+    "stump": [
+      15
+    ]
+  }
+}

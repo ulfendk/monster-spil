@@ -547,6 +547,70 @@ const ART: Record<string, (g: G) => void> = {
     ellipse(g, 64, 62, 116, 32, K.oldWhite);
     for (const x of [28, 64, 100]) circle(g, x, 64, 6, x === 64 ? K.springGreen : K.autumnRed, 4);
   },
+  boat: (g) => {
+    // A little wooden row boat on a wave, an oar resting across it.
+    shape(g, [{ x: 12, y: 64 }, { x: 116, y: 64 }, { x: 98, y: 92 }, { x: 30, y: 92 }], K.boatYellow1);
+    g.fillStyle(K.boatYellow2, 1).fillRect(20, 66, 88, 8);
+    stroke(g, 30, 50, 100, 80, K.boatYellow2, 6);
+    g.fillStyle(K.crystalBlue, 1).fillRect(6, 98, 116, 10);
+    arcLine(g, 26, 104, 10, Math.PI, Math.PI * 2, K.fujiWhite, 4);
+    arcLine(g, 64, 104, 10, Math.PI, Math.PI * 2, K.fujiWhite, 4);
+    arcLine(g, 102, 104, 10, Math.PI, Math.PI * 2, K.fujiWhite, 4);
+  },
+  tunnel: (g) => {
+    // A dark arch in a rock face, with a wooden frame.
+    shape(g, [{ x: 8, y: 116 }, { x: 30, y: 30 }, { x: 64, y: 10 }, { x: 98, y: 30 }, { x: 120, y: 116 }], K.sumiInk6);
+    g.fillStyle(INK, 1).fillRoundedRect(38, 50, 52, 66, { tl: 26, tr: 26, bl: 0, br: 0 });
+    stroke(g, 38, 116, 38, 56, K.boatYellow1, 6);
+    stroke(g, 90, 116, 90, 56, K.boatYellow1, 6);
+    stroke(g, 36, 54, 92, 54, K.boatYellow1, 6);
+  },
+  bridge: (g) => {
+    // A red arched bridge over water.
+    g.fillStyle(K.crystalBlue, 1).fillRect(6, 92, 116, 22);
+    arcLine(g, 64, 118, 56, Math.PI * 1.08, Math.PI * 1.92, INK, 22);
+    arcLine(g, 64, 118, 56, Math.PI * 1.08, Math.PI * 1.92, K.autumnRed, 14);
+    for (const x of [24, 44, 64, 84, 104]) stroke(g, x, x === 64 ? 58 : x === 44 || x === 84 ? 64 : 80, x, x === 64 ? 38 : x === 44 || x === 84 ? 44 : 62, K.autumnRed, 5);
+    arcLine(g, 64, 98, 56, Math.PI * 1.08, Math.PI * 1.92, K.autumnRed, 6);
+  },
+  globe: (g) => {
+    // The world: a round sea with three islands.
+    circle(g, 64, 64, 52, K.crystalBlue);
+    ellipse(g, 44, 50, 34, 22, K.springGreen, 5);
+    ellipse(g, 84, 44, 18, 14, K.sakuraPink, 5);
+    ellipse(g, 76, 86, 30, 18, K.washi, 5);
+  },
+  blossom: (g) => {
+    // A cherry blossom: five pink petals round a golden heart.
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      circle(g, 64 + Math.cos(a) * 28, 64 + Math.sin(a) * 28, 22, K.sakuraPink, 5);
+    }
+    circle(g, 64, 64, 12, K.carpYellow, 5);
+  },
+  snowflake: (g) => {
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI;
+      const dx = Math.cos(a) * 48;
+      const dy = Math.sin(a) * 48;
+      stroke(g, 64 - dx, 64 - dy, 64 + dx, 64 + dy, K.springBlue, 8);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const x = 64 + Math.cos(a) * 32;
+      const y = 64 + Math.sin(a) * 32;
+      line(g, x, y, x + Math.cos(a + 0.8) * 14, y + Math.sin(a + 0.8) * 14, K.springBlue, 5);
+      line(g, x, y, x + Math.cos(a - 0.8) * 14, y + Math.sin(a - 0.8) * 14, K.springBlue, 5);
+    }
+    circle(g, 64, 64, 9, K.washi, 4);
+  },
+  volcano: (g) => {
+    // A dark mountain with glowing lava running down and smoke above.
+    shape(g, [{ x: 8, y: 116 }, { x: 48, y: 44 }, { x: 80, y: 44 }, { x: 120, y: 116 }], K.sumiInk5);
+    shape(g, [{ x: 50, y: 46 }, { x: 78, y: 46 }, { x: 70, y: 66 }, { x: 74, y: 90 }, { x: 62, y: 70 }, { x: 56, y: 60 }], K.surimiOrange, 4);
+    circle(g, 58, 26, 12, K.katanaGray, 4);
+    circle(g, 74, 18, 10, K.fujiGray, 4);
+  },
   camera: (g) => {
     // An old box camera: a dark body, a big blue lens, a red button on top.
     rrect(g, 46, 18, 26, 16, 5, K.sumiInk6, 5);

@@ -1,7 +1,7 @@
 export type { TypeId, StatBlock, CreatureSpecies, CreatureInstance } from "./types/creature.js";
 export type { Move } from "./types/move.js";
 export { TYPE_ADVANTAGE, getMultiplier } from "./types/type-chart.js";
-export type { EncounterTableEntry, EncounterRegion, AreaMeta } from "./types/area.js";
+export type { EncounterTableEntry, EncounterRegion, AreaMeta, AreaLink, AreaLook3d, LinkKind } from "./types/area.js";
 export type { BattleMode, BattleParticipant, BattleState, BattleAction, BattleLogEntry } from "./types/battle.js";
 export { indexCreatures, indexMoves, validateContent } from "./content/content-loader.js";
 export type { Rng } from "./battle/rng.js";
@@ -185,3 +185,5 @@ export { isVariantId, rollVariant, variantById, variantName } from "./creature/v
 export type { VariantConfig, VariantDef, VariantLook } from "./creature/variants.js";
 export { SCENE_DECOR, SCENE_PARTICLES, sceneAt } from "./world/scenes.js";
 export type { SceneConfig, SceneDecor, SceneKind, SceneLook, SceneParticles } from "./world/scenes.js";
+export { canEnterWorld, linkAt, linkTarget, worldById } from "./world/worlds.js";
+export type { WorldConfig, WorldDef } from "./world/worlds.js";
