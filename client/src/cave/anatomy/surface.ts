@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { FormPattern } from "@shared";
 import { KANAGAWA } from "../../ui/theme";
-import { INK, S, shade } from "../monster-model";
+import { type Builder, INK, S, shade } from "../monster-model";
 import { has, type Ctx } from "./context";
 import { Ell, Q, V, band, decal, halo, mix, seeded, smallSphere, sphereGeo, spike, tube } from "./kit";
 
@@ -132,11 +132,11 @@ export function pattern(ctx: Ctx, e: Ell, kind: FormPattern, face?: Ell): void {
  * Little things drifting about it, looping for ever: sparks, bubbles, embers, spores, steam,
  * dust, raindrops, mist. Each drifts along its own path and shrinks away before it starts over.
  */
-function drift(ctx: Ctx, count: number, make: (i: number) => THREE.Object3D, move: (o: THREE.Object3D, k: number, i: number) => void, period = 2): void {
+function drift(ticks: Array<(t: number) => void>, count: number, make: (i: number) => THREE.Object3D, move: (o: THREE.Object3D, k: number, i: number) => void, period = 2): void {
   const items = Array.from({ length: count }, (_, i) => make(i));
   for (const o of items) o.userData.noFit = true;
   for (const [i, o] of items.entries()) move(o, i / count, i);
-  ctx.ticks.push((t) => items.forEach((o, i) => move(o, (t / period + i / count) % 1, i)));
+  ticks.push((t) => items.forEach((o, i) => move(o, (t / period + i / count) % 1, i)));
 }
 
 /** The extras that go on any body: whiskers, antennae, a lantern, a beard, drifting things, moss… */
@@ -235,10 +235,20 @@ export function extras(ctx: Ctx, body: Ell, head: Ell): void {
     if (ctx.form.body !== "bug" && ctx.form.body !== "worm") ctx.ticks.push(halo(b, body.centre, body.rx * 1.2, body.ry * 1.2, body.rz * 1.2, ctx.accent));
   }
 
-  // ---- drifting things
-  if (has(ctx, "sparks")) {
+  particles(b, ctx.form.extras ?? [], body, ctx.ticks);
+}
+
+/**
+ * Little things drifting about a body (px ellipsoid, in the model's own box), looping for ever:
+ * sparks, embers, spores, bubbles, steam, dust, mist, raindrops — whichever `kinds` names. For
+ * the game's own monsters (`extras`) and sculpted ones alike (blender-model.ts).
+ */
+export function particles(b: Builder, kinds: readonly string[], body: { x: number; y: number; z: number; rx: number; ry: number; rz: number }, ticks: Array<(t: number) => void>): void {
+  const has = (kind: string) => kinds.includes(kind);
+  const top = body.y + body.ry;
+  if (has("sparks")) {
     drift(
-      ctx,
+      ticks,
       5,
       () => {
         const g = new THREE.Group();
@@ -258,7 +268,7 @@ export function extras(ctx: Ctx, body: Ell, head: Ell): void {
   }
   const rising = (colour: number, n: number, size: number, speed: number, opacity: number, spread = 1) =>
     drift(
-      ctx,
+      ticks,
       n,
       () => b.flat(smallSphere(), colour, new THREE.Vector3(), V(size, size, size), opacity),
       (o, k, i) => {
@@ -269,11 +279,11 @@ export function extras(ctx: Ctx, body: Ell, head: Ell): void {
       },
       speed,
     );
-  if (has(ctx, "embers")) rising(K.surimiOrange, 6, 3, 2.2, 1);
-  if (has(ctx, "spores")) rising(mix(K.carpYellow, K.washi, 0.5), 7, 3, 3.4, 0.9, 1.3);
-  if (has(ctx, "bubbles")) {
+  if (has("embers")) rising(K.surimiOrange, 6, 3, 2.2, 1);
+  if (has("spores")) rising(mix(K.carpYellow, K.washi, 0.5), 7, 3, 3.4, 0.9, 1.3);
+  if (has("bubbles")) {
     drift(
-      ctx,
+      ticks,
       5,
       () => {
         const g = new THREE.Group();
@@ -290,11 +300,11 @@ export function extras(ctx: Ctx, body: Ell, head: Ell): void {
       2.6,
     );
   }
-  if (has(ctx, "steam") || has(ctx, "dust") || has(ctx, "mist")) {
-    const colour = has(ctx, "dust") ? mix(K.boatYellow2, K.washi, 0.4) : K.washi;
-    const low = has(ctx, "mist") || has(ctx, "dust");
+  if (has("steam") || has("dust") || has("mist")) {
+    const colour = has("dust") ? mix(K.boatYellow2, K.washi, 0.4) : K.washi;
+    const low = has("mist") || has("dust");
     drift(
-      ctx,
+      ticks,
       6,
       () => b.flat(smallSphere(), colour, new THREE.Vector3(), 1, low ? 0.45 : 0.6),
       (o, k, i) => {
@@ -307,9 +317,9 @@ export function extras(ctx: Ctx, body: Ell, head: Ell): void {
       low ? 3.5 : 2.4,
     );
   }
-  if (has(ctx, "raindrops")) {
+  if (has("raindrops")) {
     drift(
-      ctx,
+      ticks,
       6,
       () => {
         const d = b.flat(new THREE.ConeGeometry(0.5, 1.6, 8), K.springBlue, new THREE.Vector3(), 1, 0.9);

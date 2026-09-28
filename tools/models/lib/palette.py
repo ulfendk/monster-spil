@@ -3,7 +3,14 @@ import colorsys
 
 K = {
     "sumiInk0": 0x16161D,
+    "sumiInk3": 0x1F1F28,
     "sumiInk4": 0x2A2A37,
+    "sumiInk5": 0x363646,
+    "sumiInk6": 0x54546D,
+    "waveBlue1": 0x223249,
+    "waveBlue2": 0x2D4F67,
+    "winterGreen": 0x2B3328,
+    "waveAqua2": 0x7AA89F,
     "fujiWhite": 0xDCD7BA,
     "oldWhite": 0xC8C093,
     "fujiGray": 0x727169,

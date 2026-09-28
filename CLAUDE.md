@@ -188,8 +188,8 @@ game-drawn models.
   (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
   sides and back, wings glowing red to orange to yellow, and an orange tail.
 - **Monsters sculpted in Blender** (Drageunge, Flammeskæl — after its drawing, replacing the
-  hand-made model, which stays as the fallback — and the starters Flammepels, Dryppel, Løvgro so
-  far; the rest one at a time, the kids' favourites first — an automatic conversion of the
+  hand-made model, which stays as the fallback — the starters Flammepels, Dryppel, Løvgro and
+  every fire monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
   `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
   their colours). `tools/models/monsters/<id>.py`
   sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
@@ -213,8 +213,12 @@ game-drawn models.
   themselves (`flap`, `flapRate` on the top node), `fit: 0` for one sized by hand,
   the model's `gait`/`hips`/`view` on its top node, a `MountRig` from the pivots (legs
   `foot_L`/`foot_R`, or `foot_0`… — four legs front left, front right, back right, back left),
-  and it's fitted to the picture's box like the game's own monsters. Eyes, mouths, cheeks,
-  flames, the chest mark and the crown are shared (`lib/features.py`). Compare a sculpt with
+  `hover` (floating, bobbing), what drifts about it (its species' `form` extras — embers, steam
+  … — through the anatomy's `particles`, or the top node's own `particles`), and it's fitted to
+  the picture's box like the game's own monsters (up to 2.5×). Eyes (kawaii, fierce, sleepy,
+  glow, dot), mouths (smile, cat, wide, grin, tusks, none), cheeks, flames, the chest mark and
+  the crown are shared (`lib/features.py`), and so are legs (four from the hip, a bird's),
+  feet, arms, feathered wings and lava cracks (`lib/parts.py`). Compare a sculpt with
   how the game drew it before: `(await import("/src/dev/model-compare.ts")).compare([id])` in
   a dev build. (The dev server only sees a new `.glb` after `load-assets.ts` is touched.)
   No TypeScript for a new one.

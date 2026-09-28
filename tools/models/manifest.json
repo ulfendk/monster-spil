@@ -1,37 +1,121 @@
 {
   "drageunge": {
-    "hash": "12b807b2573e",
+    "hash": "25d7b83ef21a",
     "file": "drageunge.glb",
     "tris": 12558,
     "parts": 24,
     "bytes": 111956
   },
   "flammepels": {
-    "hash": "3aeecad7b82f",
+    "hash": "e6652605f1e5",
     "file": "flammepels.glb",
-    "tris": 17955,
+    "tris": 18015,
     "parts": 28,
-    "bytes": 147980
+    "bytes": 148192
   },
   "dryppel": {
-    "hash": "0cf9ad3bd4a4",
+    "hash": "082f0a7f7111",
     "file": "dryppel.glb",
-    "tris": 9960,
+    "tris": 10020,
     "parts": 17,
-    "bytes": 81820
+    "bytes": 82084
   },
   "lovgro": {
-    "hash": "42a8264cc788",
+    "hash": "5b334c360674",
     "file": "lovgro.glb",
-    "tris": 11957,
+    "tris": 12017,
     "parts": 21,
-    "bytes": 96900
+    "bytes": 97148
   },
   "ildflagrer": {
-    "hash": "a6163122c00a",
+    "hash": "3b11d836eba7",
     "file": "ildflagrer.glb",
     "tris": 19299,
     "parts": 33,
     "bytes": 175100
+  },
+  "gloedklump": {
+    "hash": "3d9eae09240a",
+    "file": "gloedklump.glb",
+    "tris": 9516,
+    "parts": 13,
+    "bytes": 71504
+  },
+  "kulsnude": {
+    "hash": "e349671a4309",
+    "file": "kulsnude.glb",
+    "tris": 10918,
+    "parts": 17,
+    "bytes": 88064
+  },
+  "lavasnegl": {
+    "hash": "0e1d17265b52",
+    "file": "lavasnegl.glb",
+    "tris": 9936,
+    "parts": 12,
+    "bytes": 76760
+  },
+  "magmamus": {
+    "hash": "11b1dbf19df1",
+    "file": "magmamus.glb",
+    "tris": 11217,
+    "parts": 20,
+    "bytes": 95152
+  },
+  "dampskjold": {
+    "hash": "3c3fe07043f3",
+    "file": "dampskjold.glb",
+    "tris": 10119,
+    "parts": 18,
+    "bytes": 84384
+  },
+  "gloedgemse": {
+    "hash": "538b787a33dd",
+    "file": "gloedgemse.glb",
+    "tris": 10519,
+    "parts": 20,
+    "bytes": 91396
+  },
+  "gloedsalamander": {
+    "hash": "773ab94e034c",
+    "file": "gloedsalamander.glb",
+    "tris": 11418,
+    "parts": 19,
+    "bytes": 96080
+  },
+  "gloedskorpion": {
+    "hash": "0563b7e6e459",
+    "file": "gloedskorpion.glb",
+    "tris": 10720,
+    "parts": 19,
+    "bytes": 90860
+  },
+  "askefugl": {
+    "hash": "ed437789e2aa",
+    "file": "askefugl.glb",
+    "tris": 10520,
+    "parts": 20,
+    "bytes": 91584
+  },
+  "halmhane": {
+    "hash": "c093de9befa8",
+    "file": "halmhane.glb",
+    "tris": 11216,
+    "parts": 19,
+    "bytes": 94712
+  },
+  "lygtemand": {
+    "hash": "90fe2618b24d",
+    "file": "lygtemand.glb",
+    "tris": 8819,
+    "parts": 13,
+    "bytes": 73180
+  },
+  "solpip": {
+    "hash": "b94ee5ccca5d",
+    "file": "solpip.glb",
+    "tris": 11119,
+    "parts": 17,
+    "bytes": 90388
   }
 }

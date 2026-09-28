@@ -3,6 +3,7 @@ import type { CreatureSpecies } from "@shared";
 import { variantColour } from "../gfx/variants";
 import type { Gait } from "../world3d/mount-gaits";
 import { Builder, S, monsterMaterial, shade, type Built, type MountRig } from "./monster-model";
+import { particles } from "./anatomy/surface";
 
 /**
  * A monster sculpted in Blender (tools/models; loaded by glb-models.ts), made into a monster
@@ -13,8 +14,9 @@ import { Builder, S, monsterMaterial, shade, type Built, type MountRig } from ".
  * pivots' `stageScale`, `flicker` (a flame, flickering about its base) and `sway` (a leaf,
  * swaying about its stem) and `ridden` (0: only when nobody rides it, 1: only when ridden),
  * a `seat_ride` for a rider if it isn't `seat`, the model's own `gait`, `hips`, `view` and
- * `flap` (how far its wings beat by themselves, `flapRate` how fast) and `fit` (0: not fitted
- * to the picture's box), and vertex colours — the
+ * `flap` (how far its wings beat by themselves, `flapRate` how fast), `fit` (0: not fitted
+ * to the picture's box), `hover` (1: it floats, bobbing) and `particles` (what drifts about it, instead of its species' `form`
+ * extras: embers, steam…), and vertex colours — the
  * palette colour in RGB, baked shade in alpha.
  */
 export function blenderBuilt(b: Builder, source: THREE.Object3D, species: CreatureSpecies, stage: number, variant: string | undefined, pose?: "ride"): Built {
@@ -33,7 +35,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     if (o.userData.sway) leaves.push({ o, rest: o.rotation.clone(), k: o.userData.sway as number });
   });
   // (The model's own settings sit on its top node.)
-  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number };
+  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number; particles?: string; hover?: number };
   const ridden = pose === "ride";
   root.traverse((o) => {
     if (o.userData.ridden !== undefined && Boolean(o.userData.ridden) !== ridden) o.visible = false;
@@ -47,7 +49,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     const toon = ud.role !== "flat";
     const geometry = mesh.geometry.clone();
     b.geometries.push(geometry);
-    colourVertices(geometry, (hex) => (toon ? variantColour(ud.stageShade ? shade(hex, -7 * (stage - 1)) : hex, variant) : hex));
+    colourVertices(geometry, (hex) => (toon ? variantColour(ud.stageShade ? shade(hex, -6 * (stage - 1)) : hex, variant) : hex));
     mesh.geometry = geometry;
     if (toon) {
       const material = b.keep(monsterMaterial(0xffffff));
@@ -86,6 +88,16 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   // (`fit: 0`: sized by hand, as drawn — wings reaching past the box.)
   if (own.fit !== 0) fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128);
   b.root.updateMatrixWorld(true);
+  // Embers, steam, sparks… drifting about it: its species' `form` extras (or the model's own list).
+  const ticks: Array<(t: number) => void> = [];
+  const drifting = own.particles?.split(",") ?? species.form?.extras ?? [];
+  const bodyMesh = (root.getObjectByName("body_mesh") as THREE.Mesh | undefined) ?? meshes[0];
+  if (drifting.length && bodyMesh) {
+    const box = new THREE.Box3().setFromObject(bodyMesh);
+    const c = box.getCenter(new THREE.Vector3()).divideScalar(S);
+    const r = box.getSize(new THREE.Vector3()).divideScalar(2 * S);
+    particles(b, drifting, { x: c.x, y: c.y, z: c.z, rx: r.x, ry: r.y, rz: r.z }, ticks);
+  }
   const seatNode = (ridden ? root.getObjectByName("seat_ride") : undefined) ?? root.getObjectByName("seat");
   const seat = seatNode ? b.root.worldToLocal(seatNode.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(0, 0.3, 0);
 
@@ -100,7 +112,12 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   const gait = own.gait ?? (ride ? ((ride === true ? "waddle" : ride) as Gait) : undefined);
   const wings = rig?.wings ?? [];
   const flap = own.flap ?? 0.12;
-  const moving = flames.length + leaves.length + wings.length > 0;
+  // Floating: bobbing gently up and down (as the game's own spirits do).
+  if (own.hover) {
+    const y = root.position.y;
+    ticks.push((t) => (root.position.y = y + Math.sin(t * 2) * 2.5 * S));
+  }
+  const moving = flames.length + leaves.length + wings.length + ticks.length > 0;
   return {
     face: setFace,
     seat,
@@ -121,6 +138,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
               const beat = Math.sin(t * (own.flapRate ?? 3)) * flap;
               w.pivot.rotation.set(w.rest.x, w.rest.y + w.side * beat, w.rest.z + w.side * beat * 0.4);
             }
+            for (const f of ticks) f(t);
             leaves.forEach(({ o, rest, k }, i) => o.rotation.set(rest.x + Math.sin(t * 1.3 + i * 2.1) * 0.06 * k, rest.y, rest.z + Math.sin(t * 1.7 + i) * 0.1 * k));
           },
         }
@@ -143,7 +161,8 @@ function fit(root: THREE.Object3D, ground: number): void {
   });
   if (box.isEmpty()) return;
   const size = box.getSize(new THREE.Vector3());
-  const k = Math.max(0.6, Math.min(0.9 / size.x, (0.5 - 0.03 - ground) / Math.max(0.05, box.max.y - ground), 1.5));
+  // (Up to 2.5×: a sculpt may be drawn smaller than the box.)
+  const k = Math.max(0.6, Math.min(0.9 / size.x, (0.5 - 0.03 - ground) / Math.max(0.05, box.max.y - ground), 2.5));
   root.scale.setScalar(k);
   root.position.set((-k * (box.min.x + box.max.x)) / 2, ground * (1 - k), 0);
 }
