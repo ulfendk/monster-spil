@@ -26,5 +26,12 @@
     "tris": 11957,
     "parts": 21,
     "bytes": 96900
+  },
+  "ildflagrer": {
+    "hash": "a6163122c00a",
+    "file": "ildflagrer.glb",
+    "tris": 19299,
+    "parts": 33,
+    "bytes": 175100
   }
 }

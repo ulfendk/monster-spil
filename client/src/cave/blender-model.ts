@@ -11,10 +11,13 @@ import { Builder, S, monsterMaterial, shade, type Built, type MountRig } from ".
  * (see tools/models/lib/model.py): pivots by name (`body`, `foot_L`, `wing_R`, `seat`…),
  * each mesh's `role`, `outline`, `opacity`, `face`, `minStage`/`maxStage` and `stageShade`,
  * pivots' `stageScale`, `flicker` (a flame, flickering about its base) and `sway` (a leaf,
- * swaying about its stem), the model's own `gait`, `hips` and `view`, and vertex colours — the
+ * swaying about its stem) and `ridden` (0: only when nobody rides it, 1: only when ridden),
+ * a `seat_ride` for a rider if it isn't `seat`, the model's own `gait`, `hips`, `view` and
+ * `flap` (how far its wings beat by themselves, `flapRate` how fast) and `fit` (0: not fitted
+ * to the picture's box), and vertex colours — the
  * palette colour in RGB, baked shade in alpha.
  */
-export function blenderBuilt(b: Builder, source: THREE.Object3D, species: CreatureSpecies, stage: number, variant: string | undefined): Built {
+export function blenderBuilt(b: Builder, source: THREE.Object3D, species: CreatureSpecies, stage: number, variant: string | undefined, pose?: "ride"): Built {
   const root = source.clone(true);
   b.root.add(root);
 
@@ -30,7 +33,11 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     if (o.userData.sway) leaves.push({ o, rest: o.rotation.clone(), k: o.userData.sway as number });
   });
   // (The model's own settings sit on its top node.)
-  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number };
+  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number };
+  const ridden = pose === "ride";
+  root.traverse((o) => {
+    if (o.userData.ridden !== undefined && Boolean(o.userData.ridden) !== ridden) o.visible = false;
+  });
   for (const mesh of meshes) {
     const ud = mesh.userData;
     if (stage < ((ud.minStage as number | undefined) ?? 1) || stage > ((ud.maxStage as number | undefined) ?? 3)) {
@@ -76,9 +83,10 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     wings: pair("wing").map((pivot) => ({ pivot, side: pivot.name.endsWith("_L") ? -1 : 1, rest: pivot.rotation.clone() })),
   };
 
-  fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128);
+  // (`fit: 0`: sized by hand, as drawn — wings reaching past the box.)
+  if (own.fit !== 0) fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128);
   b.root.updateMatrixWorld(true);
-  const seatNode = root.getObjectByName("seat");
+  const seatNode = (ridden ? root.getObjectByName("seat_ride") : undefined) ?? root.getObjectByName("seat");
   const seat = seatNode ? b.root.worldToLocal(seatNode.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(0, 0.3, 0);
 
   const setFace = (face: "normal" | "blink" | "talk") => {
@@ -90,7 +98,9 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   setFace("normal");
   const ride = species.ride;
   const gait = own.gait ?? (ride ? ((ride === true ? "waddle" : ride) as Gait) : undefined);
-  const moving = flames.length + leaves.length > 0;
+  const wings = rig?.wings ?? [];
+  const flap = own.flap ?? 0.12;
+  const moving = flames.length + leaves.length + wings.length > 0;
   return {
     face: setFace,
     seat,
@@ -105,6 +115,12 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
               const k = 1 + Math.sin(t * 11 + i * 1.7) * 0.08 + Math.sin(t * 17 + i) * 0.05;
               o.scale.set(scale.x / Math.sqrt(k), scale.y * k, scale.z / Math.sqrt(k));
             });
+            // Wings beat by themselves — unless a flight is beating them.
+            for (const w of wings) {
+              if (w.pivot.userData.driven) continue;
+              const beat = Math.sin(t * (own.flapRate ?? 3)) * flap;
+              w.pivot.rotation.set(w.rest.x, w.rest.y + w.side * beat, w.rest.z + w.side * beat * 0.4);
+            }
             leaves.forEach(({ o, rest, k }, i) => o.rotation.set(rest.x + Math.sin(t * 1.3 + i * 2.1) * 0.06 * k, rest.y, rest.z + Math.sin(t * 1.7 + i) * 0.1 * k));
           },
         }

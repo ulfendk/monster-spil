@@ -279,7 +279,7 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   // Sculpted in Blender (tools/models): wins over everything else.
   const sculpted = blenderModel(spec.species.id);
   const built: Built = sculpted
-    ? blenderBuilt(b, sculpted, spec.species, spec.stage ?? 1, spec.variant)
+    ? blenderBuilt(b, sculpted, spec.species, spec.stage ?? 1, spec.variant, spec.pose)
     : handmade
     ? handmade(b, spec.species, spec.stage ?? 1, spec.pose)
     : spec.look === "serpent"

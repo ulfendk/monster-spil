@@ -187,7 +187,8 @@ game-drawn models.
   `pose`: ridden, Flammeskæl's mane of flames is lower and parted, and the rider sits in the gap
   (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
   sides and back, wings glowing red to orange to yellow, and an orange tail.
-- **Monsters sculpted in Blender** (Drageunge and the starters Flammepels, Dryppel, Løvgro so
+- **Monsters sculpted in Blender** (Drageunge, Flammeskæl — after its drawing, replacing the
+  hand-made model, which stays as the fallback — and the starters Flammepels, Dryppel, Løvgro so
   far; the rest one at a time, the kids' favourites first — an automatic conversion of the
   `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
   their colours). `tools/models/monsters/<id>.py`
@@ -208,6 +209,8 @@ game-drawn models.
   the monsters' own toon material, an ink outline pushed out along the normals, rare-variant
   recolouring per palette colour, faces (`face` extras), stages (`minStage`/`maxStage`,
   `stageScale`, `stageShade`), flames that flicker (`flicker`) and leaves that sway (`sway`),
+  parts only unridden or only ridden (`ridden`) with a rider's own `seat_ride`, wings beating by
+  themselves (`flap`, `flapRate` on the top node), `fit: 0` for one sized by hand,
   the model's `gait`/`hips`/`view` on its top node, a `MountRig` from the pivots (legs
   `foot_L`/`foot_R`, or `foot_0`… — four legs front left, front right, back right, back left),
   and it's fitted to the picture's box like the game's own monsters. Eyes, mouths, cheeks,
