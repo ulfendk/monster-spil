@@ -4,6 +4,8 @@ import { variantColour } from "../gfx/variants";
 import type { Gait } from "../world3d/mount-gaits";
 import { Builder, S, monsterMaterial, shade, type Built, type MountRig } from "./monster-model";
 import { particles } from "./anatomy/surface";
+import { colourOf, halo } from "./anatomy/kit";
+import { KANAGAWA } from "../ui/theme";
 
 /**
  * A monster sculpted in Blender (tools/models; loaded by glb-models.ts), made into a monster
@@ -16,7 +18,7 @@ import { particles } from "./anatomy/surface";
  * body's joints, from the head back) and `ridden` (0: only when nobody rides it, 1: only when ridden),
  * a `seat_ride` for a rider if it isn't `seat`, the model's own `gait`, `hips`, `view` and
  * `flap` (how far its wings beat by themselves, `flapRate` how fast), `fit` (0: not fitted
- * to the picture's box), `hover` (1: it floats, bobbing) and `particles` (what drifts about it, instead of its species' `form`
+ * to the picture's box), `hover` (1: it floats, bobbing), `glow` (a colour to glow in) and `particles` (what drifts about it, instead of its species' `form`
  * extras: embers, steam…), and vertex colours — the
  * palette colour in RGB, baked shade in alpha.
  */
@@ -38,7 +40,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     if (o.userData.spin) spinning.push({ o, speed: o.userData.spin as number });
   });
   // (The model's own settings sit on its top node.)
-  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number; particles?: string; hover?: number };
+  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number; particles?: string; hover?: number; glow?: number };
   const ridden = pose === "ride";
   root.traverse((o) => {
     if (o.userData.ridden !== undefined && Boolean(o.userData.ridden) !== ridden) o.visible = false;
@@ -105,6 +107,12 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     const c = box.getCenter(new THREE.Vector3()).divideScalar(S);
     const r = box.getSize(new THREE.Vector3()).divideScalar(2 * S);
     particles(b, drifting, { x: c.x, y: c.y, z: c.z, rx: r.x, ry: r.y, rz: r.z }, ticks);
+  }
+  // A soft glow about it, pulsing (in its accent colour, as the game's own glowing monsters).
+  if ((drifting.includes("glow") || own.glow !== undefined) && bodyMesh) {
+    const box = new THREE.Box3().setFromObject(bodyMesh);
+    const r = box.getSize(new THREE.Vector3()).divideScalar(2 * S);
+    ticks.push(halo(b, box.getCenter(new THREE.Vector3()), r.x, r.y, r.z, own.glow ?? colourOf(species.form?.accent, KANAGAWA.carpYellow)));
   }
   const seatNode = (ridden ? root.getObjectByName("seat_ride") : undefined) ?? root.getObjectByName("seat");
   const seat = seatNode ? b.root.worldToLocal(seatNode.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(0, 0.3, 0);

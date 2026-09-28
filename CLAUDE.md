@@ -189,7 +189,7 @@ game-drawn models.
   sides and back, wings glowing red to orange to yellow, and an orange tail.
 - **Monsters sculpted in Blender** (Drageunge, Flammeskæl — after its drawing, replacing the
   hand-made model, which stays as the fallback — the starters Flammepels, Dryppel, Løvgro and
-  every fire, water and grass monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
+  every fire, water, grass and lightning monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
   `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
   their colours). `tools/models/monsters/<id>.py`
   sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
@@ -213,7 +213,8 @@ game-drawn models.
   themselves (`flap`, `flapRate` on the top node), `fit: 0` for one sized by hand,
   the model's `gait`/`hips`/`view` on its top node, a `MountRig` from the pivots (legs
   `foot_L`/`foot_R`, or `foot_0`… — four legs front left, front right, back right, back left),
-  `hover` (floating, bobbing, centred in the box), `spin`, a worm's `spine_0`… segments, what drifts about it (its species' `form` extras — embers, steam
+  `hover` (floating, bobbing, centred in the box), `glow` (a pulsing halo, also from the species'
+  `form` extras), `spin`, a worm's `spine_0`… segments, what drifts about it (its species' `form` extras — embers, steam
   … — through the anatomy's `particles`, or the top node's own `particles`), and it's fitted to
   the picture's box like the game's own monsters (up to 2.5×). Eyes (kawaii, fierce, sleepy,
   glow, dot), mouths (smile, cat, wide, grin, tusks, none), cheeks, flames, the chest mark and

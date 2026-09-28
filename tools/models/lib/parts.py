@@ -251,3 +251,28 @@ def gnome(m: Model, colour, belly, beard, nose):
     s.ellipsoid(S(0, 14, -20), (11, 6, 10), k=4, colour=beard)  # the beard
     s.round_cone(S(0, 16, -22), S(0, 13, -34), 8, 2, k=3, colour=beard)
     return s, body_pivot
+
+
+def worm(m: Model, colour, belly, head_at, head_radii, joints, stages_last=(1, 3), paint=None):
+    """
+    A long body that slithers: a head on its own pivot (`head`) and round segments on the joints
+    of its spine (`spine_0` just behind the head …), each (x, f, z, radius) px; `paint(sculpt, i,
+    at, r)` may colour a segment. Returns (head sculpt's mesh-to-be sculpt, head pivot, body pivot).
+    """
+    m.root["gait"] = "slither"
+    m.root["view"] = -0.8
+    body_pivot = m.pivot("body", P(0, 0, FEET_Z))
+    head = m.pivot("head", head_at * PX, body_pivot)
+    h = Sculpt(colour)
+    h.ellipsoid(head_at, head_radii, k=0)
+    for i, (x, f, z, r) in enumerate(joints):
+        at = S(x, f, z)
+        seg = m.pivot(f"spine_{i}", at * PX, body_pivot)
+        s = Sculpt(colour)
+        s.ellipsoid(at, (r, r * 1.05, r * 0.95), k=0)
+        if belly:
+            s.ellipsoid(at - Vector((0, 0, r * 0.55)), (r * 0.8, r, r * 0.45), op="paint", colour=belly, k=1.2)
+        if paint:
+            paint(s, i, at, r)
+        m.part(s, f"segment_{i}", seg, voxel=0.4, budget=700, stage_shade=True, stages=stages_last if i == len(joints) - 1 else (1, 3))
+    return h, head, body_pivot

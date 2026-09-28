@@ -5,7 +5,7 @@ stage and the golden crown of stage 3. Sizes in px of the picture box (see lib/m
 """
 import math
 
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from .model import Model
 from .palette import INK, K
@@ -22,7 +22,8 @@ def _on(m: Model, body, x, z, roll=0.0, **kw):
 
 def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye", kind="kawaii", skin=None):
     """
-    Eyes at (±x, z) and how they blink (owl: big round eyes in pale rings). `kind`: kawaii (big, an ink rim, a coloured iris or all
+    Eyes at (±x, z) and how they blink (owl: big round eyes in pale rings; alien: big black
+    almonds slanting up and out). `kind`: kawaii (big, an ink rim, a coloured iris or all
     ink, a pupil, two glints; a happy arc when blinking), fierce (the same, smaller, slanting,
     under an angry brow), sleepy (half shut under a heavy lid), glow (glowing, no pupil — lava
     and spirits), dot (small ink dots).
@@ -42,6 +43,10 @@ def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye
             e.ellipsoid(on(0, 0, 0.3), (6.4 * s, 5.2 * s, 1.6 * s), F)
             e.ellipsoid(on(0, 0, 0.8), (5.4 * s, 4.2 * s, 1.8 * s), F, colour=iris or K["surimiOrange"])
             e.ellipsoid(on(0, 0.6 * s, 1.4), (3.2 * s, 2.4 * s, 1.6 * s), F, colour=K["carpYellow"])
+        elif kind == "alien":
+            # Big black almonds slanting up and out.
+            e.ellipsoid(on(0, 0, 0.5), (5 * s, 9 * s, 1.8 * s), F @ Matrix.Rotation(-side * 0.5, 3, "Z"))
+            e.ball(on(side * 1.2 * s, 3 * s, 2.0), 1.4 * s, colour=K["washi"])
         elif kind == "owl":
             # Big round eyes in pale rings.
             e.ellipsoid(on(0, 0, 0.2), (9 * s, 9 * s, 1.4 * s), F, colour=K["oldWhite"])
