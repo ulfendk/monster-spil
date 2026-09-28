@@ -1,0 +1,12 @@
+{
+  "id": "sivodder",
+  "navn": "Sivodder",
+  "type": "vand",
+  "baseStats": { "hp": 40, "angreb": 12, "forsvar": 9, "fart": 14 },
+  "moveIds": ["vandpist", "bobleskud", "bid"],
+  "spriteFront": "creatures/sivodder_front.png",
+  "spriteBack": "creatures/sivodder_back.png",
+  "sound": "creatures/sivodder.wav",
+  "evolutions": ["Strømodder", "Havodder"],
+  "catchRate": 0.45
+}

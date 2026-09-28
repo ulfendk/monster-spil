@@ -1,5 +1,5 @@
 import type { AreaMeta } from "../types/area.js";
-import { regionAt } from "./regions.js";
+import { habitatAt, regionAt } from "./regions.js";
 
 /**
  * Where a wild battle (and catching) takes place: a 3D scene that fits the part of the map
@@ -44,8 +44,11 @@ export interface SceneConfig {
   kinds: SceneKind[];
 }
 
-/** The scene for a battle on this tile of this map: its region's, else the map's, else the default. */
-export function sceneAt(meta: Pick<AreaMeta, "regions" | "scene">, x: number, y: number, config: SceneConfig): SceneKind {
-  const id = regionAt(meta, x, y)?.scene ?? meta.scene ?? config.default;
+/**
+ * The scene for a battle on this tile of this map: its habitat's (in a forest, the water or
+ * the mountains, given the ground tile id), else its region's, else the map's, else the default.
+ */
+export function sceneAt(meta: Pick<AreaMeta, "regions" | "scene" | "habitats">, x: number, y: number, config: SceneConfig, groundGid?: number): SceneKind {
+  const id = habitatAt(meta, groundGid)?.scene ?? regionAt(meta, x, y)?.scene ?? meta.scene ?? config.default;
   return config.kinds.find((k) => k.id === id) ?? config.kinds.find((k) => k.id === config.default) ?? config.kinds[0]!;
 }

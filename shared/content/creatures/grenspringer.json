@@ -1,0 +1,12 @@
+{
+  "id": "grenspringer",
+  "navn": "Grenspringer",
+  "type": "graes",
+  "baseStats": { "hp": 32, "angreb": 11, "forsvar": 8, "fart": 16 },
+  "moveIds": ["rodslag", "sporesky", "bid"],
+  "spriteFront": "creatures/grenspringer_front.png",
+  "spriteBack": "creatures/grenspringer_back.png",
+  "sound": "creatures/grenspringer.wav",
+  "evolutions": ["Kronespringer"],
+  "catchRate": 0.5
+}

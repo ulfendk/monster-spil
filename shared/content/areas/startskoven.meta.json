@@ -130,6 +130,35 @@
     }
   ],
   "castle": { "x": 65, "y": 50 },
+  "habitats": {
+    "forest": {
+      "gids": [2], "rate": 0.06, "scene": "skov",
+      "encounterTable": [
+        {"speciesId": "koglekat", "weight": 3},
+        {"speciesId": "grenspringer", "weight": 3},
+        {"speciesId": "gnistspaette", "weight": 2},
+        {"speciesId": "kvistugle", "weight": 1}
+      ]
+    },
+    "water": {
+      "gids": [4], "rate": 0.06, "scene": "strand",
+      "encounterTable": [
+        {"speciesId": "sivodder", "weight": 3},
+        {"speciesId": "boblegedde", "weight": 2},
+        {"speciesId": "stroemaal", "weight": 2},
+        {"speciesId": "taagefisk", "weight": 1}
+      ]
+    },
+    "mountain": {
+      "gids": [6], "rate": 0.06, "scene": "fjeld",
+      "encounterTable": [
+        {"speciesId": "fjeldmurmel", "weight": 3},
+        {"speciesId": "grusgekko", "weight": 2},
+        {"speciesId": "gloedgemse", "weight": 1},
+        {"speciesId": "stenged", "weight": 1}
+      ]
+    }
+  },
   "encounterRate": 0.1,
   "playerStart": { "x": 32, "y": 24 },
   "terrain": {"ground": 1, "tree": 2, "grass": 3, "water": 4, "path": 5, "mountain": 6, "burnt": 7, "crater": 8, "flood": 9, "log": 10, "crack": 11, "rubble": 12, "wreck": 13, "sand": 14, "stump": 15, "hole": 16},

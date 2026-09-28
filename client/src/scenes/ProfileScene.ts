@@ -6,10 +6,14 @@ import { addAvatar } from "../gfx/avatar-sprites";
 import { addIcon } from "../gfx/icon-art";
 import { addScreenBackdrop } from "../gfx/motifs";
 import { getLayout, restartOnResize } from "../ui/layout";
+import { addScrolling } from "../ui/scrolling";
 import { addCloseButton, createButton } from "../ui/Button";
 import { ic, richText } from "../ui/rich-text";
 import { C, CSS, FONT } from "../ui/theme";
 import { t } from "../i18n/da";
+
+/** The iPad design size of one badge on the wall; small screens scale it down a little, and the wall scrolls. */
+const BADGE_CELL = 150;
 
 /** Mine (from my save), or another player's (what the server says about them). */
 export type ProfileSceneData = { save: SaveData; player?: undefined } | { save?: undefined; player: LobbyPlayer };
@@ -17,7 +21,7 @@ export type ProfileSceneData = { save: SaveData; player?: undefined } | { save?:
 /**
  * A player's profile, opened over the map: their figure (wearing their headwear), name,
  * level and title, and a wall of every badge — earned ones in colour, the rest waiting as
- * "?". My own profile also shows how far I am to the next level, what unlocks next and how
+ * "?" — that scrolls like the monster book. My own profile also shows how far I am to the next level, what unlocks next and how
  * much stronger my monsters are.
  */
 export class ProfileScene extends Phaser.Scene {
@@ -94,36 +98,38 @@ export class ProfileScene extends Phaser.Scene {
       ? { left: safe.left + layout.px(16), right: width - safe.right - layout.px(16), top: y + layout.px(50), bottom: height - safe.bottom - layout.px(16) }
       : { left: safe.left + columnW, right: width - safe.right - layout.px(16), top: safe.top + layout.touch(64) + layout.px(20), bottom: height - safe.bottom - layout.px(12) };
     const areaW = area.right - area.left;
-    const areaH = area.bottom - area.top;
+    const areaH = Math.max(0, area.bottom - area.top);
     const wall = badgeList.filter((b) => !b.trophy); // trophies have their own room
-    const n = wall.length;
-    // As many columns as make the cells biggest. Badges aren't buttons, so they may be small.
-    let best = { cols: 1, cell: 0 };
-    for (let cols = 2; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols);
-      const cell = Math.min(areaW / cols, areaH / rows / 1.25);
-      if (cell > best.cell) best = { cols, cell };
-    }
-    const cell = Math.max(40, best.cell);
-    const cols = best.cols;
-    const midX = (area.left + area.right) / 2;
+    // Badges at a readable size (a little smaller on a phone), as many per row as fit; the rest
+    // scrolls like the monster book. The wall has its own camera, so it scrolls inside its area.
+    const target = BADGE_CELL * Phaser.Math.Clamp(layout.s, 0.72, 1.2);
+    const cols = Math.max(2, Math.min(wall.length, Math.floor(areaW / target)));
+    const cell = Math.min(areaW / cols, BADGE_CELL * Math.max(1, layout.s));
+    const rowH = cell * 1.25;
+    const rows = Math.ceil(wall.length / cols);
+    const badges = this.add.container(0, 0);
     wall.forEach((badge, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const rowCount = Math.min(cols, n - row * cols);
-      const x = midX + (col - (rowCount - 1) / 2) * cell;
-      const by = area.top + row * cell * 1.25 + cell * 0.4;
+      const x = areaW / 2 + (col - (cols - 1) / 2) * cell;
+      const by = row * rowH + cell * 0.4;
       const has = earned.has(badge.id);
       const rad = cell * 0.34;
-      this.add.circle(x, by, rad, has ? C.panelMine : C.panel, has ? 1 : 0.6).setStrokeStyle(has ? 4 : 2, has ? C.accent : C.border, has ? 1 : 0.3);
-      if (has) addIcon(this, x, by, badge.icon, rad * 1.3);
-      else this.add.text(x, by, "?", { fontFamily: FONT, fontSize: `${Math.round(rad)}px`, color: CSS.faint }).setOrigin(0.5);
+      badges.add(this.add.circle(x, by, rad, has ? C.panelMine : C.panel, has ? 1 : 0.6).setStrokeStyle(has ? 4 : 2, has ? C.accent : C.border, has ? 1 : 0.3));
+      if (has) badges.add(addIcon(this, x, by, badge.icon, rad * 1.3));
+      else badges.add(this.add.text(x, by, "?", { fontFamily: FONT, fontSize: `${Math.round(rad)}px`, color: CSS.faint }).setOrigin(0.5));
       const name = this.add
         .text(x, by + rad + Math.max(4, cell * 0.06), badge.navn, { fontFamily: FONT, fontSize: layout.font(Math.min(20, cell * 0.16)), color: has ? CSS.text : CSS.faint, align: "center", wordWrap: { width: cell * 0.95 } })
         .setOrigin(0.5, 0);
       // One long word ("Monsterkender") can't wrap: shrink it to fit its cell instead.
       if (name.width > cell * 0.95) name.setScale((cell * 0.95) / name.width);
+      badges.add(name);
     });
+    const camera = this.cameras.add(area.left, area.top, areaW, areaH);
+    camera.ignore(this.children.list.filter((o) => o !== badges));
+    this.cameras.main.ignore(badges);
+    const inside = (p: Phaser.Input.Pointer) => p.x >= area.left && p.x <= area.right && p.y >= area.top && p.y <= area.bottom;
+    addScrolling(this, camera, Math.max(0, rows * rowH + layout.px(8) - areaH), inside);
   }
 
   private open(key: string, data: object): void {

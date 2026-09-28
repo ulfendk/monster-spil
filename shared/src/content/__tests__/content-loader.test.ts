@@ -70,7 +70,11 @@ test("every monster can be found somewhere (or is a starter or a reward)", () =>
   const metas = readdirSync(path.join(contentDir, "areas")).filter((f) => f.endsWith(".meta.json")).map((f) => json(`areas/${f}`));
   const found = new Set<string>([
     "flammepels", "dryppel", "lovgro", // the starters (client/src/scenes/StarterScene.ts)
-    ...metas.flatMap((meta) => [...ids(meta.encounterTable), ...(meta.regions ?? []).flatMap((r: { encounterTable: [] }) => ids(r.encounterTable))]),
+    ...metas.flatMap((meta) => [
+      ...ids(meta.encounterTable),
+      ...(meta.regions ?? []).flatMap((r: { encounterTable: [] }) => ids(r.encounterTable)),
+      ...Object.values(meta.habitats ?? {}).flatMap((h) => ids((h as { encounterTable: [] }).encounterTable)),
+    ]),
     ...json("caves.json").kinds.flatMap((k: { species: [] }) => ids(k.species)),
     ...ids(json("minigames.json").dig.monsters),
     ...ids(json("minigames.json").dig.sandMonsters),

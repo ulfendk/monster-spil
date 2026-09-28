@@ -1,0 +1,12 @@
+{
+  "id": "fjeldmurmel",
+  "navn": "Fjeldmurmel",
+  "type": "sten",
+  "baseStats": { "hp": 42, "angreb": 11, "forsvar": 12, "fart": 10 },
+  "moveIds": ["stenkast", "sandpisk", "bid"],
+  "spriteFront": "creatures/fjeldmurmel_front.png",
+  "spriteBack": "creatures/fjeldmurmel_back.png",
+  "sound": "creatures/fjeldmurmel.wav",
+  "evolutions": ["Klippemurmel"],
+  "catchRate": 0.45
+}

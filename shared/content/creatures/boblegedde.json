@@ -1,0 +1,12 @@
+{
+  "id": "boblegedde",
+  "navn": "Boblegedde",
+  "type": "vand",
+  "baseStats": { "hp": 38, "angreb": 14, "forsvar": 8, "fart": 13 },
+  "moveIds": ["bobleskud", "isnaale", "bid"],
+  "spriteFront": "creatures/boblegedde_front.png",
+  "spriteBack": "creatures/boblegedde_back.png",
+  "sound": "creatures/boblegedde.wav",
+  "evolutions": ["Stormgedde"],
+  "catchRate": 0.4
+}

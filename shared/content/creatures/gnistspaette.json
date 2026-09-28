@@ -1,0 +1,13 @@
+{
+  "id": "gnistspaette",
+  "navn": "Gnistspætte",
+  "type": "lyn",
+  "baseStats": { "hp": 34, "angreb": 13, "forsvar": 8, "fart": 14 },
+  "moveIds": ["gnistestoed", "tordenbrag", "hovedstoed"],
+  "spriteFront": "creatures/gnistspaette_front.png",
+  "spriteBack": "creatures/gnistspaette_back.png",
+  "sound": "creatures/gnistspaette.wav",
+  "evolutions": ["Tordenspætte"],
+  "wings": "feather",
+  "catchRate": 0.45
+}

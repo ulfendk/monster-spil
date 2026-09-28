@@ -1,0 +1,12 @@
+{
+  "id": "koglekat",
+  "navn": "Koglekat",
+  "type": "graes",
+  "baseStats": { "hp": 38, "angreb": 12, "forsvar": 10, "fart": 13 },
+  "moveIds": ["bladsving", "tornranke", "kloer"],
+  "spriteFront": "creatures/koglekat_front.png",
+  "spriteBack": "creatures/koglekat_back.png",
+  "sound": "creatures/koglekat.wav",
+  "evolutions": ["Koglelos"],
+  "catchRate": 0.45
+}

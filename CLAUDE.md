@@ -120,8 +120,16 @@ logic Tiled can't express (encounter table, collision GIDs, spawn point). A big 
 their own encounter tables — Startskoven has Hjertelandet, Storsøen, Sandklitterne,
 Højfjeldet, Dybskoven and Nordengene; tall grass in none of them uses the area's own
 `encounterTable` (the meadows in the middle and south). The first region a tile lies in wins (`shared/src/world/regions.ts`, tested); the
-monster book's hint points to the nearest tall grass where the monster lives. A test checks
-every region has tall grass and only known monsters, and another that every monster can be
+monster book's hint points to the nearest tall grass where the monster lives.
+**Woods, water and mountains have monsters of their own** (you walk through them slowly, see
+"Moving on the map"): `habitats` in the sidecar, `{forest|water|mountain: {gids, rate,
+encounterTable, scene?}}` by ground tile id, rolled per step onto such a tile (tall grass keeps
+its own table); `habitatAt`/`livesOnGround` in `regions.ts`, and `sceneAt` takes the ground
+tile id so a habitat's `scene` wins. Monsters peek out of them on the 3D map too. Koglekat,
+Grenspringer and Gnistspætte live in the woods, Sivodder, Boblegedde and Strømål in the water,
+Fjeldmurmel, Grusgekko and Glødgemse up the mountains (mixed with older kinds per world;
+Ildbjerget's lava has none). A test checks every region has tall grass and only known monsters,
+every world's habitats are on slow ground that's on its map, and another that every monster can be
 found somewhere (wild, caves, digging, disasters, or as a reward or starter). Never
 put game logic inside the Tiled export itself — re-exporting a map from Tiled
 must never clobber it. Every area (world) in `shared/content/areas/` is found by
@@ -435,7 +443,8 @@ games" — with no schema state: plain messages typed in
 `MonsterbogScene` shows every species: caught ones with 🔴 times caught and 🎒 owned
 now, seen-only ones as a silhouette, unknown ones as "?". Unknown monsters that live
 in the current area's encounter table also show "👣 steps + arrow" to the nearest
-encounter-zone tile (pure logic in `shared/src/world/hint.ts`); starters, which live
+encounter-zone tile, or the nearest wood, water or mountain tile for monsters that hide
+there (pure logic in `shared/src/world/hint.ts`); starters, which live
 nowhere in the wild, get no hint. Tapping a known monster opens `MonsterInfoScene`
 (stats, moves, counters, and its cry — `playCreatureSound`), launched over the book.
 There the monster is alive (`bringToLife` in `client/src/gfx/monster-life.ts`, reusable
@@ -817,7 +826,9 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   them (cleaned: level 1–100, badge ids as slugs). `scripts/e2e-levels.mjs` covers it.
 - **Client:** a ★ level button at the top left of the map opens `ProfileScene` (figure
   with headwear, level, title, XP bar, next unlock, monster bonus, the badge wall; portrait
-  stacks, landscape puts the player on the left). Other players show a level tag on the map;
+  stacks, landscape puts the player on the left). The badge wall keeps its badges a readable
+  size and scrolls inside its own area (a second camera) like the monster book — both use
+  `addScrolling` (`client/src/ui/scrolling.ts`). Other players show a level tag on the map;
   tapping one offers a medal button that opens their profile.
 
 ## Passing out and food (protocol v6)
@@ -1059,7 +1070,7 @@ covers √2 tiles at the same speed, so it takes longer). A short tap without a 
 is still a tap: on another player or the dragon it offers 🤝/⚔️ (walking over with
 BFS pathfinding if needed); on the ground it does nothing.
 
-**Meeting a wild monster is a choice.** When one turns up (tall grass, a disaster's zone, a
+**Meeting a wild monster is a choice.** When one turns up (tall grass, a wood, the water or a mountain, a disaster's zone, a
 monster peeking out, one dug up) it jumps out of the grass a tile ahead of me (`meetWild`: a
 map picture, so a 3D model on the 3D map, in its rare colours via the map hint `variant`) and
 cries; walking stops and a card shows its type and name with the sword: that (or tapping the

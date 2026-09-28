@@ -1,0 +1,12 @@
+{
+  "id": "stroemaal",
+  "navn": "Strømål",
+  "type": "lyn",
+  "baseStats": { "hp": 36, "angreb": 14, "forsvar": 7, "fart": 15 },
+  "moveIds": ["gnistestoed", "lynnedslag", "haleslag"],
+  "spriteFront": "creatures/stroemaal_front.png",
+  "spriteBack": "creatures/stroemaal_back.png",
+  "sound": "creatures/stroemaal.wav",
+  "evolutions": ["Tordenål"],
+  "catchRate": 0.35
+}

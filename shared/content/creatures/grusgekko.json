@@ -1,0 +1,12 @@
+{
+  "id": "grusgekko",
+  "navn": "Grusgekko",
+  "type": "sten",
+  "baseStats": { "hp": 36, "angreb": 12, "forsvar": 11, "fart": 14 },
+  "moveIds": ["klippefald", "kloer", "haleslag"],
+  "spriteFront": "creatures/grusgekko_front.png",
+  "spriteBack": "creatures/grusgekko_back.png",
+  "sound": "creatures/grusgekko.wav",
+  "evolutions": ["Skredgekko", "Bjerggekko"],
+  "catchRate": 0.4
+}

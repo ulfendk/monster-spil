@@ -52,7 +52,7 @@ import { castleFor, castleProgress } from "../content/load-castles";
 import { hasKey, questSpots, questState, type CastleDef, type QuestSpot } from "@shared";
 import type { CastleSceneData } from "./CastleScene";
 import { itemById, itemConfig } from "../content/load-items";
-import { canEnterWorld, dropSpots, healFromHeart, stageName, stageOf, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind } from "@shared";
+import { canEnterWorld, dropSpots, healFromHeart, stageName, stageOf, encounterTableAt, habitatAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import { nameWithVariant, variantConfig } from "../content/load-variants";
 import { sceneConfig } from "../content/load-scenes";
@@ -508,14 +508,17 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     if (this.peekers.size >= 2 || this.isPassedOut() || Math.random() > 0.4) return;
-    // A tall-grass tile a few steps away (not next to me: I should have to walk there), free.
+    // A tall-grass tile (or a wood, water or mountain tile) a few steps away (not next to me: I should have to walk there), free.
     for (let attempt = 0; attempt < 12; attempt++) {
       const x = this.playerTile.x + Math.round((Math.random() - 0.5) * 12);
       const y = this.playerTile.y + Math.round((Math.random() - 0.5) * 10);
       const d = Math.max(Math.abs(x - this.playerTile.x), Math.abs(y - this.playerTile.y));
-      if (d < 2 || !this.grassLayer.getTileAt(x, y) || this.playerAt({ x, y })) continue;
+      if (d < 2 || !this.isWalkable(x, y) || this.playerAt({ x, y })) continue;
       if ([...this.peekers.values()].some((p) => p.x === x && p.y === y)) continue;
-      const speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, x, y));
+      // In the woods, the water or up the mountains, the monsters that hide there.
+      const table = this.grassLayer.getTileAt(x, y) ? encounterTableAt(this.areaMeta, x, y) : this.wildGroundAt(x, y)?.encounterTable;
+      if (!table) continue;
+      const speciesId = pickWeightedSpecies(table);
       const species = speciesId ? this.content.speciesById[speciesId] : undefined;
       if (!species) return;
       const id = map3d.peeks.add(x, y, placeholderSpec(species.spriteFront));
@@ -2187,7 +2190,7 @@ export class OverworldScene extends Phaser.Scene {
         // Out of breath on the mountain: rest first (then on the way I was going).
         if (this.breathStep(next)) return;
 
-        if (this.isEncounterTile(next.x, next.y) && this.rollEncounter()) {
+        if ((this.isEncounterTile(next.x, next.y) || this.wildGroundAt(next.x, next.y)) && this.rollEncounter()) {
           this.pendingPath = [];
           this.drag = undefined;
           return;
@@ -2240,6 +2243,11 @@ export class OverworldScene extends Phaser.Scene {
     return !!this.grassLayer.getTileAt(x, y) || Boolean(this.world.zoneAt(x, y));
   }
 
+  /** A forest, water or mountain tile, with the monsters that hide there (none in tall grass: that has its own). */
+  private wildGroundAt(x: number, y: number) {
+    return habitatAt(this.areaMeta, this.groundLayer.getTileAt(x, y)?.index);
+  }
+
   /** Returns true (and starts a battle) if the roll triggers a wild encounter. */
   private rollEncounter(): boolean {
     const zone = this.world.zoneAt(this.playerTile.x, this.playerTile.y);
@@ -2254,6 +2262,11 @@ export class OverworldScene extends Phaser.Scene {
       return false;
     } else if (zone && Math.random() < zone.rate) speciesId = zone.speciesId;
     else if (inGrass && Math.random() <= this.areaMeta.encounterRate) speciesId = pickWeightedSpecies(encounterTableAt(this.areaMeta, this.playerTile.x, this.playerTile.y));
+    else if (!inGrass) {
+      // Wading through a forest, swimming, climbing: the monsters that live there.
+      const ground = this.wildGroundAt(this.playerTile.x, this.playerTile.y);
+      if (ground && Math.random() < ground.rate) speciesId = pickWeightedSpecies(ground.encounterTable);
+    }
     const species = speciesId ? this.content.speciesById[speciesId] : undefined;
     if (!species) return false;
     this.meetWild(species);
@@ -2364,7 +2377,7 @@ export class OverworldScene extends Phaser.Scene {
       content: this.content,
       wildInstance,
       wildSpecies: species,
-      scene: sceneAt(this.areaMeta, this.playerTile.x, this.playerTile.y, sceneConfig).id,
+      scene: sceneAt(this.areaMeta, this.playerTile.x, this.playerTile.y, sceneConfig, this.groundLayer.getTileAt(this.playerTile.x, this.playerTile.y)?.index).id,
       ...(spawnId ? { spawnId } : {}),
     };
     this.closePopup();

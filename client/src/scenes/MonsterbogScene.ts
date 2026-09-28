@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { spriteFit } from "../gfx/creature-sprite";
-import { livesAt, livesInArea, nearestSpot, paintedTiles } from "@shared";
+import { livesAt, livesInArea, livesOnGround, nearestSpot, paintedTiles } from "@shared";
 import type { CreatureSpecies, SpotHint, Tile } from "@shared";
 import type { GameContent } from "../content/load-content";
 import { allAreaMetas, getAreaAssets, worldConfig } from "../content/load-areas";
@@ -9,6 +9,7 @@ import type { MonsterInfoSceneData } from "./MonsterInfoScene";
 import { createButton, whenTapped } from "../ui/Button";
 import { t } from "../i18n/da";
 import { getLayout, restartOnResize } from "../ui/layout";
+import { addScrolling, type Scrolling } from "../ui/scrolling";
 import { BEAST_ICONS, CAUGHT_ICON, CAVE_ICON, DISASTER_ICONS, DRAGON_ICON, OWNED_ICON, STEPS_ICON, arrowAngle } from "../ui/icons";
 import { disasterForSpecies } from "../content/load-disasters";
 import { bossesById } from "../content/load-raid";
@@ -29,16 +30,11 @@ export interface MonsterbogSceneData {
 
 /** The iPad design size of one book entry; small screens scale it down a little, and the book scrolls. */
 const CELL_SIZE = 170;
-/** A finger that moves further than this (px) is scrolling, not tapping a monster. */
-const TAP_SLOP = 10;
 
 export class MonsterbogScene extends Phaser.Scene {
   private bookData!: MonsterbogSceneData;
-  /** The finger scrolling the book: where it pressed, the scroll then, and whether it has moved (so it's no tap). */
-  private scroll?: { y: number; from: number; moved: boolean; lastY: number; lastT: number };
-  /** How fast the book glides after a flick (px per ms; positive = down the book). */
-  private velocity = 0;
-  private maxScroll = 0;
+  /** The book scrolls like a phone's list; a drag is never a tap on a monster. */
+  private scrolling?: Scrolling;
 
   constructor() {
     super("Monsterbog");
@@ -78,7 +74,7 @@ export class MonsterbogScene extends Phaser.Scene {
     const rows = Math.ceil(speciesList.length / cols);
     const startX = width / 2 - (cols * cell) / 2 + cell / 2;
     const startY = headerH + Math.max(0, (areaH - rows * cell) / 2) + cell * 0.36;
-    this.setUpScrolling(Math.max(0, headerH + rows * cell + layout.px(16) + safe.bottom - height));
+    this.scrolling = addScrolling(this, this.cameras.main, Math.max(0, headerH + rows * cell + layout.px(16) + safe.bottom - height));
     const label = (px: number) => `${Math.max(13, Math.round(px * k))}px`;
 
     speciesList.forEach((species, i) => {
@@ -104,7 +100,7 @@ export class MonsterbogScene extends Phaser.Scene {
         // I have a rare one of these: a sparkle on its ring.
         if (variants.length) addIcon(this, x + 44 * k, y - 44 * k, "sparkle", Math.max(22, 34 * k));
         const open = () => {
-          if (!this.scroll?.moved) this.openInfo(species, caught, ownedCount, caughtCount, variants);
+          if (!this.scrolling?.dragging) this.openInfo(species, caught, ownedCount, caughtCount, variants);
         };
         ring.setInteractive({ useHandCursor: true });
         whenTapped(ring, open);
@@ -156,80 +152,10 @@ export class MonsterbogScene extends Phaser.Scene {
   }
 
   /**
-   * Scrolling that feels like a phone's: the book follows the finger, glides on after a
-   * flick and slows down, stretches a little past either end and springs back. A touch
-   * stops a glide (and that touch doesn't open a monster); a drag never opens one.
-   */
-  private setUpScrolling(maxScroll: number): void {
-    const camera = this.cameras.main;
-    camera.setScroll(0, 0);
-    this.scroll = undefined;
-    this.velocity = 0;
-    this.maxScroll = maxScroll;
-    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      const gliding = Math.abs(this.velocity) > 0.05;
-      this.velocity = 0;
-      this.scroll = { y: p.y, from: camera.scrollY, moved: gliding, lastY: p.y, lastT: performance.now() };
-    });
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
-      const s = this.scroll;
-      if (!s || !p.isDown) return;
-      if (!s.moved && Math.abs(p.y - s.y) > TAP_SLOP) {
-        // Start from here, so the book doesn't jump by the slop.
-        s.moved = true;
-        s.y = p.y;
-        s.from = camera.scrollY;
-      }
-      if (!s.moved) return;
-      camera.setScroll(0, this.stretched(s.from - (p.y - s.y)));
-      const now = performance.now();
-      const dt = Math.max(1, now - s.lastT);
-      // The finger's speed, smoothed a little: that's what a flick carries on with.
-      this.velocity = 0.7 * ((s.lastY - p.y) / dt) + 0.3 * this.velocity;
-      s.lastY = p.y;
-      s.lastT = now;
-    });
-    this.input.on("pointerup", () => {
-      const s = this.scroll;
-      // A finger that stopped before lifting doesn't flick.
-      if (!s?.moved || performance.now() - s.lastT > 80) this.velocity = 0;
-      // The tap on a monster is handled first (pointerup on it); forget the drag afterwards.
-      this.time.delayedCall(0, () => (this.scroll = undefined));
-    });
-    this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => camera.setScroll(0, Phaser.Math.Clamp(camera.scrollY + dy, 0, maxScroll)));
-  }
-
-  /** Past either end the book only follows the finger a third of the way: it stretches. */
-  private stretched(y: number): number {
-    if (y < 0) return y / 3;
-    if (y > this.maxScroll) return this.maxScroll + (y - this.maxScroll) / 3;
-    return y;
-  }
-
-  update(_time: number, delta: number): void {
-    if (this.scroll?.moved && this.input.activePointer.isDown) return; // the finger has it
-    const camera = this.cameras.main;
-    let y = camera.scrollY;
-    if (Math.abs(this.velocity) > 0.01) {
-      y += this.velocity * delta;
-      // Slowing down like a phone's list (about a third of a second to lose most speed);
-      // much faster once it's run past an end.
-      const outside = y < 0 || y > this.maxScroll;
-      this.velocity *= Math.exp(-delta / (outside ? 45 : 325));
-    } else {
-      this.velocity = 0;
-    }
-    // Past an end: spring back.
-    const target = Phaser.Math.Clamp(y, 0, this.maxScroll);
-    if (y !== target) y += (target - y) * (1 - Math.exp(-delta / 90));
-    if (Math.abs(y - target) < 0.5 && Math.abs(this.velocity) <= 0.01) y = target;
-    if (y !== camera.scrollY) camera.setScroll(0, y);
-  }
-
-  /**
    * How far, and which way, the nearest place is where this monster can turn up: the tall
-   * grass of the area the player is in, in the parts of the map (regions) where it lives.
-   * Monsters that live nowhere here (the starters) get no hint.
+   * grass of the area the player is in, in the parts of the map (regions) where it lives, or
+   * the woods, water or mountains it hides in. Monsters that live nowhere here (the starters)
+   * get no hint.
    */
   private hintFor(species: CreatureSpecies): SpotHint | undefined {
     const { save, position } = this.bookData;
@@ -238,8 +164,13 @@ export class MonsterbogScene extends Phaser.Scene {
 
     const map = this.cache.tilemap.get(`area-map-${save.position.areaId}`)?.data as { width: number; layers: Array<{ name: string; data?: number[] }> } | undefined;
     const zone = map?.layers.find((l) => l.name === meta.encounterZoneLayer)?.data;
+    const ground = map?.layers.find((l) => l.name === meta.collisionLayer)?.data;
     if (!map || !zone) return undefined;
-    return nearestSpot(position, paintedTiles(zone, map.width).filter((tile) => livesAt(meta, species.id, tile.x, tile.y)));
+    const spots = paintedTiles(zone, map.width).filter((tile) => livesAt(meta, species.id, tile.x, tile.y));
+    ground?.forEach((gid, i) => {
+      if (!zone[i] && livesOnGround(meta, species.id, gid)) spots.push({ x: i % map.width, y: Math.floor(i / map.width) });
+    });
+    return nearestSpot(position, spots);
   }
 
   private openInfo(species: CreatureSpecies, caught: boolean, owned: number, caughtCount: number, variants: string[]): void {

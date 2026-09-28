@@ -41,6 +41,23 @@
     }
   ],
   "castle": { "x": 11, "y": 8 },
+  "habitats": {
+    "forest": {
+      "gids": [2], "rate": 0.06,
+      "encounterTable": [
+        {"speciesId": "gnistspaette", "weight": 3},
+        {"speciesId": "kulsnude", "weight": 2}
+      ]
+    },
+    "mountain": {
+      "gids": [6], "rate": 0.06,
+      "encounterTable": [
+        {"speciesId": "gloedgemse", "weight": 3},
+        {"speciesId": "grusgekko", "weight": 2},
+        {"speciesId": "stoevtrold", "weight": 1}
+      ]
+    }
+  },
   "encounterRate": 0.1,
   "playerStart": {
     "x": 6,

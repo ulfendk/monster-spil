@@ -275,6 +275,9 @@ const skDock = nearest(skc, 140, 44, (x, y) => free(x, y) && neighbours(skc, x, 
 const skTunnel = nearest(skc, 146, 100, (x, y) => free(x, y) && neighbours(skc, x, y, MOUNTAIN));
 const skBridge = nearest(skc, 158, 16, (x, y) => free(x, y) && x >= 156);
 
+/** An encounter table: [speciesId, weight] pairs. */
+const wild = (...entries) => entries.map(([speciesId, weight]) => ({ speciesId, weight }));
+
 const skLinks = [
   link("baad-kirsebaeroeen", "boat", skDock, "kirsebaeroeen", "baad-startskoven"),
   link("tunnel-snedalen", "tunnel", skTunnel, "snedalen", "tunnel-startskoven"),
@@ -293,6 +296,12 @@ writeWorld("kirsebaeroeen", island.c, {
     { speciesId: "svampenisse", weight: 1 },
   ],
   encounterRate: 0.1,
+  // Who hides in the woods, the water and up the mountains (the game's shared/src/world/regions.ts).
+  habitats: {
+    forest: { gids: [TREE], rate: 0.06, encounterTable: wild(["koglekat", 3], ["grenspringer", 3], ["blomsterbasse", 2]) },
+    water: { gids: [WATER], rate: 0.06, encounterTable: wild(["sivodder", 3], ["boblegedde", 2], ["perlemusling", 2], ["svanefjer", 1]) },
+    mountain: { gids: [MOUNTAIN], rate: 0.06, encounterTable: wild(["fjeldmurmel", 3], ["grusgekko", 2]) },
+  },
   playerStart: island.links.west,
   scene: "kirsebaer",
   look3d: { tree: "sakura", sky: "springBlue", fog: "sakuraPink" },
@@ -317,6 +326,12 @@ writeWorld("snedalen", valley.c, {
     { speciesId: "krystalhjort", weight: 1 },
   ],
   encounterRate: 0.1,
+  // Who hides in the woods, the water and up the mountains (the game's shared/src/world/regions.ts).
+  habitats: {
+    forest: { gids: [TREE], rate: 0.06, encounterTable: wild(["grenspringer", 3], ["gnistspaette", 2], ["snetrold", 1]) },
+    water: { gids: [WATER], rate: 0.06, encounterTable: wild(["boblegedde", 3], ["stroemaal", 2], ["istap", 1]) },
+    mountain: { gids: [MOUNTAIN], rate: 0.06, encounterTable: wild(["fjeldmurmel", 3], ["grusgekko", 2], ["krystalhjort", 1]) },
+  },
   playerStart: valley.links.west,
   scene: "sne",
   look3d: { tree: "snowPine", sky: "springBlue", fog: "washi" },
@@ -343,6 +358,11 @@ writeWorld("ildbjerget", volcano.c, {
     { speciesId: "kulsnude", weight: 1 },
   ],
   encounterRate: 0.1,
+  // Who hides in the woods, the water and up the mountains (the game's shared/src/world/regions.ts).
+  habitats: {
+    forest: { gids: [TREE], rate: 0.06, encounterTable: wild(["gnistspaette", 3], ["kulsnude", 2]) },
+    mountain: { gids: [MOUNTAIN], rate: 0.06, encounterTable: wild(["gloedgemse", 3], ["grusgekko", 2], ["stoevtrold", 1]) },
+  },
   playerStart: volcano.links.west,
   scene: "vulkan",
   look3d: { tree: "deadPine", peak: "volcano", water: "lava", sky: "sumiInk5", fog: "sumiInk4" },

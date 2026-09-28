@@ -1,0 +1,13 @@
+{
+  "id": "gloedgemse",
+  "navn": "Glødgemse",
+  "type": "ild",
+  "baseStats": { "hp": 42, "angreb": 14, "forsvar": 10, "fart": 13 },
+  "moveIds": ["gloedslag", "flammehvirvel", "hovedstoed"],
+  "spriteFront": "creatures/gloedgemse_front.png",
+  "spriteBack": "creatures/gloedgemse_back.png",
+  "sound": "creatures/gloedgemse.wav",
+  "evolutions": ["Flammegemse"],
+  "ride": "bound",
+  "catchRate": 0.35
+}

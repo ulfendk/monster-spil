@@ -19,6 +19,21 @@ export interface EncounterRegion {
   scene?: string;
 }
 
+/** Ground you walk through slowly, where monsters of its own hide (shared/src/world/regions.ts). */
+export type WildGround = "forest" | "water" | "mountain";
+export const WILD_GROUNDS: readonly WildGround[] = ["forest", "water", "mountain"];
+
+/** Who hides in the woods, the water or up the mountains of a map: on which ground tiles, how often, and where the battle is. */
+export interface WildGroundEncounters {
+  /** Ground tile ids (on the collision layer) that are this habitat. */
+  gids: number[];
+  /** 0-1 chance per step onto one of those tiles. */
+  rate: number;
+  encounterTable: EncounterTableEntry[];
+  /** Where battles here take place (a scene id); without it, the tile's usual scene. */
+  scene?: string;
+}
+
 /** How you get from one world to another. */
 export type LinkKind = "boat" | "tunnel" | "bridge";
 
@@ -63,6 +78,8 @@ export interface AreaMeta {
   encounterTable: EncounterTableEntry[];
   /** Parts of the map with their own wild monsters; the first one a tile lies in wins. */
   regions?: EncounterRegion[];
+  /** Monsters that hide in the forest, the water and the mountains (not in tall grass). */
+  habitats?: Partial<Record<WildGround, WildGroundEncounters>>;
   /** Where battles on this map take place, outside regions that name their own (shared/content/scenes.json). */
   scene?: string;
   /** Ways to other worlds (shared/src/world/worlds.ts). */

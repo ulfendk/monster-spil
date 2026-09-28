@@ -41,6 +41,32 @@
     }
   ],
   "castle": { "x": 24, "y": 22 },
+  "habitats": {
+    "forest": {
+      "gids": [2], "rate": 0.06,
+      "encounterTable": [
+        {"speciesId": "koglekat", "weight": 3},
+        {"speciesId": "grenspringer", "weight": 3},
+        {"speciesId": "blomsterbasse", "weight": 2}
+      ]
+    },
+    "water": {
+      "gids": [4], "rate": 0.06,
+      "encounterTable": [
+        {"speciesId": "sivodder", "weight": 3},
+        {"speciesId": "boblegedde", "weight": 2},
+        {"speciesId": "perlemusling", "weight": 2},
+        {"speciesId": "svanefjer", "weight": 1}
+      ]
+    },
+    "mountain": {
+      "gids": [6], "rate": 0.06,
+      "encounterTable": [
+        {"speciesId": "fjeldmurmel", "weight": 3},
+        {"speciesId": "grusgekko", "weight": 2}
+      ]
+    }
+  },
   "encounterRate": 0.1,
   "playerStart": {
     "x": 7,
