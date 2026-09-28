@@ -304,8 +304,9 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
       arms.forEach((_, i) => {
         const a = ps + i * Math.PI;
         const tread = Math.sin(t * 5 + i * Math.PI) * 0.035 * (1 - k);
+        // Front crawl: the hand swings forward through the air (up) and pulls back under the water (down).
         // (Wide of the big head, so the strokes show from the camera up above.)
-        mix(armsAt[i]!, sw, armHome[i]!.x * (1.6 + 0.4 * Math.max(0, Math.sin(a)) * k), armHome[i]!.y + 0.12 + Math.sin(a) * 0.22 * k + tread, armHome[i]!.z + Math.cos(a) * 0.26 * k + 0.04 * (1 - k));
+        mix(armsAt[i]!, sw, armHome[i]!.x * (1.6 + 0.4 * Math.max(0, Math.sin(a)) * k), armHome[i]!.y + 0.12 + Math.sin(a) * 0.22 * k + tread, armHome[i]!.z - Math.cos(a) * 0.26 * k + 0.04 * (1 - k));
       });
       feet.forEach((_, i) => mix(feetAt[i]!, sw, feet[i]!.position.x, 0.1 + Math.sin(t * 9 + i * Math.PI) * 0.05, 0.02 - 0.12 * k));
       upperY += sw * (Math.sin(t * 2.2) * 0.02);
