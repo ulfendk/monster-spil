@@ -5,5 +5,26 @@
     "tris": 12558,
     "parts": 24,
     "bytes": 111956
+  },
+  "flammepels": {
+    "hash": "3aeecad7b82f",
+    "file": "flammepels.glb",
+    "tris": 17955,
+    "parts": 28,
+    "bytes": 147980
+  },
+  "dryppel": {
+    "hash": "0cf9ad3bd4a4",
+    "file": "dryppel.glb",
+    "tris": 9960,
+    "parts": 17,
+    "bytes": 81820
+  },
+  "lovgro": {
+    "hash": "42a8264cc788",
+    "file": "lovgro.glb",
+    "tris": 11957,
+    "parts": 21,
+    "bytes": 96900
   }
 }

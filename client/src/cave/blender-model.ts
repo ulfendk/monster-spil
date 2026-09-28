@@ -10,7 +10,9 @@ import { Builder, S, monsterMaterial, shade, type Built, type MountRig } from ".
  * variants recolour it, and it blinks, cries, evolves and is ridden. What the .glb carries
  * (see tools/models/lib/model.py): pivots by name (`body`, `foot_L`, `wing_R`, `seat`…),
  * each mesh's `role`, `outline`, `opacity`, `face`, `minStage`/`maxStage` and `stageShade`,
- * pivots' `stageScale`, and vertex colours — the palette colour in RGB, baked shade in alpha.
+ * pivots' `stageScale`, `flicker` (a flame, flickering about its base) and `sway` (a leaf,
+ * swaying about its stem), the model's own `gait`, `hips` and `view`, and vertex colours — the
+ * palette colour in RGB, baked shade in alpha.
  */
 export function blenderBuilt(b: Builder, source: THREE.Object3D, species: CreatureSpecies, stage: number, variant: string | undefined): Built {
   const root = source.clone(true);
@@ -18,11 +20,17 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
 
   const faces: Record<string, THREE.Object3D[]> = { open: [], shut: [], smile: [], talk: [] };
   const meshes: THREE.Mesh[] = [];
+  const flames: Array<{ o: THREE.Object3D; scale: THREE.Vector3 }> = [];
+  const leaves: Array<{ o: THREE.Object3D; rest: THREE.Euler; k: number }> = [];
   root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     const grow = o.userData.stageScale as number | undefined;
     if (grow) o.scale.multiplyScalar(1 + grow * (stage - 1));
+    if (o.userData.flicker) flames.push({ o, scale: o.scale.clone() });
+    if (o.userData.sway) leaves.push({ o, rest: o.rotation.clone(), k: o.userData.sway as number });
   });
+  // (The model's own settings sit on its top node.)
+  const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number };
   for (const mesh of meshes) {
     const ud = mesh.userData;
     if (stage < ((ud.minStage as number | undefined) ?? 1) || stage > ((ud.maxStage as number | undefined) ?? 3)) {
@@ -50,7 +58,13 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   }
 
   const node = (name: string) => group(root.getObjectByName(name));
-  const pair = (name: string) => [node(`${name}_L`), node(`${name}_R`)].filter((g): g is THREE.Group => g !== undefined);
+  // Left and right (`foot_L`, `foot_R`), or numbered (`foot_0`…; four legs: front left, front
+  // right, back right, back left — so the diagonals step together).
+  const pair = (name: string) => {
+    const lr = [node(`${name}_L`), node(`${name}_R`)];
+    const numbered = Array.from({ length: 8 }, (_, i) => node(`${name}_${i}`));
+    return [...lr, ...numbered].filter((g): g is THREE.Group => g !== undefined);
+  };
   const body = node("body");
   const rig: MountRig | undefined = body && {
     body,
@@ -58,9 +72,11 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     arms: pair("arm"),
     ...(node("tail") ? { tail: node("tail")! } : {}),
     ...(node("head") ? { head: node("head")! } : {}),
+    ...(own.hips ? { hips: true } : {}),
     wings: pair("wing").map((pivot) => ({ pivot, side: pivot.name.endsWith("_L") ? -1 : 1, rest: pivot.rotation.clone() })),
   };
 
+  fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128);
   b.root.updateMatrixWorld(true);
   const seatNode = root.getObjectByName("seat");
   const seat = seatNode ? b.root.worldToLocal(seatNode.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3(0, 0.3, 0);
@@ -73,12 +89,47 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   };
   setFace("normal");
   const ride = species.ride;
+  const gait = own.gait ?? (ride ? ((ride === true ? "waddle" : ride) as Gait) : undefined);
+  const moving = flames.length + leaves.length > 0;
   return {
     face: setFace,
     seat,
     ...(rig ? { rig } : {}),
-    ...(ride ? { gait: (ride === true ? "waddle" : ride) as Gait } : {}),
+    ...(gait ? { gait } : {}),
+    ...(own.view !== undefined ? { view: own.view } : {}),
+    ...(moving
+      ? {
+          tick: (t: number) => {
+            // (As the game's own flames flicker: anatomy/kit.ts `flicker`.)
+            flames.forEach(({ o, scale }, i) => {
+              const k = 1 + Math.sin(t * 11 + i * 1.7) * 0.08 + Math.sin(t * 17 + i) * 0.05;
+              o.scale.set(scale.x / Math.sqrt(k), scale.y * k, scale.z / Math.sqrt(k));
+            });
+            leaves.forEach(({ o, rest, k }, i) => o.rotation.set(rest.x + Math.sin(t * 1.3 + i * 2.1) * 0.06 * k, rest.y, rest.z + Math.sin(t * 1.7 + i) * 0.1 * k));
+          },
+        }
+      : {}),
   };
+}
+
+/**
+ * Scaled to fill the picture's box like the game's own monsters (anatomy/index.ts `fitToBox`):
+ * as wide as fits, feet on the ground (`ground`, the body pivot's height), centred across.
+ */
+function fit(root: THREE.Object3D, ground: number): void {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || (mesh.material as THREE.Material).side === THREE.BackSide) return;
+    mesh.geometry.computeBoundingBox();
+    box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld));
+  });
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const k = Math.max(0.6, Math.min(0.9 / size.x, (0.5 - 0.03 - ground) / Math.max(0.05, box.max.y - ground), 1.5));
+  root.scale.setScalar(k);
+  root.position.set((-k * (box.min.x + box.max.x)) / 2, ground * (1 - k), 0);
 }
 
 /** Vertex colours from the .glb (palette colour in RGB, shade in alpha) → the colours to draw, each palette colour passed through `recolour`. */

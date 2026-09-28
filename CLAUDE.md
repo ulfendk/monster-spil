@@ -187,7 +187,10 @@ game-drawn models.
   `pose`: ridden, Flammeskæl's mane of flames is lower and parted, and the rider sits in the gap
   (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
   sides and back, wings glowing red to orange to yellow, and an orange tail.
-- **Monsters sculpted in Blender** (a pilot: Drageunge). `tools/models/monsters/<id>.py`
+- **Monsters sculpted in Blender** (Drageunge and the starters Flammepels, Dryppel, Løvgro so
+  far; the rest one at a time, the kids' favourites first — an automatic conversion of the
+  `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
+  their colours). `tools/models/monsters/<id>.py`
   sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
   pipeline: smooth unions, so the head grows out of the body without a seam; painted colour
   regions; a paint with `only` recolours just one colour), `lib/model.py` hangs the parts on
@@ -204,7 +207,14 @@ game-drawn models.
   gets it before anything else (`cave/blender-model.ts`):
   the monsters' own toon material, an ink outline pushed out along the normals, rare-variant
   recolouring per palette colour, faces (`face` extras), stages (`minStage`/`maxStage`,
-  `stageScale`, `stageShade`) and a `MountRig` from the pivots. No TypeScript for a new one.
+  `stageScale`, `stageShade`), flames that flicker (`flicker`) and leaves that sway (`sway`),
+  the model's `gait`/`hips`/`view` on its top node, a `MountRig` from the pivots (legs
+  `foot_L`/`foot_R`, or `foot_0`… — four legs front left, front right, back right, back left),
+  and it's fitted to the picture's box like the game's own monsters. Eyes, mouths, cheeks,
+  flames, the chest mark and the crown are shared (`lib/features.py`). Compare a sculpt with
+  how the game drew it before: `(await import("/src/dev/model-compare.ts")).compare([id])` in
+  a dev build. (The dev server only sees a new `.glb` after `load-assets.ts` is touched.)
+  No TypeScript for a new one.
 - **A rider's figure is placed by its root** (`RideAnimator.seatRider`); `AvatarModel`'s own
   animations move an inner group only, never the root.
 - `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`) knows which textures were drawn by the
