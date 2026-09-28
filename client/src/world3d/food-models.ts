@@ -103,7 +103,8 @@ function banana(): THREE.BufferGeometry {
 
 function carrot(): THREE.BufferGeometry {
   const root = new THREE.ConeGeometry(0.08, 0.4, 10);
-  root.rotateZ(Math.PI / 2);
+  // Lying down, the point to the right: the green grows from the thick end on the left.
+  root.rotateZ(-Math.PI / 2);
   root.translate(0.02, 0.08, 0);
   const parts = [coloured(root, KANAGAWA.surimiOrange)];
   for (const [a, h] of [[-0.4, 0.2], [0, 0.26], [0.4, 0.2]] as const) {
