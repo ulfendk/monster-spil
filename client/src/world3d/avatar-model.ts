@@ -244,7 +244,11 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
   // Everything but the feet moves together when it walks (the feet stay on the ground).
   const upper = new THREE.Group();
   for (const child of [...p.root.children]) if (!feet.includes(child as THREE.Mesh)) upper.add(child);
-  p.root.add(upper);
+  // (Swimming sinks all of it — the root itself is left alone: a rider's seat puts it there.)
+  const whole = new THREE.Group();
+  for (const child of [...p.root.children]) whole.add(child);
+  whole.add(upper);
+  p.root.add(whole);
   const armHome = arms.map((arm) => arm.position.clone());
 
   // Climbing gear, worn only on a mountain: a backpack with a coiled rope, and an ice axe in the right paw.
@@ -340,7 +344,7 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
     upper.position.y = upperY;
     upper.rotation.set(rotX, 0, rotZ);
     upper.scale.set(1, 1 + breathe, 1);
-    p.root.position.y = sink;
+    whole.position.y = sink;
     gear.visible = cl > 0.4;
     if (gear.visible) {
       axe.position.copy(arms[1]!.position).add(new THREE.Vector3(0.02, -0.02, 0.04));

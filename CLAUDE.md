@@ -156,7 +156,12 @@ game-drawn models.
 - **Handmade models:** `HANDMADE` in `monster-model.ts` maps a species id to its own builder
   (`client/src/cave/handmade/`); it returns its face switch, a `seat` (where a rider sits) and
   an optional `tick(seconds)` for movements of its own (Flammeskæl's wings beat and flames
-  flicker), which the stages, the garden and the map call every frame.
+  flicker), which the stages, the garden and the map call every frame. A builder also gets the
+  `pose`: ridden, Flammeskæl's mane of flames is lower and parted, and the rider sits in the gap
+  (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
+  sides and back, wings glowing red to orange to yellow, and an orange tail.
+- **A rider's figure is placed by its root** (`RideAnimator.seatRider`); `AvatarModel`'s own
+  animations move an inner group only, never the root.
 - `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`) knows which textures were drawn by the
   game; only those become models (a dropped-in PNG stays a picture). Rare variants recolour
   a model's parts (`variantColour`).

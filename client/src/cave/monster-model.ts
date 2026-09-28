@@ -238,7 +238,7 @@ export interface Built {
 }
 
 /** Monsters with a model made by hand for them (from a drawing), by species id. */
-const HANDMADE: Record<string, (b: Builder, species: CreatureSpecies, stage: number) => Built> = {
+const HANDMADE: Record<string, (b: Builder, species: CreatureSpecies, stage: number, pose?: "ride") => Built> = {
   ildflagrer: flammeskael,
 };
 
@@ -246,7 +246,7 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   const b = new Builder(spec.variant);
   const handmade = HANDMADE[spec.species.id];
   const built: Built = handmade
-    ? handmade(b, spec.species, spec.stage ?? 1)
+    ? handmade(b, spec.species, spec.stage ?? 1, spec.pose)
     : spec.look === "serpent"
       ? spec.pose === "ride"
         ? longSnake(b, spec.species)

@@ -10,7 +10,10 @@ import { Builder, INK, P, S, bodyGeometry, shade, sphere, type Built } from "../
  * mane of flames with blue tips standing up from the head, two big yellow bat wings (finger
  * bones, a scalloped edge, a hooked claw at the wrist) and a long thin tail curling up to a
  * burning torch of a tip. It hovers: no feet. The wings beat and the flames flicker (`tick`).
+ * Flames are painted on it too: licking up its sides and back from below, and the wings glow
+ * from red at the shoulder through orange to yellow at the edge.
  * At stage 2 (Flammedrage) the wings, mane and horns are bigger and the body warmer.
+ * Ridden (`pose: "ride"`), the mane is lower and parted in the middle, and the rider sits in the gap.
  */
 
 const K = KANAGAWA;
@@ -62,6 +65,43 @@ function teardrop(height: number, width: number, from = 0): THREE.BufferGeometry
   return new THREE.LatheGeometry(points, 12);
 }
 
+/** How far out the egg's surface lies at height y (px): its half-width and half-depth there. */
+function radiusAt(y: number): { rx: number; rz: number } {
+  const ny = Math.max(-0.5, Math.min(0.5, -(y - CY) / H));
+  const k = ny < 0 ? 1 + 0.14 * Math.sin(-ny * Math.PI) : 1 - 0.1 * ny;
+  const r = Math.sqrt(Math.max(0, 0.25 - ny * ny)) * k;
+  return { rx: r * W, rz: r * D };
+}
+
+/** A flat three-tongued flame (px, y down, its base's middle at 0, 0), `size` 1 = 20 px tall. */
+function flameShape(size: number, wide = 1): Array<[number, number]> {
+  const pts: Array<[number, number]> = [[-6, 0], [-7.5, -6], [-5, -11], [-3.5, -7], [-1.5, -15], [0.5, -9], [3, -20], [4.5, -11], [6.5, -13], [7, -5], [6, 0], [0, 2]];
+  return pts.map(([x, y]) => [x * size * wide, y * size]);
+}
+
+/**
+ * A flame painted on the body at angle `angle` round it (0 = the front) rising from height
+ * `base` (px): orange with a yellow heart, lying against the egg (tilted to follow its curve).
+ */
+function bodyFlame(b: Builder, angle: number, base: number, size: number): void {
+  const height = 20 * size;
+  const r = (y: number) => {
+    const { rx, rz } = radiusAt(y);
+    return 1 / Math.sqrt((Math.sin(angle) / rx) ** 2 + (Math.cos(angle) / rz) ** 2);
+  };
+  const mid = base - height / 2;
+  const out = r(mid) - 0.3;
+  const group = new THREE.Group();
+  group.position.copy(P(CX + Math.sin(angle) * out, mid, Math.cos(angle) * out));
+  group.rotation.order = "YXZ";
+  // Leaning out as the egg widens going up (or in, where it narrows).
+  group.rotation.set(Math.atan2(r(base - height) - r(base), height) * 0.9, angle, 0);
+  b.root.add(group);
+  const outer = b.part(slab(flameShape(size), 1), K.surimiOrange, new THREE.Vector3(0, (-height / 2) * S, 0));
+  const heart = b.part(slab(flameShape(size * 0.55, 0.8), 1), K.carpYellow, new THREE.Vector3(0, (-height / 2 + 0.5) * S, 0.8 * S), 1, false);
+  group.add(outer, heart);
+}
+
 /** A flame like the crayon ones in the drawing: orange, a yellow heart and a red streak showing, a small blue tip. */
 function flame(b: Builder, group: THREE.Group, at: THREE.Vector3, height: number, width: number, lean: number): THREE.Group {
   const f = new THREE.Group();
@@ -77,11 +117,19 @@ function flame(b: Builder, group: THREE.Group, at: THREE.Vector3, height: number
   return f;
 }
 
-export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number): Built {
+export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number, pose?: "ride"): Built {
   const grown = 1 + 0.22 * (stage - 1);
+  const ridden = pose === "ride";
   // The body: pale peach, warmer at stage 2.
-  const skin = new THREE.Color(K.fujiWhite).lerp(new THREE.Color(K.sakuraPink), 0.28).lerp(new THREE.Color(K.surimiOrange), 0.08 + 0.1 * (stage - 1)).getHex();
+  const skin = new THREE.Color(K.fujiWhite).lerp(new THREE.Color(K.sakuraPink), 0.28).lerp(new THREE.Color(K.surimiOrange), 0.2 + 0.1 * (stage - 1)).getHex();
   b.part(bodyGeometry(), skin, P(CX, CY), new THREE.Vector3(W * S, H * S, D * S));
+
+  // ---- flames painted on the body: licking up from below round the sides and back (the face stays clear), bigger at later stages.
+  for (let i = 0; i < 11; i++) {
+    const angle = 1.25 + (i / 10) * (Math.PI * 2 - 2.5);
+    const back = Math.cos(angle) < -0.3;
+    bodyFlame(b, angle, CY + 26, (back ? 1.7 : 1.3) * (0.85 + 0.15 * ((i * 7) % 3)) * (1 + 0.12 * (stage - 1)));
+  }
 
   // ---- the wings: behind the body, swept back a little, beating.
   const wingColour = K.carpYellow;
@@ -103,6 +151,10 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
     ];
     const membrane = b.part(slab(pts.map(([x, y]) => [x * side, y]), 2.4), wingColour, new THREE.Vector3());
     into(wing, membrane);
+    // Glowing like fire: orange nearer the shoulder, red at it (each a smaller copy, standing out a hair on both faces).
+    for (const [k, depth, colour] of [[0.62, 3, K.surimiOrange], [0.32, 3.6, K.autumnRed]] as const) {
+      into(wing, b.part(slab(pts.map(([x, y]) => [x * side * k, y * k]), depth), colour, new THREE.Vector3(), 1, false));
+    }
     // The arm bone along the leading edge, and finger bones from the wrist to each point.
     const wrist = new THREE.Vector3(18 * side * S, 22 * S, 0.5 * S);
     const shoulder = new THREE.Vector3(0, 4 * S, 0.5 * S);
@@ -120,7 +172,7 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
 
   // ---- the tail: from low on the back, curling out and up to a burning tip.
   const curve = new THREE.CatmullRomCurve3([P(CX + 12, CY + 20, -12), P(CX + 30, CY + 12, -18), P(CX + 44, CY - 12, -16), P(CX + 50, CY - 42, -10), P(CX + 52, CY - 56, -6)]);
-  b.part(new THREE.TubeGeometry(curve, 28, 2.2 * S, 8), shade(skin, -10), new THREE.Vector3());
+  b.part(new THREE.TubeGeometry(curve, 28, 2.2 * S, 8), K.surimiOrange, new THREE.Vector3());
   const torch = new THREE.Group();
   b.root.add(torch);
   const torchFlames = [flame(b, torch, P(CX + 52, CY - 56, -6), 18, 12, -0.15), flame(b, torch, P(CX + 48, CY - 55, -7), 12, 8, 0.55), flame(b, torch, P(CX + 56, CY - 55, -5), 12, 8, -0.75)];
@@ -128,7 +180,8 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
   // ---- the mane of flames on top of the head, tallest in the middle.
   const mane = new THREE.Group();
   mane.position.copy(P(CX, TOP + 10, -4));
-  mane.scale.setScalar(grown);
+  // (Ridden: lower, so the rider sitting in it shows.)
+  mane.scale.set(grown, ridden ? 0.55 : grown, grown);
   b.root.add(mane);
   const maneFlames: THREE.Group[] = [];
   // (Two rows, the back one taller, all leaning out from the middle — a wild blaze.)
@@ -136,6 +189,8 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
     [-16, 26, 8, 0.5, -6], [-9, 36, 8, 0.25, -7], [-2, 44, 9, 0.06, -8], [6, 42, 9, -0.12, -7], [13, 32, 8, -0.32, -6], [19, 22, 7, -0.6, -5],
     [-19, 18, 7, 0.7, 2], [-11, 24, 8, 0.35, 3], [-3, 28, 8, 0.1, 4], [5, 30, 8, -0.1, 4], [12, 24, 8, -0.38, 3], [18, 16, 7, -0.7, 1],
   ] as const) {
+    // Ridden: parted in the middle, where the rider sits.
+    if (ridden && Math.abs(dx) < 8) continue;
     maneFlames.push(flame(b, mane, new THREE.Vector3(dx * S, 0, z * S), height, width, lean));
   }
 
@@ -207,8 +262,8 @@ export function flammeskael(b: Builder, _species: CreatureSpecies, stage: number
       for (const l of lids) l.visible = face === "blink";
       mouth.scale.y = face === "talk" ? 1.7 : 1;
     },
-    // On top of the head, just behind the mane.
-    seat: P(CX, TOP + 6, -14),
+    // On top of the head, in the parted mane.
+    seat: ridden ? P(CX, TOP + 4, -4) : P(CX, TOP + 6, -14),
     rig: {
       body: b.wrapBody([], P(CX, CY + H / 2).y),
       feet: [],
