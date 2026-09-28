@@ -5,6 +5,8 @@ import { TYPE_COLOURS, bodyShape, speciesShade, type BossLook } from "../gfx/pla
 import { variantColour } from "../gfx/variants";
 import { flammeskael } from "./handmade/flammeskael";
 import { buildForm } from "./anatomy";
+import { blenderModel } from "./glb-models";
+import { blenderBuilt } from "./blender-model";
 import type { Gait } from "../world3d/mount-gaits";
 
 /**
@@ -274,7 +276,11 @@ const HANDMADE: Record<string, (b: Builder, species: CreatureSpecies, stage: num
 export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
   const b = new Builder(spec.variant);
   const handmade = HANDMADE[spec.species.id];
-  const built: Built = handmade
+  // Sculpted in Blender (tools/models): wins over everything else.
+  const sculpted = blenderModel(spec.species.id);
+  const built: Built = sculpted
+    ? blenderBuilt(b, sculpted, spec.species, spec.stage ?? 1, spec.variant)
+    : handmade
     ? handmade(b, spec.species, spec.stage ?? 1, spec.pose)
     : spec.look === "serpent"
       ? spec.pose === "ride"

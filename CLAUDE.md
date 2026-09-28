@@ -187,6 +187,24 @@ game-drawn models.
   `pose`: ridden, Flammeskæl's mane of flames is lower and parted, and the rider sits in the gap
   (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
   sides and back, wings glowing red to orange to yellow, and an orange tail.
+- **Monsters sculpted in Blender** (a pilot: Drageunge). `tools/models/monsters/<id>.py`
+  sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
+  pipeline: smooth unions, so the head grows out of the body without a seam; painted colour
+  regions; a paint with `only` recolours just one colour), `lib/model.py` hangs the parts on
+  named pivots (`body`, `foot_L`, `arm_R`, `tail`, `wing_L`, `seat`…), reduces them, bakes
+  ambient occlusion into the vertex colours' alpha and exports the model, and gltf-transform
+  compresses it with meshopt (quantized: colours to 12 bits) into
+  `shared/content/creatures/<id>.glb` (committed; Drageunge is ~110 KB). `npm run models` runs
+  headless Blender and gltf-transform in Docker (`tools/models/render.sh`; Debian's Blender,
+  so arm64 works; no npm dependency in the repo; `--only`, `--force`, `--preview` for PNGs in
+  `tools/models/.cache`); only changed scripts rebuild (`tools/models/manifest.json`). In the
+  game `cave/glb-models.ts` loads every such `.glb` with three's `MeshoptDecoder` (a
+  top-level await, so any 3D chunk waits for them and `buildMonsterModel` stays synchronous);
+  each mesh sits in a node that scales its quantized positions back up. A species with one
+  gets it before anything else (`cave/blender-model.ts`):
+  the monsters' own toon material, an ink outline pushed out along the normals, rare-variant
+  recolouring per palette colour, faces (`face` extras), stages (`minStage`/`maxStage`,
+  `stageScale`, `stageShade`) and a `MountRig` from the pivots. No TypeScript for a new one.
 - **A rider's figure is placed by its root** (`RideAnimator.seatRider`); `AvatarModel`'s own
   animations move an inner group only, never the root.
 - `placeholderSpec(key)` (`gfx/placeholder-sprites.ts`) knows which textures were drawn by the

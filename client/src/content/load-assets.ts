@@ -2,9 +2,10 @@
  * Picture and sound files for monsters and bosses, picked up at build time like the
  * creature JSON is: drop a file into shared/content/creatures/ and name it in the
  * monster's JSON ("spriteFront", "spriteBack", "sound") — no TypeScript to touch.
- * Keys are the same relative paths the JSON uses, e.g. "creatures/flammepels.wav".
+ * Keys are the same relative paths the JSON uses, e.g. "creatures/flammepels.wav". A
+ * monster's Blender model (tools/models) is creatures/<species id>.glb (cave/glb-models.ts).
  */
-const modules = import.meta.glob<string>("../../../shared/content/{creatures,raid,beasts}/*.{png,wav,mp3,m4a}", {
+const modules = import.meta.glob<string>("../../../shared/content/{creatures,raid,beasts}/*.{png,wav,mp3,m4a,glb}", {
   eager: true,
   query: "?url",
   import: "default",

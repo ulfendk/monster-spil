@@ -12,7 +12,8 @@
     "build": "npm run build -w shared && npm run build -w client",
     "build:server": "npm run build -w server",
     "typecheck": "tsc -b",
-    "test": "npm run build -w shared && npm run build -w server && node --test \"shared/dist/**/*.test.js\" \"server/dist/**/*.test.js\""
+    "test": "npm run build -w shared && npm run build -w server && node --test \"shared/dist/**/*.test.js\" \"server/dist/**/*.test.js\"",
+    "models": "sh tools/models/render.sh"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
