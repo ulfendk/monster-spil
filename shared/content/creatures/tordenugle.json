@@ -9,5 +9,6 @@
   "sound": "creatures/tordenugle.wav",
   "evolutions": ["Stormugle"],
   "wings": "feather",
+  "form": { "body": "bird", "colour": "waveBlue2", "belly": "fujiGray", "accent": "carpYellow", "build": "chibi", "ears": "tufts", "snout": "hook", "horns": "zigzag", "eyes": "owl", "extras": ["sparks"] },
   "catchRate": 0.35
 }

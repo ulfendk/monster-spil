@@ -8,5 +8,6 @@
   "spriteBack": "creatures/krystalhjort_back.png",
   "sound": "creatures/krystalhjort.wav",
   "ride": "bound",
+  "form": { "body": "beast", "colour": "carpYellow:-20", "belly": "washi", "accent": "springBlue", "legs": "long", "ears": "cat", "snout": "muzzle", "horns": "antlers", "tail": "puff", "pattern": "spots", "extras": ["hooves", "sparks"] },
   "catchRate": 0.25
 }

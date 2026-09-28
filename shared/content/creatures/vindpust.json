@@ -8,5 +8,6 @@
   "spriteBack": "creatures/vindpust_back.png",
   "sound": "creatures/vindpust.wav",
   "evolutions": ["Vindhvirvel", "Stormånd"],
+  "form": { "body": "spirit", "shape": "cloud", "colour": "washi", "accent": "carpYellow", "tail": "bolt", "eyes": "kawaii", "mouth": "grin", "extras": ["sparks"] },
   "catchRate": 0.4
 }

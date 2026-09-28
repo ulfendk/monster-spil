@@ -8,5 +8,6 @@
   "spriteBack": "creatures/barkbille_back.png",
   "sound": "creatures/barkbille.wav",
   "evolutions": ["Barkkriger"],
+  "form": { "body": "bug", "colour": "boatYellow1", "accent": "autumnGreen", "horns": "beetle", "mouth": "smile", "pattern": "bark", "extras": ["elytra", "moss"] },
   "catchRate": 0.5
 }

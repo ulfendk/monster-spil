@@ -8,5 +8,6 @@
   "spriteBack": "creatures/taagefisk_back.png",
   "sound": "creatures/taagefisk.wav",
   "evolutions": ["Tågehaj"],
+  "form": { "body": "fish", "colour": "waveAqua2:10", "belly": "washi", "accent": "springBlue", "eyes": "sleepy", "extras": ["veil", "mist"] },
   "catchRate": 0.45
 }

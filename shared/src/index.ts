@@ -1,4 +1,11 @@
-export type { TypeId, StatBlock, CreatureSpecies, CreatureInstance } from "./types/creature.js";
+export type {
+  TypeId, StatBlock, CreatureSpecies, CreatureInstance, CreatureForm, FormBody, FormShape, FormLegs, FormBuild, FormEars, FormSnout,
+  FormHorns, FormCrest, FormTail, FormEyes, FormMouth, FormPattern, FormExtra,
+} from "./types/creature.js";
+export {
+  FORM_BODIES, FORM_SHAPES, FORM_LEGS, FORM_BUILDS, FORM_EARS, FORM_SNOUTS, FORM_HORNS, FORM_CRESTS, FORM_TAILS, FORM_EYES, FORM_MOUTHS,
+  FORM_PATTERNS, FORM_EXTRAS,
+} from "./types/creature.js";
 export type { Move } from "./types/move.js";
 export { TYPE_ADVANTAGE, getMultiplier } from "./types/type-chart.js";
 export type { EncounterTableEntry, EncounterRegion, AreaMeta, AreaLink, AreaLook3d, WildGround, WildGroundEncounters, LinkKind } from "./types/area.js";

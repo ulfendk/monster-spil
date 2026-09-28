@@ -66,11 +66,17 @@ export class RideAnimator {
     const rig = this.model.rig;
     const parent = rig?.spine?.[1] ?? rig?.body ?? this.model.root;
     parent.add(rider);
-    // The seat is in the model's own coordinates; the parent sits somewhere inside it.
-    const offset = new THREE.Vector3();
-    for (let o: THREE.Object3D | null = parent; o && o !== this.model.root; o = o.parent) offset.add(this.rest.get(o)?.p ?? o.position);
-    rider.position.copy(this.model.seat).sub(offset);
-    rider.scale.setScalar(scale);
+    // The seat is in the model's own coordinates; the parent sits somewhere inside it (at rest),
+    // maybe in a group that's scaled.
+    const chain: THREE.Object3D[] = [];
+    for (let o: THREE.Object3D | null = parent; o && o !== this.model.root; o = o.parent) chain.unshift(o);
+    const m = new THREE.Matrix4();
+    for (const o of chain) {
+      const r = this.rest.get(o);
+      m.multiply(new THREE.Matrix4().compose(r?.p ?? o.position, new THREE.Quaternion().setFromEuler(r?.r ?? o.rotation), r?.s ?? o.scale));
+    }
+    rider.position.copy(this.model.seat).applyMatrix4(m.clone().invert());
+    rider.scale.setScalar(scale / new THREE.Vector3().setFromMatrixScale(m).x);
   }
 
   /** How high above its spot it is now (tiles, for its shadow). */

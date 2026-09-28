@@ -8,5 +8,6 @@
   "spriteBack": "creatures/snefnug_back.png",
   "sound": "creatures/snefnug.wav",
   "evolutions": ["Snestorm", "Isdronning"],
+  "form": { "body": "spirit", "shape": "snowflake", "colour": "washi", "accent": "springBlue", "eyes": "kawaii" },
   "catchRate": 0.5
 }

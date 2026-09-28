@@ -8,5 +8,6 @@
   "spriteBack": "creatures/svampling_back.png",
   "sound": "creatures/svampling.wav",
   "evolutions": ["Svampetrold"],
+  "form": { "body": "blob", "shape": "mushroom", "colour": "oniViolet", "belly": "washi", "accent": "washi", "extras": ["spores"] },
   "catchRate": 0.5
 }

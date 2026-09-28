@@ -8,5 +8,6 @@
   "spriteBack": "creatures/dryppel_back.png",
   "sound": "creatures/dryppel.wav",
   "evolutions": ["Bølgedryp", "Storbølge"],
+  "form": { "body": "blob", "shape": "drop", "colour": "springBlue", "belly": "washi", "accent": "crystalBlue", "crest": "none", "mouth": "smile" },
   "catchRate": 0.5
 }

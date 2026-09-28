@@ -8,5 +8,6 @@
   "spriteBack": "creatures/sandhvisker_back.png",
   "sound": "creatures/sandhvisker.wav",
   "evolutions": ["Sandræv", "Ørkenræv"],
+  "form": { "body": "beast", "colour": "boatYellow2:8", "belly": "washi", "ears": "fennec", "snout": "muzzle", "tail": "fox", "mouth": "cat", "extras": ["dust"] },
   "catchRate": 0.45
 }

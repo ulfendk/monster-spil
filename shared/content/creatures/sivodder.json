@@ -8,5 +8,6 @@
   "spriteBack": "creatures/sivodder_back.png",
   "sound": "creatures/sivodder.wav",
   "evolutions": ["Strømodder", "Havodder"],
+  "form": { "body": "beast", "colour": "boatYellow1", "belly": "oldWhite", "legs": "stubby", "build": "long", "ears": "round", "snout": "muzzle", "tail": "lizard", "mouth": "cat", "extras": ["whiskers", "bubbles"] },
   "catchRate": 0.45
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/grenspringer_back.png",
   "sound": "creatures/grenspringer.wav",
   "evolutions": ["Kronespringer"],
+  "form": { "body": "biped", "colour": "surimiOrange:-18", "belly": "washi", "build": "chibi", "ears": "tufts", "snout": "muzzle", "tail": "fluffy", "mouth": "buck", "extras": ["acorn"] },
   "catchRate": 0.5
 }

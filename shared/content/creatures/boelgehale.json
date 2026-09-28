@@ -8,5 +8,6 @@
   "spriteBack": "creatures/boelgehale_back.png",
   "sound": "creatures/boelgehale.wav",
   "evolutions": ["Bølgedrage"],
+  "form": { "body": "beast", "colour": "crystalBlue", "belly": "washi", "accent": "springBlue", "legs": "short", "ears": "none", "snout": "muzzle", "crest": "waves", "tail": "fin", "extras": ["backfin", "bubbles"] },
   "catchRate": 0.5
 }

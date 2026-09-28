@@ -9,5 +9,6 @@
   "sound": "creatures/snetrold.wav",
   "evolutions": ["Iskæmpe"],
   "ride": "stomp",
+  "form": { "body": "biped", "colour": "washi", "belly": "springBlue:20", "accent": "springBlue", "build": "stocky", "snout": "big", "horns": "nubs", "crest": "hair", "mouth": "tusks", "pattern": "fur", "extras": ["icicles"] },
   "catchRate": 0.35
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/kulsnude_back.png",
   "sound": "creatures/kulsnude.wav",
   "evolutions": ["Kulgris", "Ildgalt"],
+  "form": { "body": "beast", "colour": "sumiInk5", "belly": "sumiInk6", "accent": "surimiOrange", "legs": "short", "ears": "floppy", "snout": "pig", "tail": "curl", "eyes": "glow", "mouth": "tusks", "pattern": "cracks" },
   "catchRate": 0.5
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/krystaltusse_back.png",
   "sound": "creatures/krystaltusse.wav",
   "evolutions": ["Krystalpadde"],
+  "form": { "body": "frog", "colour": "katanaGray", "belly": "fujiGray", "accent": "oniViolet", "crest": "crystals", "eyes": "sleepy", "pattern": "spots" },
   "catchRate": 0.4
 }

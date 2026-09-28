@@ -8,5 +8,6 @@
   "spriteBack": "creatures/boblegedde_back.png",
   "sound": "creatures/boblegedde.wav",
   "evolutions": ["Stormgedde"],
+  "form": { "body": "fish", "colour": "waveAqua2:-10", "belly": "oldWhite", "accent": "autumnGreen", "snout": "jaw", "eyes": "fierce", "pattern": "bands", "extras": ["bubbles"] },
   "catchRate": 0.4
 }

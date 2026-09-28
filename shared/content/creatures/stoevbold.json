@@ -8,5 +8,6 @@
   "spriteBack": "creatures/stoevbold_back.png",
   "sound": "creatures/stoevbold.wav",
   "evolutions": ["Sporebold"],
+  "form": { "body": "blob", "shape": "puffball", "colour": "oldWhite", "accent": "boatYellow2", "eyes": "sleepy", "pattern": "speckles", "extras": ["spores"] },
   "catchRate": 0.45
 }

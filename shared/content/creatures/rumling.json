@@ -7,5 +7,6 @@
   "spriteFront": "creatures/rumling_front.png",
   "spriteBack": "creatures/rumling_back.png",
   "sound": "creatures/rumling.wav",
+  "form": { "body": "biped", "colour": "waveAqua2", "belly": "washi", "accent": "carpYellow", "build": "chibi", "eyes": "alien", "mouth": "smile", "extras": ["antennae", "glow"] },
   "catchRate": 0.25
 }

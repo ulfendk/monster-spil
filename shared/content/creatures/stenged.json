@@ -9,5 +9,6 @@
   "sound": "creatures/stenged.wav",
   "evolutions": ["Klippebuk"],
   "ride": "bound",
+  "form": { "body": "beast", "colour": "fujiGray", "belly": "oldWhite", "legs": "long", "ears": "cat", "snout": "muzzle", "horns": "ram", "tail": "puff", "extras": ["beard", "hooves"] },
   "catchRate": 0.4
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/grottefisk_back.png",
   "sound": "creatures/grottefisk.wav",
   "evolutions": ["Grottehaj"],
+  "form": { "body": "fish", "colour": "fujiWhite", "belly": "washi", "accent": "sakuraPink", "eyes": "blind", "mouth": "teeth", "extras": ["lure"] },
   "catchRate": 0.45
 }

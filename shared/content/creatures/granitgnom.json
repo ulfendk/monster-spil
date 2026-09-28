@@ -8,5 +8,6 @@
   "spriteBack": "creatures/granitgnom_back.png",
   "sound": "creatures/granitgnom.wav",
   "evolutions": ["Granitkæmpe"],
+  "form": { "body": "biped", "colour": "katanaGray", "belly": "fujiGray", "build": "chibi", "snout": "big", "crest": "stonehat", "eyes": "dot", "pattern": "speckles", "extras": ["beard"] },
   "catchRate": 0.35
 }

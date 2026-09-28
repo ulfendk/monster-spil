@@ -8,5 +8,6 @@
   "spriteBack": "creatures/vandloeber_back.png",
   "sound": "creatures/vandloeber.wav",
   "evolutions": ["Vandskøjter", "Søløber"],
+  "form": { "body": "bug", "colour": "crystalBlue", "accent": "springBlue", "eyes": "kawaii", "mouth": "smile", "extras": ["strider"] },
   "catchRate": 0.5
 }

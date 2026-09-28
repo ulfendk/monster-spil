@@ -62,7 +62,8 @@ export async function bakeMonsterPictures(scene: Phaser.Scene, progress?: (done:
     // A little smaller than the box, so turned wings and crests aren't cut off.
     model.root.scale.setScalar(0.9);
     model.root.position.y = -0.03;
-    model.root.rotation.set(0.12, job.back ? Math.PI - TURN : TURN, 0);
+    const turn = model.view ?? TURN;
+    model.root.rotation.set(0.12, job.back ? Math.PI - turn : turn, 0);
     stage.add(model.root);
     renderer.render(stage, camera);
     stage.remove(model.root);

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/hophare_back.png",
   "sound": "creatures/hophare.wav",
   "evolutions": ["Springhare", "Vindhare"],
+  "form": { "body": "biped", "colour": "boatYellow2", "belly": "washi", "build": "chibi", "ears": "long", "snout": "muzzle", "tail": "puff", "mouth": "buck" },
   "catchRate": 0.5
 }

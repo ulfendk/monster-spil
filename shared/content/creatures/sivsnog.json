@@ -8,5 +8,6 @@
   "spriteBack": "creatures/sivsnog_back.png",
   "sound": "creatures/sivsnog.wav",
   "evolutions": ["Sivslange"],
+  "form": { "body": "worm", "colour": "autumnGreen", "belly": "carpYellow", "accent": "carpYellow", "pattern": "stripes", "mouth": "smile", "eyes": "kawaii" },
   "catchRate": 0.4
 }

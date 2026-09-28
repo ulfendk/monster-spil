@@ -8,5 +8,6 @@
   "spriteBack": "creatures/frostpip_back.png",
   "sound": "creatures/frostpip.wav",
   "evolutions": ["Frostfugl", "Isfønix"],
+  "form": { "body": "bird", "colour": "springBlue", "belly": "washi", "accent": "surimiOrange", "build": "chibi", "crest": "icicles", "tail": "fan" },
   "catchRate": 0.45
 }

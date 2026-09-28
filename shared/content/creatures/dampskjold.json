@@ -8,5 +8,6 @@
   "spriteBack": "creatures/dampskjold_back.png",
   "sound": "creatures/dampskjold.wav",
   "evolutions": ["Dampkæmpe"],
+  "form": { "body": "beast", "colour": "autumnRed:-10", "belly": "boatYellow2", "accent": "boatYellow1", "legs": "stubby", "build": "stocky", "tail": "lizard", "eyes": "sleepy", "mouth": "smile", "extras": ["carapace", "steam"] },
   "catchRate": 0.35
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/ildflue_back.png",
   "sound": "creatures/ildflue.wav",
   "evolutions": ["Lysflue", "Stjerneflue"],
+  "form": { "body": "bug", "colour": "sumiInk5", "accent": "carpYellow", "mouth": "smile", "extras": ["bugwings", "glow"] },
   "catchRate": 0.5
 }

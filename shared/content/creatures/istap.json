@@ -8,5 +8,6 @@
   "spriteBack": "creatures/istap_back.png",
   "sound": "creatures/istap.wav",
   "evolutions": ["Isspyd"],
+  "form": { "body": "spirit", "shape": "crystal", "colour": "springBlue:12", "accent": "crystalBlue", "eyes": "kawaii" },
   "catchRate": 0.45
 }

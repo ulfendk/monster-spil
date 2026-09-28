@@ -8,5 +8,6 @@
   "spriteBack": "creatures/flammepels_back.png",
   "sound": "creatures/flammepels.wav",
   "evolutions": ["Flammeræv", "Ildkitsune"],
+  "form": { "body": "beast", "colour": "peachRed", "belly": "washi", "ears": "fox", "snout": "muzzle", "crest": "tuft", "tail": "fox", "mouth": "cat", "extras": ["kitsune", "flametip"] },
   "catchRate": 0.45
 }

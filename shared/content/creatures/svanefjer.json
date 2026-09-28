@@ -10,5 +10,6 @@
   "evolutions": ["Svanedronning"],
   "ride": "fly",
   "wings": "feather",
+  "form": { "body": "bird", "colour": "washi", "belly": "washi", "accent": "surimiOrange", "tail": "fan", "extras": ["neck"] },
   "catchRate": 0.35
 }

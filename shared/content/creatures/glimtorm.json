@@ -8,5 +8,6 @@
   "spriteBack": "creatures/glimtorm_back.png",
   "sound": "creatures/glimtorm.wav",
   "evolutions": ["Glimslange", "Lynormen"],
+  "form": { "body": "worm", "colour": "carpYellow:-15", "accent": "carpYellow", "extras": ["glow", "antennae"] },
   "catchRate": 0.5
 }

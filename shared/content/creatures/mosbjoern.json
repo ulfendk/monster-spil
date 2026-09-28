@@ -9,5 +9,6 @@
   "sound": "creatures/mosbjoern.wav",
   "evolutions": ["Skovbjørn"],
   "ride": "stomp",
+  "form": { "body": "beast", "colour": "boatYellow1", "belly": "boatYellow2", "build": "stocky", "ears": "bear", "snout": "muzzle", "eyes": "sleepy", "pattern": "patches", "extras": ["moss", "claws"] },
   "catchRate": 0.3
 }

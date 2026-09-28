@@ -49,3 +49,10 @@ const game = new Phaser.Game({
 
 // Development only: lets automated checks drive scenes (e.g. at iPhone sizes) without guessing tap positions.
 if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game;
+// Dev only: every monster's model on one sheet — `await __monsterSheet({ stage: 3 })` gives a canvas.
+if (import.meta.env.DEV) {
+  (window as unknown as { __monsterSheet: unknown }).__monsterSheet = async (opts: object = {}) => {
+    const [{ monsterSheet }, { loadContent }] = await Promise.all([import("./dev/monster-sheet"), import("./content/load-content")]);
+    return monsterSheet(Object.values(loadContent().speciesById), opts);
+  };
+}

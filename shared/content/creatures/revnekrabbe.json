@@ -7,5 +7,6 @@
   "spriteFront": "creatures/revnekrabbe_front.png",
   "spriteBack": "creatures/revnekrabbe_back.png",
   "sound": "creatures/revnekrabbe.wav",
+  "form": { "body": "crab", "colour": "boatYellow1", "belly": "oldWhite", "accent": "katanaGray", "pattern": "cracks" },
   "catchRate": 0.3
 }

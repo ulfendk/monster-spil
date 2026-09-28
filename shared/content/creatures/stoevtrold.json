@@ -8,5 +8,6 @@
   "spriteBack": "creatures/stoevtrold_back.png",
   "sound": "creatures/stoevtrold.wav",
   "evolutions": ["Sandstormtrold"],
+  "form": { "body": "biped", "colour": "boatYellow2", "belly": "oldWhite", "accent": "boatYellow1", "build": "stocky", "snout": "big", "crest": "hair", "mouth": "tusks", "pattern": "speckles", "extras": ["dust"] },
   "catchRate": 0.35
 }

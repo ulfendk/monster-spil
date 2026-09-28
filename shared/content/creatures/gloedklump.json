@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gloedklump_back.png",
   "sound": "creatures/gloedklump.wav",
   "evolutions": ["Glødkæmpe"],
+  "form": { "body": "blob", "shape": "rock", "colour": "sumiInk5", "accent": "surimiOrange", "eyes": "glow", "mouth": "grin", "pattern": "cracks", "extras": ["embers"] },
   "catchRate": 0.4
 }

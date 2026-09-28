@@ -7,5 +7,6 @@
   "spriteFront": "creatures/loevhvirvel_front.png",
   "spriteBack": "creatures/loevhvirvel_back.png",
   "sound": "creatures/loevhvirvel.wav",
+  "form": { "body": "spirit", "shape": "whirl", "colour": "springGreen", "accent": "autumnGreen", "eyes": "kawaii", "mouth": "grin" },
   "catchRate": 0.3
 }

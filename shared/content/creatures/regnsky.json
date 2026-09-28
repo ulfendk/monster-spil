@@ -8,5 +8,6 @@
   "spriteBack": "creatures/regnsky_back.png",
   "sound": "creatures/regnsky.wav",
   "evolutions": ["Tordensky", "Stormsky"],
+  "form": { "body": "spirit", "shape": "cloud", "colour": "fujiGray:20", "accent": "crystalBlue", "eyes": "sleepy", "mouth": "smile", "extras": ["raindrops"] },
   "catchRate": 0.45
 }

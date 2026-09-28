@@ -8,5 +8,6 @@
   "spriteBack": "creatures/koglekat_back.png",
   "sound": "creatures/koglekat.wav",
   "evolutions": ["Koglelos"],
+  "form": { "body": "beast", "colour": "boatYellow1", "belly": "oldWhite", "ears": "cat", "snout": "muzzle", "tail": "leafy", "mouth": "cat", "pattern": "scales", "extras": ["whiskers"] },
   "catchRate": 0.45
 }

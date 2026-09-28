@@ -8,5 +8,6 @@
   "spriteBack": "creatures/mosmus_back.png",
   "sound": "creatures/mosmus.wav",
   "evolutions": ["Mosrotte", "Moskonge"],
+  "form": { "body": "blob", "colour": "autumnGreen", "belly": "carpYellow", "ears": "mouse", "snout": "muzzle", "tail": "thin", "pattern": "patches", "extras": ["whiskers", "flower"] },
   "catchRate": 0.55
 }

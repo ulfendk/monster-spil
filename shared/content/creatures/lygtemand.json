@@ -8,5 +8,6 @@
   "spriteBack": "creatures/lygtemand_back.png",
   "sound": "creatures/lygtemand.wav",
   "evolutions": ["Lygtetrold"],
+  "form": { "body": "spirit", "shape": "flame", "colour": "surimiOrange", "accent": "carpYellow", "eyes": "glow", "mouth": "grin", "extras": ["lantern"] },
   "catchRate": 0.4
 }

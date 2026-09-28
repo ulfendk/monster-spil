@@ -9,5 +9,6 @@
   "sound": "creatures/gloedgemse.wav",
   "evolutions": ["Flammegemse"],
   "ride": "bound",
+  "form": { "body": "beast", "colour": "autumnRed", "belly": "oldWhite", "accent": "carpYellow", "legs": "long", "ears": "cat", "snout": "muzzle", "horns": "hook", "tail": "puff", "extras": ["hooves", "embers"] },
   "catchRate": 0.35
 }

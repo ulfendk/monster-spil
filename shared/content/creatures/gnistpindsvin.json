@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gnistpindsvin_back.png",
   "sound": "creatures/gnistpindsvin.wav",
   "evolutions": ["Lynpindsvin"],
+  "form": { "body": "beast", "colour": "boatYellow1", "belly": "oldWhite", "accent": "carpYellow", "legs": "stubby", "ears": "round", "snout": "long", "crest": "spikes", "mouth": "smile", "extras": ["sparks"] },
   "catchRate": 0.45
 }

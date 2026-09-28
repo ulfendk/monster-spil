@@ -8,5 +8,6 @@
   "spriteBack": "creatures/lovgro_back.png",
   "sound": "creatures/lovgro.wav",
   "evolutions": ["Løvtrold", "Skovkonge"],
+  "form": { "body": "biped", "colour": "springGreen", "belly": "carpYellow", "build": "chibi", "crest": "sprout", "mouth": "smile" },
   "catchRate": 0.5
 }

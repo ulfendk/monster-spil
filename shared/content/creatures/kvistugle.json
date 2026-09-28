@@ -8,5 +8,6 @@
   "spriteBack": "creatures/kvistugle_back.png",
   "sound": "creatures/kvistugle.wav",
   "evolutions": ["Grenugle", "Skovugle"],
+  "form": { "body": "bird", "colour": "boatYellow1", "belly": "oldWhite", "accent": "carpYellow", "build": "chibi", "ears": "tufts", "snout": "hook", "crest": "leaves", "eyes": "owl", "pattern": "bark" },
   "catchRate": 0.45
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/stenbid_back.png",
   "sound": "creatures/stenbid.wav",
   "evolutions": ["Stenbider", "Klippebid"],
+  "form": { "body": "blob", "shape": "rock", "colour": "katanaGray", "accent": "autumnGreen", "snout": "jaw", "eyes": "fierce", "extras": ["moss"] },
   "catchRate": 0.35
 }

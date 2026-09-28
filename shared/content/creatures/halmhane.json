@@ -8,5 +8,6 @@
   "spriteBack": "creatures/halmhane_back.png",
   "sound": "creatures/halmhane.wav",
   "evolutions": ["Ildhane"],
+  "form": { "body": "bird", "colour": "carpYellow", "belly": "washi", "accent": "sumiInk5", "crest": "comb", "tail": "sickle", "extras": ["wattle"] },
   "catchRate": 0.45
 }

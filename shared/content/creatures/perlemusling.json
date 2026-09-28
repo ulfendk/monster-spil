@@ -8,5 +8,6 @@
   "spriteBack": "creatures/perlemusling_back.png",
   "sound": "creatures/perlemusling.wav",
   "evolutions": ["Perleskjold"],
+  "form": { "body": "shell", "colour": "oniViolet:-10", "belly": "sakuraPink", "eyes": "kawaii", "mouth": "smile" },
   "catchRate": 0.4
 }

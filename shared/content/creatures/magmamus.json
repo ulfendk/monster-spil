@@ -8,5 +8,6 @@
   "spriteBack": "creatures/magmamus_back.png",
   "sound": "creatures/magmamus.wav",
   "evolutions": ["Magmarotte", "Vulkanrotte"],
+  "form": { "body": "blob", "colour": "sumiInk5", "belly": "sumiInk6", "accent": "surimiOrange", "ears": "mouse", "snout": "muzzle", "tail": "thin", "pattern": "cracks", "extras": ["whiskers", "embers"] },
   "catchRate": 0.45
 }

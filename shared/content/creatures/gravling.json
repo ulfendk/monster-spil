@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gravling_back.png",
   "sound": "creatures/gravling.wav",
   "evolutions": ["Stengrævling"],
+  "form": { "body": "beast", "colour": "sumiInk6", "belly": "fujiGray", "legs": "stubby", "build": "stocky", "ears": "round", "snout": "long", "mouth": "smile", "pattern": "mask", "extras": ["claws"] },
   "catchRate": 0.45
 }

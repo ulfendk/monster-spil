@@ -8,5 +8,6 @@
   "spriteBack": "creatures/fjeldmurmel_back.png",
   "sound": "creatures/fjeldmurmel.wav",
   "evolutions": ["Klippemurmel"],
+  "form": { "body": "biped", "colour": "boatYellow1", "belly": "oldWhite", "build": "chibi", "ears": "round", "snout": "muzzle", "tail": "fluffy", "mouth": "buck", "extras": ["cheeks"] },
   "catchRate": 0.45
 }

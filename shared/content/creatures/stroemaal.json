@@ -8,5 +8,6 @@
   "spriteBack": "creatures/stroemaal_back.png",
   "sound": "creatures/stroemaal.wav",
   "evolutions": ["Tordenål"],
+  "form": { "body": "worm", "colour": "waveBlue2", "accent": "carpYellow", "tail": "fin", "eyes": "fierce", "mouth": "teeth", "pattern": "bands", "extras": ["backfin", "sparks"] },
   "catchRate": 0.35
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/taagetrold_back.png",
   "sound": "creatures/taagetrold.wav",
   "evolutions": ["Mosetrold"],
+  "form": { "body": "biped", "colour": "fujiGray", "belly": "oldWhite", "accent": "autumnGreen", "build": "stocky", "snout": "big", "crest": "hair", "eyes": "sleepy", "mouth": "smile", "pattern": "patches", "extras": ["mist"] },
   "catchRate": 0.35
 }

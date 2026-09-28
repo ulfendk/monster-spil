@@ -8,5 +8,6 @@
   "spriteBack": "creatures/tordenbuk_back.png",
   "sound": "creatures/tordenbuk.wav",
   "ride": "bound",
+  "form": { "body": "beast", "colour": "katanaGray", "belly": "fujiWhite", "accent": "carpYellow", "legs": "long", "ears": "cat", "snout": "muzzle", "horns": "zigzag", "tail": "puff", "extras": ["beard", "hooves", "sparks"] },
   "catchRate": 0.3
 }

@@ -8,5 +8,6 @@
   "spriteBack": "creatures/rodnisse_back.png",
   "sound": "creatures/rodnisse.wav",
   "evolutions": ["Rodtrold"],
+  "form": { "body": "biped", "colour": "boatYellow1", "belly": "boatYellow2", "accent": "autumnGreen", "build": "chibi", "snout": "big", "crest": "hat", "eyes": "dot", "mouth": "smile", "extras": ["beard"] },
   "catchRate": 0.45
 }

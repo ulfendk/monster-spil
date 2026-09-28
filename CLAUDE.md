@@ -145,6 +145,25 @@ game-drawn models.
 
 ## Monsters in 3D
 
+- **Each monster's look is content: `"form"` in its JSON** (`CreatureForm` in
+  `shared/src/types/creature.ts`), built by `client/src/cave/anatomy/` — no code for a new
+  monster. `body` is the plan: `blob` (head and body in one; `shape` egg, drop, rock, puffball,
+  mushroom, star, cone), `beast` (four legs, a head in front; `legs` short/long/stubby, `build`
+  stocky/long), `biped` (trolls, gnomes, rabbits; `build` chibi/stocky), `bird`, `fish`, `bug`,
+  `frog`, `spirit` (floating: cloud, flame, jelly, crystal, whirl, snowflake), `snail`, `shell`
+  (a mussel), `crab`, `worm` (snakes, eels, glow-worms). Then its parts: `colour`/`belly`/`accent`
+  (Kanagawa palette names, `"katanaGray:-10"` for darker), `ears`, `snout`, `horns`, `crest`,
+  `tail`, `eyes`, `mouth`, `pattern` and `extras` (whiskers, antennae, a lantern, drifting
+  sparks/embers/bubbles/spores/steam, a carapace, bug wings, pincers, kitsune tails…). The
+  allowed words are the `FORM_*` lists; a test checks every monster's form uses only them.
+  Pieces: `kit.ts` (ellipsoids and points on them, tapered tubes, lathes, decals, glows),
+  `face.ts`, `head.ts` (snouts, ears, horns, crests), `tail.ts`, `surface.ts` (patterns,
+  extras), `plans.ts` (the body plans), `index.ts` (`buildForm`: puts it together, grows crests
+  and horns and adds a chest mark and a crown at later stages, and fits the model to the
+  picture's box). Each plan says how its picture is turned (`MonsterModel.view`: four-legged
+  ones and fish more from the side). In dev builds `await __monsterSheet({ stage, face, turn })`
+  draws every monster on one canvas (`client/src/dev/monster-sheet.ts`) to look them over.
+  Species without a form (Flammeskæl, the boss babies) keep the older look below.
 - **In the 3D scenes (battles, catching, caves) and on the 3D map, a monster the game draws
   itself is a 3D model** (`client/src/cave/monster-model.ts`, `buildMonsterModel`), made
   after its placeholder picture: the body shaped by its stats, a lighter belly, feet, a

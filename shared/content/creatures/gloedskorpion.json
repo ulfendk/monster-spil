@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gloedskorpion_back.png",
   "sound": "creatures/gloedskorpion.wav",
   "evolutions": ["Lavaskorpion"],
+  "form": { "body": "bug", "colour": "autumnRed:-12", "accent": "surimiOrange", "tail": "stinger", "eyes": "fierce", "mouth": "none", "extras": ["pincers"] },
   "catchRate": 0.35
 }

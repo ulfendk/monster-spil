@@ -9,5 +9,6 @@
   "sound": "creatures/gnistspaette.wav",
   "evolutions": ["Tordenspætte"],
   "wings": "feather",
+  "form": { "body": "bird", "colour": "sumiInk6", "belly": "washi", "accent": "autumnRed", "snout": "chisel", "crest": "cap", "tail": "fan", "pattern": "speckles", "extras": ["sparks"] },
   "catchRate": 0.45
 }

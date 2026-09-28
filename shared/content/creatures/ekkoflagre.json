@@ -9,5 +9,6 @@
   "sound": "creatures/ekkoflagre.wav",
   "evolutions": ["Ekkoflagermus"],
   "wings": "bat",
+  "form": { "body": "blob", "colour": "oniViolet:-10", "belly": "oniViolet:15", "ears": "bat", "snout": "none", "mouth": "smile", "extras": ["sparks"] },
   "catchRate": 0.45
 }

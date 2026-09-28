@@ -4,6 +4,7 @@ import { KANAGAWA } from "../ui/theme";
 import { TYPE_COLOURS, bodyShape, speciesShade, type BossLook } from "../gfx/placeholder-sprites";
 import { variantColour } from "../gfx/variants";
 import { flammeskael } from "./handmade/flammeskael";
+import { buildForm } from "./anatomy";
 
 /**
  * A monster in 3D, modelled after its placeholder picture (gfx/placeholder-sprites.ts) so it
@@ -57,6 +58,8 @@ export interface MonsterModel {
   tick?(seconds: number): void;
   /** Its moving parts, for riding animations. */
   rig?: MountRig;
+  /** How far round its picture shows it (radians; default a three-quarter view). */
+  view?: number;
   setFace(face: "normal" | "blink" | "talk"): void;
   /** A flash of colour (a hit), or null to stop. */
   setTint(colour: number | null): void;
@@ -135,6 +138,7 @@ export class Builder {
   }
 
   keep<T extends THREE.Material>(m: T): T {
+    m.userData.baseOpacity = m.opacity;
     this.materials.push(m);
     return m;
   }
@@ -149,21 +153,37 @@ export class Builder {
     if (typeof scale === "number") mesh.scale.setScalar(scale);
     else mesh.scale.copy(scale);
     if (outline) {
-      // The ink edge: the same shape a little bigger, drawn from inside (only its rim shows).
+      // The ink edge: the same shape a little bigger (about its own middle), drawn from inside (only its rim shows).
       const edge = new THREE.Mesh(geometry, this.ink);
       geometry.computeBoundingSphere();
-      const r = geometry.boundingSphere!.radius * Math.max(mesh.scale.x, mesh.scale.y, mesh.scale.z);
-      edge.scale.setScalar(1 + (OUTLINE * S) / Math.max(r, 0.01));
+      const { center, radius } = geometry.boundingSphere!;
+      const k = 1 + (OUTLINE * S) / Math.max(radius * Math.max(mesh.scale.x, mesh.scale.y, mesh.scale.z), 0.01);
+      edge.scale.setScalar(k);
+      edge.position.copy(center).multiplyScalar(1 - k);
       mesh.add(edge);
     }
     this.root.add(mesh);
     return mesh;
   }
 
+  /** An ink shape of its own (a tube's outline: the same tube a little thicker), drawn from inside. */
+  inkShell(geometry: THREE.BufferGeometry, parent: THREE.Object3D): THREE.Mesh {
+    this.geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, this.ink);
+    parent.add(mesh);
+    return mesh;
+  }
+
+  /** How thick the ink outline is (px). */
+  get outlinePx(): number {
+    return OUTLINE;
+  }
+
   /** A flat-coloured part that doesn't take the light (ink, eye glints, cheeks). */
   flat(geometry: THREE.BufferGeometry, colour: number, at: THREE.Vector3, scale: THREE.Vector3 | number = 1, opacity = 1): THREE.Mesh {
     this.geometries.push(geometry);
-    const mesh = new THREE.Mesh(geometry, this.keep(new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity })));
+    // (See-through ones — a glow, a wing — mustn't hide what's inside or behind them.)
+    const mesh = new THREE.Mesh(geometry, this.keep(new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity, depthWrite: opacity >= 1 })));
     mesh.position.copy(at);
     if (typeof scale === "number") mesh.scale.setScalar(scale);
     else mesh.scale.copy(scale);
@@ -235,6 +255,7 @@ export interface Built {
   seat: THREE.Vector3;
   tick?: (seconds: number) => void;
   rig?: MountRig;
+  view?: number;
 }
 
 /** Monsters with a model made by hand for them (from a drawing), by species id. */
@@ -253,12 +274,15 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
         : { face: serpent(b, spec.species), seat: P(64, 30, -6) }
       : spec.look === "eagle"
         ? eagle(b, spec.species)
-        : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
+        : spec.species.form && !spec.look
+          ? buildForm(b, spec.species, spec.species.form, spec.stage ?? 1, spec.pose)
+          : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
   return {
     root: b.root,
     seat: built.seat,
     ...(built.tick ? { tick: built.tick } : {}),
     ...(built.rig ? { rig: built.rig } : {}),
+    ...(built.view !== undefined ? { view: built.view } : {}),
     setFace: built.face,
     setTint(colour) {
       for (const m of b.toon) {
@@ -267,7 +291,7 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
       }
     },
     setOpacity(opacity) {
-      for (const m of b.materials) (m as THREE.MeshBasicMaterial).opacity = opacity;
+      for (const m of b.materials) m.opacity = ((m.userData.baseOpacity as number | undefined) ?? 1) * opacity;
     },
     dispose() {
       for (const g of b.geometries) g.dispose();

@@ -10,5 +10,6 @@
   "evolutions": ["Lavaskjold"],
   "ride": "glide",
   "shell": true,
+  "form": { "body": "snail", "colour": "surimiOrange", "accent": "sumiInk5", "mouth": "smile", "extras": ["steam"] },
   "catchRate": 0.4
 }

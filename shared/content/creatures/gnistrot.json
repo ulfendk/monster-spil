@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gnistrot_back.png",
   "sound": "creatures/gnistrot.wav",
   "evolutions": ["Lynrotte", "Tordenrotte"],
+  "form": { "body": "blob", "colour": "katanaGray", "belly": "oldWhite", "accent": "carpYellow", "ears": "round", "snout": "muzzle", "tail": "bolt", "mouth": "buck", "pattern": "stripes", "extras": ["whiskers", "sparks"] },
   "catchRate": 0.45
 }

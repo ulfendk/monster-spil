@@ -8,5 +8,6 @@
   "spriteBack": "creatures/flodtrold_back.png",
   "sound": "creatures/flodtrold.wav",
   "ride": "stomp",
+  "form": { "body": "biped", "colour": "autumnGreen:-12", "belly": "waveAqua2", "accent": "boatYellow1", "build": "stocky", "snout": "big", "crest": "reeds", "mouth": "tusks", "pattern": "patches", "extras": ["moss"] },
   "catchRate": 0.3
 }

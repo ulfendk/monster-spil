@@ -8,5 +8,6 @@
   "spriteBack": "creatures/grusgekko_back.png",
   "sound": "creatures/grusgekko.wav",
   "evolutions": ["Skredgekko", "Bjerggekko"],
+  "form": { "body": "beast", "colour": "boatYellow2", "belly": "oldWhite", "accent": "katanaGray", "legs": "stubby", "build": "long", "tail": "lizard", "mouth": "wide", "pattern": "speckles" },
   "catchRate": 0.4
 }

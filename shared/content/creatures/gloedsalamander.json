@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gloedsalamander_back.png",
   "sound": "creatures/gloedsalamander.wav",
   "evolutions": ["Ildsalamander", "Lavadrage"],
+  "form": { "body": "beast", "colour": "peachRed", "belly": "carpYellow", "accent": "carpYellow", "legs": "stubby", "build": "long", "tail": "lizard", "mouth": "wide", "pattern": "spots", "extras": ["ridge"] },
   "catchRate": 0.35
 }

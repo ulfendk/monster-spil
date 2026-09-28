@@ -8,5 +8,6 @@
   "spriteBack": "creatures/gnistflue_back.png",
   "sound": "creatures/gnistflue.wav",
   "evolutions": ["Gnistbi", "Lynhveps"],
+  "form": { "body": "bug", "colour": "carpYellow", "accent": "sumiInk4", "mouth": "smile", "pattern": "bands", "extras": ["bugwings", "sparks"] },
   "catchRate": 0.5
 }

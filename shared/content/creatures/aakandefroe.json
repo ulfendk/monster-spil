@@ -8,5 +8,6 @@
   "spriteBack": "creatures/aakandefroe_back.png",
   "sound": "creatures/aakandefroe.wav",
   "evolutions": ["Åkandetudse"],
+  "form": { "body": "frog", "colour": "springGreen", "belly": "carpYellow", "crest": "lilypad" },
   "catchRate": 0.45
 }

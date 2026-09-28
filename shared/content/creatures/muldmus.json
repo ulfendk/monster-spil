@@ -8,5 +8,6 @@
   "spriteBack": "creatures/muldmus_back.png",
   "sound": "creatures/muldmus.wav",
   "evolutions": ["Muldvarp", "Jordkonge"],
+  "form": { "body": "blob", "colour": "sumiInk5", "belly": "sumiInk6", "ears": "none", "snout": "star", "tail": "thin", "eyes": "dot", "mouth": "smile", "extras": ["claws", "whiskers"] },
   "catchRate": 0.5
 }

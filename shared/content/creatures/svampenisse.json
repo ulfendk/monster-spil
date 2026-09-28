@@ -8,5 +8,6 @@
   "spriteBack": "creatures/svampenisse_back.png",
   "sound": "creatures/svampenisse.wav",
   "evolutions": ["Svampekonge"],
+  "form": { "body": "biped", "colour": "oldWhite", "belly": "washi", "accent": "autumnRed", "build": "chibi", "snout": "big", "crest": "mushroom", "eyes": "dot", "extras": ["beard"] },
   "catchRate": 0.4
 }

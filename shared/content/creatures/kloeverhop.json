@@ -8,5 +8,6 @@
   "spriteBack": "creatures/kloeverhop_back.png",
   "sound": "creatures/kloeverhop.wav",
   "evolutions": ["Kløverhare"],
+  "form": { "body": "biped", "colour": "springGreen", "belly": "washi", "build": "chibi", "ears": "clover", "snout": "muzzle", "tail": "puff", "mouth": "cat" },
   "catchRate": 0.5
 }

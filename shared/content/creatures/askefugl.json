@@ -9,5 +9,6 @@
   "sound": "creatures/askefugl.wav",
   "evolutions": ["Askefønix"],
   "wings": "feather",
+  "form": { "body": "bird", "colour": "katanaGray:-8", "belly": "fujiGray:10", "accent": "surimiOrange", "snout": "hook", "crest": "flames", "tail": "flames", "eyes": "fierce", "extras": ["embers"] },
   "catchRate": 0.3
 }

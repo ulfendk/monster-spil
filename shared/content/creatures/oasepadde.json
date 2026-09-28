@@ -8,5 +8,6 @@
   "spriteBack": "creatures/oasepadde_back.png",
   "sound": "creatures/oasepadde.wav",
   "evolutions": ["Oasetudse"],
+  "form": { "body": "frog", "colour": "boatYellow2", "belly": "washi", "accent": "autumnGreen", "crest": "leaves", "pattern": "spots" },
   "catchRate": 0.45
 }

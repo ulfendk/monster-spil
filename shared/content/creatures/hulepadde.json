@@ -8,5 +8,6 @@
   "spriteBack": "creatures/hulepadde_back.png",
   "sound": "creatures/hulepadde.wav",
   "evolutions": ["Grottepadde"],
+  "form": { "body": "frog", "colour": "oldWhite:-10", "belly": "washi", "accent": "katanaGray", "eyes": "sleepy", "pattern": "spots" },
   "catchRate": 0.45
 }

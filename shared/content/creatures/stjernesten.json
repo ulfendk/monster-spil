@@ -7,5 +7,6 @@
   "spriteFront": "creatures/stjernesten_front.png",
   "spriteBack": "creatures/stjernesten_back.png",
   "sound": "creatures/stjernesten.wav",
+  "form": { "body": "blob", "shape": "star", "colour": "carpYellow", "accent": "washi", "eyes": "kawaii", "extras": ["sparks", "glow"] },
   "catchRate": 0.3
 }

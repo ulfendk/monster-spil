@@ -8,5 +8,6 @@
   "spriteBack": "creatures/blomsterbasse_back.png",
   "sound": "creatures/blomsterbasse.wav",
   "evolutions": ["Blomsterbille"],
+  "form": { "body": "bug", "colour": "carpYellow", "accent": "sumiInk4", "crest": "flower", "eyes": "kawaii", "mouth": "smile", "pattern": "bands", "extras": ["bugwings"] },
   "catchRate": 0.45
 }

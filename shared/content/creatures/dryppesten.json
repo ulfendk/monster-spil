@@ -8,5 +8,6 @@
   "spriteBack": "creatures/dryppesten_back.png",
   "sound": "creatures/dryppesten.wav",
   "evolutions": ["Drypstensvogter"],
+  "form": { "body": "blob", "shape": "cone", "colour": "katanaGray", "accent": "springBlue", "eyes": "sleepy" },
   "catchRate": 0.4
 }

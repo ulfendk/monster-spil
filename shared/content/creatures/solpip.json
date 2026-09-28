@@ -8,5 +8,6 @@
   "spriteBack": "creatures/solpip_back.png",
   "sound": "creatures/solpip.wav",
   "evolutions": ["Solfugl", "Solfønix"],
+  "form": { "body": "bird", "colour": "carpYellow", "belly": "washi", "accent": "surimiOrange", "build": "chibi", "crest": "sun", "tail": "fan" },
   "catchRate": 0.5
 }
