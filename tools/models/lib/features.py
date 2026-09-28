@@ -22,7 +22,7 @@ def _on(m: Model, body, x, z, roll=0.0, **kw):
 
 def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye", kind="kawaii", skin=None):
     """
-    Eyes at (±x, z) and how they blink. `kind`: kawaii (big, an ink rim, a coloured iris or all
+    Eyes at (±x, z) and how they blink (owl: big round eyes in pale rings). `kind`: kawaii (big, an ink rim, a coloured iris or all
     ink, a pupil, two glints; a happy arc when blinking), fierce (the same, smaller, slanting,
     under an angry brow), sleepy (half shut under a heavy lid), glow (glowing, no pupil — lava
     and spirits), dot (small ink dots).
@@ -42,6 +42,12 @@ def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye
             e.ellipsoid(on(0, 0, 0.3), (6.4 * s, 5.2 * s, 1.6 * s), F)
             e.ellipsoid(on(0, 0, 0.8), (5.4 * s, 4.2 * s, 1.8 * s), F, colour=iris or K["surimiOrange"])
             e.ellipsoid(on(0, 0.6 * s, 1.4), (3.2 * s, 2.4 * s, 1.6 * s), F, colour=K["carpYellow"])
+        elif kind == "owl":
+            # Big round eyes in pale rings.
+            e.ellipsoid(on(0, 0, 0.2), (9 * s, 9 * s, 1.4 * s), F, colour=K["oldWhite"])
+            e.ellipsoid(on(0, 0, 0.7), (6.2 * s, 6.2 * s, 1.8 * s), F, colour=iris or K["carpYellow"])
+            e.ellipsoid(on(0, 0, 1.3), (3.8 * s, 3.8 * s, 1.8 * s), F)
+            e.ball(on(side * 1.6 * s, 1.8 * s, 2.3), 1.4 * s, colour=K["washi"])
         elif kind == "dot":
             e.ellipsoid(on(0, 0, 0.5), (4 * s, 5 * s, 1.6 * s), F)
             e.ball(on(side * 1.2 * s, 1.6 * s, 1.6), 1.3 * s, colour=K["washi"])
@@ -84,7 +90,8 @@ def cheeks(m: Model, body, parent, x, z, size=1.0):
 
 def mouth(m: Model, body, parent, z, kind="smile", width=1.0, fang=False, x=0.0, glow=None):
     """
-    A mouth at (x, z) on the front, and open for crying. `kind`: smile (a curve), cat (ω), wide
+    A mouth at (x, z) on the front, and open for crying. `kind`: smile (a curve), cat (ω), buck
+    (a smile with two front teeth), wide
     (a big grin of a curve), grin (a wide band with teeth — glowing in `glow`'s colour, if
     given), tusks (a smile with two tusks), none (only when it cries: a small open mouth).
     """
@@ -104,6 +111,9 @@ def mouth(m: Model, body, parent, z, kind="smile", width=1.0, fang=False, x=0.0,
     elif kind != "none":
         arc = [on(5.5 * w * math.cos(a), 4 * math.sin(a) + 2, 0.6) for a in (math.radians(d) for d in range(205, 340, 15))]
         sm.chain(arc, [1.0] * len(arc))
+    if kind == "buck":
+        for side in (-1, 1):
+            sm.ellipsoid(on(side * 1.4 * w, -3.2, 1.0), (1.3 * w, 2.2, 0.8), F, colour=K["washi"])
     if kind == "tusks":
         for side in (-1, 1):
             sm.round_cone(on(side * 4.5 * w, -0.5, 1.0), on(side * 5.5 * w, 5, 2.2), 1.6, 0.5, colour=K["washi"])

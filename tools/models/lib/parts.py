@@ -204,3 +204,50 @@ def troll(m: Model, colour, belly, nose=None, arm=None):
         l.ellipsoid(S(side * 9.5, 4, FEET_Z + 3), (7, 9, 3.6), k=2)
         m.part(l, f"leg_{lr}", leg, voxel=0.4, budget=500, stage_shade=True)
     return s, body_pivot
+
+
+def chibi(m: Model, colour, belly, feet=None, arms=True):
+    """A chibi biped: a big round head on a small body, a belly, stubby arms and feet (they waddle). Returns (sculpt, body pivot)."""
+    m.root["gait"] = "waddle"
+    m.root["hips"] = 1
+    body_pivot = m.pivot("body", P(0, 0, FEET_Z))
+    s = Sculpt(colour)
+    s.ellipsoid(S(0, 3, -37), (14, 12, 12), k=0)  # the body
+    s.ellipsoid(S(0, 4, -8), (19, 17, 17.5), k=7)  # the head
+    s.ellipsoid(S(0, 13, -39), (9, 6, 8.5), op="paint", colour=belly, k=2.5)
+    if arms:
+        arms2(m, body_pivot, colour, 12, 4, -31, reach=(6, 5, -9), radius=4)
+    for side in (-1, 1):
+        lr = "L" if side < 0 else "R"
+        foot = m.pivot(f"foot_{lr}", P(side * 7.5, 5, -46), m.root)
+        f = Sculpt(feet or shade(colour, -10))
+        f.round_cone(S(side * 7.5, 4, -46), S(side * 7.5, 5, FEET_Z + 3), 4.5, 4.2, k=1)
+        f.ellipsoid(S(side * 7.5, 7, FEET_Z + 3), (6, 8, 3.6), k=1.5)
+        m.part(f, f"foot_{lr}_mesh", foot, voxel=0.35, budget=400, stage_shade=True)
+    return s, body_pivot
+
+
+def bug_wings(m: Model, parent, x, f, z, size=1.0, colour=None):
+    """Two see-through bug wings on the back that buzz (wing_L, wing_R)."""
+    m.root["flap"] = 0.35
+    m.root["flapRate"] = 40
+    for side in (-1, 1):
+        lr = "L" if side < 0 else "R"
+        root = S(side * x, f, z)
+        rest = Euler((0, 0, side * 0.35), "XYZ")
+        pivot = m.pivot(f"wing_{lr}", root * PX, parent, rotation=rest)
+        R = rest.to_matrix()
+        u, v = R @ Vector((side, 0, 0.35)).normalized(), R @ S(0, -1, 0.4).normalized()
+        w = Sculpt(colour or K["washi"])
+        pts = [(math.cos(t) * 12 * size + 12 * size, math.sin(t) * 6 * size) for t in (i / 12 * math.tau for i in range(12))]
+        w.slab(root, frame(u, v, u.cross(v).normalized()), pts, 1.0, rounding=0.4)
+        m.part(w, f"wing_{lr}_mesh", pivot, voxel=0.3, budget=300, opacity=0.55)
+
+
+def gnome(m: Model, colour, belly, beard, nose):
+    """A gnome: a chibi with a big round nose and a beard. Returns (sculpt, body pivot)."""
+    s, body_pivot = chibi(m, colour, belly)
+    s.ellipsoid(S(0, 19, -10), (6.5, 5.5, 6), k=2.5, colour=nose)  # the big nose
+    s.ellipsoid(S(0, 14, -20), (11, 6, 10), k=4, colour=beard)  # the beard
+    s.round_cone(S(0, 16, -22), S(0, 13, -34), 8, 2, k=3, colour=beard)
+    return s, body_pivot

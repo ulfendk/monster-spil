@@ -1,247 +1,352 @@
 {
   "drageunge": {
-    "hash": "f45c4f2268de",
+    "hash": "ba5fabedfa4b",
     "file": "drageunge.glb",
     "tris": 12558,
     "parts": 24,
     "bytes": 111956
   },
   "flammepels": {
-    "hash": "a6a99c7d5155",
+    "hash": "efabb5a59752",
     "file": "flammepels.glb",
     "tris": 18015,
     "parts": 28,
     "bytes": 148192
   },
   "dryppel": {
-    "hash": "f702d0fac91b",
+    "hash": "a6c77de44f8e",
     "file": "dryppel.glb",
     "tris": 10020,
     "parts": 17,
     "bytes": 82084
   },
   "lovgro": {
-    "hash": "c89ed35b086a",
+    "hash": "0f0d093d65f2",
     "file": "lovgro.glb",
     "tris": 12017,
     "parts": 21,
     "bytes": 97148
   },
   "ildflagrer": {
-    "hash": "363440ffac1a",
+    "hash": "084bca66e07f",
     "file": "ildflagrer.glb",
     "tris": 19299,
     "parts": 33,
     "bytes": 175100
   },
   "gloedklump": {
-    "hash": "15b2a145ec9a",
+    "hash": "192b50d2fedd",
     "file": "gloedklump.glb",
     "tris": 9516,
     "parts": 13,
     "bytes": 71504
   },
   "kulsnude": {
-    "hash": "b50b3e211a0f",
+    "hash": "83308e9bea39",
     "file": "kulsnude.glb",
     "tris": 10918,
     "parts": 17,
     "bytes": 88064
   },
   "lavasnegl": {
-    "hash": "2efd249fe911",
+    "hash": "cdee9d78c6b3",
     "file": "lavasnegl.glb",
     "tris": 9936,
     "parts": 12,
     "bytes": 76760
   },
   "magmamus": {
-    "hash": "31731552b36b",
+    "hash": "bcd9c92aa471",
     "file": "magmamus.glb",
     "tris": 11217,
     "parts": 20,
     "bytes": 95152
   },
   "dampskjold": {
-    "hash": "b654f72df9ed",
+    "hash": "5e6a85c1c3c3",
     "file": "dampskjold.glb",
     "tris": 10119,
     "parts": 18,
     "bytes": 84384
   },
   "gloedgemse": {
-    "hash": "ecd836622eab",
+    "hash": "3bd8c35e656b",
     "file": "gloedgemse.glb",
     "tris": 10519,
     "parts": 20,
     "bytes": 91396
   },
   "gloedsalamander": {
-    "hash": "cd83c14337c9",
+    "hash": "695ea56bcffc",
     "file": "gloedsalamander.glb",
     "tris": 11418,
     "parts": 19,
     "bytes": 96080
   },
   "gloedskorpion": {
-    "hash": "1e7abf9c82b0",
+    "hash": "1fcf611fadd4",
     "file": "gloedskorpion.glb",
     "tris": 10720,
     "parts": 19,
     "bytes": 90860
   },
   "askefugl": {
-    "hash": "af513e8ba7f3",
+    "hash": "eee283fdcc68",
     "file": "askefugl.glb",
     "tris": 10520,
     "parts": 20,
     "bytes": 91584
   },
   "halmhane": {
-    "hash": "4bc420a37a08",
+    "hash": "901d4934568e",
     "file": "halmhane.glb",
     "tris": 11216,
     "parts": 19,
     "bytes": 94712
   },
   "lygtemand": {
-    "hash": "19debd20d7e9",
+    "hash": "e800dea93e7e",
     "file": "lygtemand.glb",
     "tris": 8819,
     "parts": 13,
     "bytes": 73180
   },
   "solpip": {
-    "hash": "4d91427a6e68",
+    "hash": "5b09d87d230b",
     "file": "solpip.glb",
     "tris": 11119,
     "parts": 17,
     "bytes": 90388
   },
   "boblegedde": {
-    "hash": "6806717dde4f",
+    "hash": "c1a5828ff414",
     "file": "boblegedde.glb",
     "tris": 7520,
     "parts": 13,
     "bytes": 64560
   },
   "boelgehale": {
-    "hash": "c96d98a9eb13",
+    "hash": "bf6aaf472cce",
     "file": "boelgehale.glb",
     "tris": 9819,
     "parts": 16,
     "bytes": 78992
   },
   "grottefisk": {
-    "hash": "fbe6a70e4561",
+    "hash": "2ee5345bc674",
     "file": "grottefisk.glb",
     "tris": 7920,
     "parts": 13,
     "bytes": 63608
   },
   "sivodder": {
-    "hash": "a1817ac4f627",
+    "hash": "53a9fdbed3a0",
     "file": "sivodder.glb",
     "tris": 10618,
     "parts": 18,
     "bytes": 86004
   },
   "taagefisk": {
-    "hash": "e4c40299a3e9",
+    "hash": "1694e278dc31",
     "file": "taagefisk.glb",
     "tris": 8618,
     "parts": 17,
     "bytes": 71568
   },
   "frostpip": {
-    "hash": "8307036d85b0",
+    "hash": "dfce67e041a8",
     "file": "frostpip.glb",
     "tris": 10519,
     "parts": 17,
     "bytes": 85236
   },
   "hulepadde": {
-    "hash": "e17cb90116b5",
+    "hash": "d8133b8a4ed2",
     "file": "hulepadde.glb",
     "tris": 8920,
     "parts": 17,
     "bytes": 76276
   },
   "oasepadde": {
-    "hash": "e8bc782f5a72",
+    "hash": "179274482d21",
     "file": "oasepadde.glb",
     "tris": 8920,
     "parts": 17,
     "bytes": 77476
   },
   "perlemusling": {
-    "hash": "4355bfdcd100",
+    "hash": "79b6416da2a7",
     "file": "perlemusling.glb",
     "tris": 10315,
     "parts": 13,
     "bytes": 78932
   },
   "svanefjer": {
-    "hash": "da724e6c565f",
+    "hash": "654b1395a8cf",
     "file": "svanefjer.glb",
     "tris": 9920,
     "parts": 16,
     "bytes": 78816
   },
   "istap": {
-    "hash": "8a4d12bb9f78",
+    "hash": "cfaef4340c47",
     "file": "istap.glb",
     "tris": 8819,
     "parts": 12,
     "bytes": 64520
   },
   "regnsky": {
-    "hash": "2def5ec7537a",
+    "hash": "fc152587148a",
     "file": "regnsky.glb",
     "tris": 7219,
     "parts": 13,
     "bytes": 59208
   },
   "sivsnog": {
-    "hash": "574f854b1de3",
+    "hash": "1a63f4619104",
     "file": "sivsnog.glb",
     "tris": 10220,
     "parts": 18,
     "bytes": 92104
   },
   "snefnug": {
-    "hash": "8b22d98c3e5d",
+    "hash": "39a9373497a9",
     "file": "snefnug.glb",
     "tris": 7618,
     "parts": 11,
     "bytes": 58280
   },
   "vandloeber": {
-    "hash": "8c1367926c5c",
+    "hash": "cc3cc901ff27",
     "file": "vandloeber.glb",
     "tris": 8718,
     "parts": 17,
     "bytes": 75088
   },
   "flodtrold": {
-    "hash": "611088165941",
+    "hash": "4fb546318055",
     "file": "flodtrold.glb",
     "tris": 9619,
     "parts": 13,
     "bytes": 75876
   },
   "snetrold": {
-    "hash": "cb492f0916fe",
+    "hash": "20b82286e8dc",
     "file": "snetrold.glb",
     "tris": 10519,
     "parts": 15,
     "bytes": 84376
   },
   "taagetrold": {
-    "hash": "acc39d60ce27",
+    "hash": "6e6965513f49",
     "file": "taagetrold.glb",
     "tris": 11117,
     "parts": 18,
     "bytes": 88892
+  },
+  "grenspringer": {
+    "hash": "dcbf53155e61",
+    "file": "grenspringer.glb",
+    "tris": 11516,
+    "parts": 19,
+    "bytes": 92916
+  },
+  "hophare": {
+    "hash": "db40122108c8",
+    "file": "hophare.glb",
+    "tris": 10520,
+    "parts": 18,
+    "bytes": 85420
+  },
+  "kloeverhop": {
+    "hash": "e75663b60479",
+    "file": "kloeverhop.glb",
+    "tris": 10420,
+    "parts": 19,
+    "bytes": 85540
+  },
+  "rodnisse": {
+    "hash": "038035c0a058",
+    "file": "rodnisse.glb",
+    "tris": 10119,
+    "parts": 16,
+    "bytes": 79328
+  },
+  "svampenisse": {
+    "hash": "672152e13eac",
+    "file": "svampenisse.glb",
+    "tris": 10717,
+    "parts": 16,
+    "bytes": 83268
+  },
+  "koglekat": {
+    "hash": "e881ec12d4e9",
+    "file": "koglekat.glb",
+    "tris": 11316,
+    "parts": 20,
+    "bytes": 94728
+  },
+  "mosbjoern": {
+    "hash": "537212a459ee",
+    "file": "mosbjoern.glb",
+    "tris": 11419,
+    "parts": 19,
+    "bytes": 93776
+  },
+  "mosmus": {
+    "hash": "69f712279fa3",
+    "file": "mosmus.glb",
+    "tris": 12015,
+    "parts": 21,
+    "bytes": 101032
+  },
+  "stoevbold": {
+    "hash": "0ddfab38e02b",
+    "file": "stoevbold.glb",
+    "tris": 8420,
+    "parts": 15,
+    "bytes": 69544
+  },
+  "svampling": {
+    "hash": "ed5aa506064e",
+    "file": "svampling.glb",
+    "tris": 8417,
+    "parts": 14,
+    "bytes": 66024
+  },
+  "aakandefroe": {
+    "hash": "2a43859f8e50",
+    "file": "aakandefroe.glb",
+    "tris": 10420,
+    "parts": 17,
+    "bytes": 85420
+  },
+  "barkbille": {
+    "hash": "2e6493ccb577",
+    "file": "barkbille.glb",
+    "tris": 9220,
+    "parts": 17,
+    "bytes": 77104
+  },
+  "blomsterbasse": {
+    "hash": "71846af66b32",
+    "file": "blomsterbasse.glb",
+    "tris": 8119,
+    "parts": 14,
+    "bytes": 67520
+  },
+  "kvistugle": {
+    "hash": "f69afac27f3e",
+    "file": "kvistugle.glb",
+    "tris": 9518,
+    "parts": 14,
+    "bytes": 77220
+  },
+  "loevhvirvel": {
+    "hash": "f7ce0dea9f5e",
+    "file": "loevhvirvel.glb",
+    "tris": 7818,
+    "parts": 11,
+    "bytes": 57820
   }
 }

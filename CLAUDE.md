@@ -189,7 +189,7 @@ game-drawn models.
   sides and back, wings glowing red to orange to yellow, and an orange tail.
 - **Monsters sculpted in Blender** (Drageunge, Flammeskæl — after its drawing, replacing the
   hand-made model, which stays as the fallback — the starters Flammepels, Dryppel, Løvgro and
-  every fire and water monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
+  every fire, water and grass monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
   `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
   their colours). `tools/models/monsters/<id>.py`
   sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
