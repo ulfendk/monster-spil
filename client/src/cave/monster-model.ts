@@ -5,6 +5,7 @@ import { TYPE_COLOURS, bodyShape, speciesShade, type BossLook } from "../gfx/pla
 import { variantColour } from "../gfx/variants";
 import { flammeskael } from "./handmade/flammeskael";
 import { buildForm } from "./anatomy";
+import type { Gait } from "../world3d/mount-gaits";
 
 /**
  * A monster in 3D, modelled after its placeholder picture (gfx/placeholder-sprites.ts) so it
@@ -48,6 +49,8 @@ export interface MountRig {
   spine?: THREE.Group[];
   /** A head that leads a long body. */
   head?: THREE.Group;
+  /** Its feet are legs turning at the hip (they swing), not paws on the ground (they step). */
+  hips?: boolean;
 }
 
 export interface MonsterModel {
@@ -60,6 +63,9 @@ export interface MonsterModel {
   rig?: MountRig;
   /** How far round its picture shows it (radians; default a three-quarter view). */
   view?: number;
+  /** How it goes about by itself (the garden; world3d/mount-gaits.ts), and whether it goes sideways (a crab). */
+  gait?: Gait;
+  sideways?: boolean;
   setFace(face: "normal" | "blink" | "talk"): void;
   /** A flash of colour (a hit), or null to stop. */
   setTint(colour: number | null): void;
@@ -256,6 +262,8 @@ export interface Built {
   tick?: (seconds: number) => void;
   rig?: MountRig;
   view?: number;
+  gait?: Gait;
+  sideways?: boolean;
 }
 
 /** Monsters with a model made by hand for them (from a drawing), by species id. */
@@ -277,12 +285,20 @@ export function buildMonsterModel(spec: MonsterModelSpec): MonsterModel {
         : spec.species.form && !spec.look
           ? buildForm(b, spec.species, spec.species.form, spec.stage ?? 1, spec.pose)
           : creature(b, spec.species, spec.look === "dragon", spec.stage ?? 1);
+  // How the older builders go about: the dragon, the eagle and Flammeskæl fly; a stretched-out serpent slithers.
+  if (!built.gait) {
+    if (handmade !== undefined || spec.look === "dragon" || spec.look === "eagle") built.gait = "fly";
+    else if (spec.look === "serpent" && spec.pose === "ride") built.gait = "slither";
+    else if (!spec.look) built.gait = "waddle";
+  }
   return {
     root: b.root,
     seat: built.seat,
     ...(built.tick ? { tick: built.tick } : {}),
     ...(built.rig ? { rig: built.rig } : {}),
     ...(built.view !== undefined ? { view: built.view } : {}),
+    ...(built.gait ? { gait: built.gait } : {}),
+    ...(built.sideways ? { sideways: true } : {}),
     setFace: built.face,
     setTint(colour) {
       for (const m of b.toon) {

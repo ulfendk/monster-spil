@@ -117,7 +117,7 @@ export function decal(b: Builder, e: Ell, yaw: number, pitch: number, w: number,
  * A tube along a curve of points (px) whose radius goes from `r0` to `r1` (px) — a tail, a
  * horn (r1 = 0), a leg, an antenna, a tentacle. `bulge` swells it in the middle.
  */
-export function taper(points: THREE.Vector3[], r0: number, r1: number, opts: { segments?: number; radial?: number; bulge?: number; cap?: boolean } = {}): THREE.BufferGeometry {
+export function taper(points: THREE.Vector3[], r0: number, r1: number, opts: { segments?: number; radial?: number; bulge?: number; cap?: boolean } = {}, into?: THREE.BufferGeometry): THREE.BufferGeometry {
   const segments = opts.segments ?? 20;
   const radial = opts.radial ?? 10;
   const curve = new THREE.CatmullRomCurve3(points.map((p) => p.clone().multiplyScalar(S)));
@@ -155,6 +155,15 @@ export function taper(points: THREE.Vector3[], r0: number, r1: number, opts: { s
       if (end.i === 0) indices.push(tip, ring + j, ring + j + 1);
       else indices.push(tip, ring + j + 1, ring + j);
     }
+  }
+  if (into) {
+    // Bent anew (a snake's body as it moves): the same shape of mesh, new places.
+    const attr = into.getAttribute("position") as THREE.BufferAttribute;
+    (attr.array as Float32Array).set(positions);
+    attr.needsUpdate = true;
+    into.computeVertexNormals();
+    into.computeBoundingSphere();
+    return into;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));

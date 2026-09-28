@@ -377,7 +377,16 @@ games" — with no schema state: plain messages typed in
   with it. With `bondToEvolve[stage-1]` it can evolve. Numbers in `shared/content/nurture.json`,
   rules tested in `shared/src/creature/evolution.ts`.
 - **The monster garden** (`GardenScene` over `cave/garden-stage.ts`, from the garden button on
-  the left of the map): my monsters wander a sunny 3D garden (eight at a time, pages for more).
+  the left of the map): my monsters wander a sunny 3D garden (eight at a time, pages for more),
+  each moving its own way through the riding animator (`RideAnimator` in
+  `world3d/mount-gaits.ts`): its species' ride gait if it has one, else its body plan's
+  (`MonsterModel.gait`) — four-legged ones trot (legs swinging from the hip, `MountRig.hips`),
+  bipeds and blobs waddle, trolls stomp, birds and anything with wings fly from spot to spot,
+  fish swim through the air (body curving, tail sweeping), snakes and worms slither (their
+  smooth body is redrawn through the bending joints every frame), bugs and crabs skitter three
+  legs at a time (crabs sideways), frogs and mussels hop, snails glide, spirits and buzzing bugs
+  drift. In dev builds `__gaitStrip` (`client/src/dev/gait-strip.ts`) draws a monster's gait as
+  a strip of frames.
   Tap one to bring it forward: its stage's name, stars for the stage, hearts towards the next,
   and Klap / Fodr / Leg / Udvikl (when ready: it spins in a burst of light into its next stage)
   / Kæmper (makes it the monster that fights first). Evolving gives XP, the badge Monsterven

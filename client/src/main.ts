@@ -55,4 +55,9 @@ if (import.meta.env.DEV) {
     const [{ monsterSheet }, { loadContent }] = await Promise.all([import("./dev/monster-sheet"), import("./content/load-content")]);
     return monsterSheet(Object.values(loadContent().speciesById), opts);
   };
+  // …and one monster going its own way, frame by frame: `await __gaitStrip("sivsnog")`.
+  (window as unknown as { __gaitStrip: unknown }).__gaitStrip = async (id: string, opts: object = {}) => {
+    const [{ gaitStrip }, { loadContent }] = await Promise.all([import("./dev/gait-strip"), import("./content/load-content")]);
+    return gaitStrip(loadContent().speciesById[id]!, opts);
+  };
 }

@@ -8,6 +8,7 @@ import { makeFace, type FaceSpec } from "./face";
 import { crest, ears, horns, snout } from "./head";
 import { type Ell, V, colourOf, mix, sphereGeo } from "./kit";
 import { PLANS } from "./plans";
+import type { Gait } from "../../world3d/mount-gaits";
 import { extras, pattern } from "./surface";
 import { tail } from "./tail";
 
@@ -41,6 +42,18 @@ export interface Plan {
   view?: number;
   /** Where a stage-3 crown sits (default: on top of the head), or null for none. */
   crown?: THREE.Vector3 | null;
+  /** Its feet are legs turning at the hip. */
+  hips?: boolean;
+  /** How it goes about by itself (in the garden). */
+  gait?: Gait;
+  /** It walks sideways (a crab). */
+  sideways?: boolean;
+  /**
+   * A long body that bends: its joints from just behind the head to the tail (px), where the
+   * body meets the head (px from the head's middle), and — for a smooth one — its tube and how
+   * to draw it through new points (px, tail first).
+   */
+  spine?: { points: THREE.Vector3[]; headEnd: THREE.Vector3; tube?: THREE.Mesh; redraw?: (at: THREE.Vector3[]) => void };
 }
 
 const VIEWS: Partial<Record<CreatureForm["body"], number>> = { beast: -0.78, fish: -1.05, bug: -0.8, snail: -0.95, worm: -0.8, crab: -0.5, frog: -0.5 };
@@ -126,6 +139,35 @@ export function buildForm(b: Builder, species: CreatureSpecies, form: CreatureFo
     crown.add(b.flat(sphereGeo(), K.autumnRed, V(0, 1, 9.5), V(3.5, 3.5, 2)));
   }
 
+  // A long body: the head into a group of its own, everything else onto the joint nearest it.
+  let spine: THREE.Group[] | undefined;
+  let headGroup: THREE.Group | undefined;
+  if (plan.spine) {
+    b.root.updateMatrixWorld(true);
+    const { tube } = plan.spine;
+    const h = plan.head;
+    const centre = (o: THREE.Object3D) => {
+      const box = new THREE.Box3().setFromObject(o);
+      return box.isEmpty() ? undefined : box.getCenter(new THREE.Vector3()).divideScalar(S);
+    };
+    const movable = (o: THREE.Object3D) => o !== tube && !o.userData.noFit;
+    const inHead = b.root.children.filter((o) => {
+      const c = movable(o) && centre(o);
+      return c && ((c.x - h.x) / h.rx) ** 2 + ((c.y - h.y) / h.ry) ** 2 + ((c.z - h.z) / h.rz) ** 2 < 1.7 ** 2;
+    });
+    headGroup = b.pivot(inHead, h.centre);
+    const joints = plan.spine.points;
+    const onJoint = joints.map(() => [] as THREE.Object3D[]);
+    for (const o of b.root.children.slice()) {
+      const c = o !== headGroup && movable(o) ? centre(o) : undefined;
+      if (!c) continue;
+      let best = 0;
+      joints.forEach((j, i) => (c.distanceTo(j) < c.distanceTo(joints[best]!) ? (best = i) : 0));
+      onJoint[best]!.push(o);
+    }
+    spine = joints.map((j, i) => b.pivot(onJoint[i]!, V(j.x, j.y, j.z)));
+  }
+
   // Fitted to the picture's box: as big as fits (a fly as big on the page as a troll, give or
   // take), feet on the ground — or, floating, in the middle.
   const ticks = ctx.ticks;
@@ -141,7 +183,19 @@ export function buildForm(b: Builder, species: CreatureSpecies, form: CreatureFo
     arms: plan.arms,
     wings: plan.wings,
     ...(tailPivot ? { tail: tailPivot } : {}),
+    ...(plan.hips ? { hips: true } : {}),
+    ...(spine ? { spine } : {}),
+    ...(headGroup ? { head: headGroup } : {}),
   };
+  const { tube, redraw, headEnd } = plan.spine ?? {};
+  if (spine && headGroup && tube && redraw && headEnd) {
+    // The smooth body follows its joints (and the head) wherever they've gone this frame.
+    ticks.push(() => {
+      const at = [...spine].reverse().map((g) => g.position.clone().sub(tube.position).divideScalar(S));
+      at.push(headGroup.position.clone().sub(tube.position).divideScalar(S).add(headEnd));
+      redraw(at);
+    });
+  }
   if (plan.wings.length) {
     ticks.push((t) => {
       for (const w of plan.wings) {
@@ -161,6 +215,9 @@ export function buildForm(b: Builder, species: CreatureSpecies, form: CreatureFo
     seat,
     rig,
     view: plan.view ?? VIEWS[form.body] ?? -0.42,
+    // (Anything with wings of its own flies about — a bat too.)
+    ...(species.wings && form.body !== "bug" ? { gait: "fly" as const } : plan.gait ? { gait: plan.gait } : {}),
+    ...(plan.sideways ? { sideways: true } : {}),
     ...(ticks.length ? { tick: (t: number) => ticks.forEach((f) => f(t)) } : {}),
   };
 }

@@ -1,11 +1,16 @@
 import * as THREE from "three";
 import { KANAGAWA } from "../ui/theme";
 import { buildScenery } from "./scenery";
+import { rideGait } from "@shared";
 import { buildMonsterModel, setMonsterEnvironment, type MonsterModel, type MonsterModelSpec } from "./monster-model";
+import { RideAnimator, type Gait } from "../world3d/mount-gaits";
 
 /**
  * The monster garden in 3D: a sunny garden (cherry trees, bamboo, susuki, drifting petals)
- * where my monsters wander about — stopping, looking round, hopping now and then. Tapping one
+ * where my monsters wander about — stopping, looking round, hopping now and then — each moving
+ * its own way (world3d/mount-gaits.ts): legs stepping and arms swinging, four-legged ones
+ * trotting, birds flying from spot to spot, fish swimming through the air, snakes slithering,
+ * bugs and crabs skittering (crabs sideways), frogs hopping, spirits drifting. Tapping one
  * brings it to the front; caring for it shows (hearts, a hop, an apple, a ball to chase), and
  * evolving it spins it round in a burst of light into its next stage.
  *
@@ -26,6 +31,9 @@ interface Walker {
   data: GardenMonster;
   root: THREE.Group;
   model?: MonsterModel;
+  /** Moves its legs, wings, tail or body as it goes. */
+  anim?: RideAnimator;
+  gait?: Gait;
   sprite?: THREE.Sprite;
   size: number;
   pos: THREE.Vector3;
@@ -188,10 +196,15 @@ export class GardenStage {
     const size = BASE_SIZE * data.scale;
     let model: MonsterModel | undefined;
     let sprite: THREE.Sprite | undefined;
+    let anim: RideAnimator | undefined;
+    let gait: Gait | undefined;
     if (data.spec) {
-      model = buildMonsterModel(data.spec);
+      // (A serpent stretches out long, to slither about.)
+      model = buildMonsterModel(data.spec.look === "serpent" ? { ...data.spec, pose: "ride" } : data.spec);
       model.root.scale.setScalar(size);
       root.add(model.root);
+      gait = rideGait(data.spec.species) ?? model.gait ?? "waddle";
+      if (model.rig) anim = new RideAnimator(model, gait, this.scene, () => 0, 1.3);
     } else if (data.image) {
       const texture = new THREE.Texture(data.image);
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -203,11 +216,12 @@ export class GardenStage {
     const pos = this.randomSpot();
     root.position.copy(pos);
     this.scene.add(root);
-    return { data, root, model, sprite, size, pos, target: this.randomSpot(), wait: this.rand() * 2, hop: 0, phase: this.rand() * 6, selected: false };
+    return { data, root, model, anim, gait, sprite, size, pos, target: this.randomSpot(), wait: this.rand() * 2, hop: 0, phase: this.rand() * 6, selected: false };
   }
 
   private drop(w: Walker): void {
     this.scene.remove(w.root);
+    w.anim?.dispose();
     w.model?.dispose();
     if (w.sprite) {
       w.sprite.material.map?.dispose();
@@ -225,11 +239,14 @@ export class GardenStage {
       to.y = 0;
       const dist = to.length();
       let walking = false;
+      let moved = 0;
       if (w.wait > 0) w.wait -= dt;
       else if (dist > 0.05) {
-        // Walks there at its own pace; the selected one hurries.
-        const step = Math.min(dist, dt * (w.selected ? 2.4 : 1.1));
+        // Walks there at its own pace (fliers and swimmers a little quicker); the selected one hurries.
+        const pace = w.gait === "fly" || w.gait === "swim" || w.gait === "drift" ? 1.5 : w.gait === "glide" ? 0.6 : 1.1;
+        const step = Math.min(dist, dt * (w.selected ? 2.4 : pace));
         w.pos.addScaledVector(to.normalize(), step);
+        moved = step;
         walking = true;
       } else if (!w.selected) {
         // Arrived: a little rest, then somewhere else — now and then with a hop.
@@ -238,17 +255,23 @@ export class GardenStage {
         if (this.rand() < 0.3) w.hop = 0.45;
       }
       w.phase += dt * (walking ? 10 : 3);
-      const bob = walking ? Math.abs(Math.sin(w.phase)) * 0.12 * w.size * 0.5 : Math.sin(w.phase) * 0.015;
+      // A picture bobs along; a model moves its own limbs (below).
+      const bob = w.anim ? 0 : walking ? Math.abs(Math.sin(w.phase)) * 0.12 * w.size * 0.5 : Math.sin(w.phase) * 0.015;
       if (w.hop > 0) w.hop = Math.max(0, w.hop - dt);
       const hop = w.hop > 0 ? Math.sin((w.hop / 0.5) * Math.PI) * 0.5 : 0;
       // Standing on the ground: a model's box is centred on it, a picture's too.
-      w.root.position.set(w.pos.x, w.size * 0.5 + bob + hop, w.pos.z);
-      // Faces where it walks; standing (or chosen), faces me.
-      const face = walking ? Math.atan2(to.x, to.z) : Math.atan2(this.camera.position.x - w.pos.x, this.camera.position.z - w.pos.z);
+      // (Swimmers and floaters keep a little above the grass.)
+      const above = w.gait === "swim" || w.gait === "drift" ? w.size * 0.3 : 0;
+      w.root.position.set(w.pos.x, w.size * 0.5 + bob + hop + above, w.pos.z);
+      // Faces where it walks (a crab turns side on); standing (or chosen), faces me.
+      const face = walking ? Math.atan2(to.x, to.z) + (w.model?.sideways ? Math.PI / 2 : 0) : Math.atan2(this.camera.position.x - w.pos.x, this.camera.position.z - w.pos.z);
       const turn = Math.atan2(Math.sin(face - w.root.rotation.y), Math.cos(face - w.root.rotation.y));
-      if (w.model) w.root.rotation.y += turn * Math.min(1, dt * 8);
-      w.root.rotation.z = walking ? Math.sin(w.phase) * 0.06 : w.root.rotation.z * 0.9;
-      w.model?.tick?.(performance.now() / 1000);
+      const turning = turn * Math.min(1, dt * 8);
+      if (w.model) w.root.rotation.y += turning;
+      if (!w.anim) w.root.rotation.z = walking ? Math.sin(w.phase) * 0.06 : w.root.rotation.z * 0.9;
+      const now = performance.now() / 1000;
+      w.anim?.update(dt, moved, turning / Math.max(dt, 1e-3), now);
+      w.model?.tick?.(now);
       if (w.model && (w.phase * 0.37) % 4 < 0.06) w.model.setFace("blink");
       else w.model?.setFace("normal");
       if (w.selected) {

@@ -186,6 +186,7 @@ function blobPlan(ctx: Ctx): Plan {
     tailBase: body.at(Math.PI, -0.35, -2).px,
     seat: V(0, body.y + body.ry * 0.8, -body.rz * 0.4),
     feetY: G,
+    gait: "waddle",
     face: { eyeSize: head.ry * 0.34, eyeYaw: 0.4 },
     ...(crown ? { crown } : shape === "mushroom" ? { crown: null } : {}),
   };
@@ -297,6 +298,8 @@ function beastPlan(ctx: Ctx): Plan {
     tailBase: body.at(Math.PI, 0.25, -2).px,
     seat: V(0, body.y + body.ry - 1, body.z - body.rz * 0.12),
     feetY: G,
+    gait: "trot",
+    hips: true,
     face: lizard ? { eyeSize: hr * 0.5, eyePitch: 0.38, eyeYaw: 0.5, mouthWidth: hr * 0.9 } : { eyeSize: hr * 0.36, eyePitch: 0.12 },
   };
 }
@@ -348,6 +351,8 @@ function bipedPlan(ctx: Ctx): Plan {
     tailBase: body.at(Math.PI, -0.35, -2).px,
     seat: stocky ? V(0, body.y + body.ry - 2, body.z - body.rz * 0.45) : V(0, head.y + head.ry * 0.8, head.z - head.rz * 0.3),
     feetY: G,
+    gait: stocky ? "stomp" : "waddle",
+    hips: true,
     face: { eyeSize: hr * (chibi ? 0.38 : 0.34), eyePitch: 0.1 },
   };
 }
@@ -394,6 +399,8 @@ function birdPlan(ctx: Ctx): Plan {
     tailBase: body.at(Math.PI, 0.05, -2).px,
     seat: V(0, body.y + body.ry - 2, body.z - body.rz * 0.2),
     feetY: G,
+    gait: "fly",
+    hips: true,
     face: { eyeSize: head.ry * (chibi ? 0.36 : 0.4), eyeYaw: chibi ? 0.4 : 0.5, eyePitch: chibi ? 0.1 : 0.2 },
   };
 }
@@ -436,6 +443,7 @@ function fishPlan(ctx: Ctx): Plan {
     tailSize: veil ? 1.35 : 1,
     seat: V(0, body.y + body.ry, body.z),
     feetY: G,
+    gait: "swim",
     face: { eyeYaw: 0.62, eyePitch: 0.22, eyeSize: body.ry * 0.4 },
     hover: true,
   };
@@ -467,6 +475,7 @@ function bugPlan(ctx: Ctx): Plan {
   }
   // Six legs: up to the knee, down to the ground (a water strider's long and spread out).
   const legColour = ctx.form.accent && !round ? ctx.accent : K.sumiInk4;
+  const legs = new Map<string, THREE.Group>();
   for (const side of [-1, 1]) {
     for (const [i, z] of [[0, 12], [1, 5], [2, -2]] as const) {
       const reach = strider ? (i === 0 ? 20 : 44) : 24 + i * 2;
@@ -474,9 +483,12 @@ function bugPlan(ctx: Ctx): Plan {
       // (A flier's legs hang tucked under it, bent.)
       const knee = hover ? Q(side * 14, y0 - 6, z + (i - 1) * 5) : Q(side * (reach * 0.6), y0 + (strider ? 12 : 8), z + (i - 1) * (strider ? 16 : 6));
       const foot = hover ? Q(side * 12, y0 - 14, z + (i - 1) * 6 + 4) : Q(side * reach, G + 1, z + (i - 1) * (strider ? 30 : 10));
-      tube(b, [hip, knee, foot], hover ? 1.2 : 1.8, hover ? 0.8 : 1.1, hover ? K.sumiInk4 : legColour, true, { radial: 6, segments: 10 });
+      const leg = tube(b, [hip, knee, foot], hover ? 1.2 : 1.8, hover ? 0.8 : 1.1, hover ? K.sumiInk4 : legColour, true, { radial: 6, segments: 10 });
+      legs.set(`${side}${i}`, b.pivot([leg], V(hip.x, hip.y, hip.z)));
     }
   }
+  // Three at a time step together: front and back on one side, the middle on the other.
+  const feet = ["-10", "10", "11", "-11", "-12", "12"].map((k) => legs.get(k)!);
   if (pincers) {
     for (const side of [-1, 1]) {
       const sh = Q(side * 10, y0, 16);
@@ -523,12 +535,14 @@ function bugPlan(ctx: Ctx): Plan {
   return {
     body: abdomen,
     head,
-    feet: [],
+    feet,
     arms: [],
     wings,
     tailBase: abdomen.at(Math.PI, 0.2, -2).px,
     seat: V(0, abdomen.y + abdomen.ry, abdomen.z),
     feetY: G,
+    gait: hover ? "drift" : "skitter",
+    hips: true,
     face: { eyeYaw: 0.55, eyePitch: 0.18, eyeSize: head.ry * 0.5 },
     hover,
   };
@@ -573,6 +587,8 @@ function frogPlan(ctx: Ctx): Plan {
     tailBase: undefined,
     seat: V(0, body.y + body.ry, -4),
     feetY: G,
+    gait: "bound",
+    hips: true,
     face: { eyeYaw: 0.4, eyePitch: 0.62, eyeSize: 12, mouthWidth: body.rx * 0.8, mouthOn: { e: body, yaw: 0, pitch: -0.05 } },
   };
 }
@@ -643,6 +659,7 @@ function snailPlan(ctx: Ctx): Plan {
     wings: [],
     seat: V(0, cy + 26, cz),
     feetY: G,
+    gait: "glide",
     face: { eyes: "stalks", eyePitch: 0.2, mouthOn: { e: head, yaw: 0, pitch: -0.25 } },
     blink,
   };
@@ -693,6 +710,7 @@ function shellPlan(ctx: Ctx): Plan {
     wings: [],
     seat: V(0, G + 40, 0),
     feetY: G,
+    gait: "bound",
     bare: true,
     face: { eyeSize: 9, eyePitch: 0.2 },
     talk: (open) => (upper.rotation.x = open ? -0.95 : -0.7),
@@ -707,12 +725,14 @@ function crabPlan(ctx: Ctx): Plan {
   const body = new Ell(0, G + 22, 0, 30 + wide * 6, 14 + bulk * 3, 22);
   blob(b, body, ctx.colour, true, bodyGeometry());
   b.part(sphereGeo(), ctx.belly, V(0, body.y - body.ry * 0.45, body.z + 3), V(body.rx * 1.6, body.ry * 1.0, body.rz * 1.6), false);
+  const crabLegs: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     // Three legs a side, out and down.
     for (let i = 0; i < 3; i++) {
       const z = 6 - i * 9;
       const hip = Q(side * body.rx * 0.8, body.y - 4, z);
-      tube(b, [hip, Q(side * (body.rx + 14), body.y + 8, z - 3), Q(side * (body.rx + 24), G + 1, z - 8)], 3, 2, shade(ctx.colour, -8), true, { radial: 8, segments: 10 });
+      const leg = tube(b, [hip, Q(side * (body.rx + 14), body.y + 8, z - 3), Q(side * (body.rx + 24), G + 1, z - 8)], 3, 2, shade(ctx.colour, -8), true, { radial: 8, segments: 10 });
+      crabLegs.push(b.pivot([leg], V(hip.x, hip.y, hip.z)));
     }
     // A big claw held up in front.
     const sh = Q(side * body.rx * 0.7, body.y, body.rz * 0.5);
@@ -729,11 +749,14 @@ function crabPlan(ctx: Ctx): Plan {
   return {
     body,
     head: body,
-    feet: [],
+    feet: [0, 3, 4, 1, 2, 5].map((k) => crabLegs[k]!),
     arms: [],
     wings: [],
     seat: V(0, body.y + body.ry, 0),
     feetY: G,
+    gait: "skitter",
+    hips: true,
+    sideways: true,
     face: { eyes: "stalks", mouthOn: { e: body, yaw: 0, pitch: 0.05 }, mouthWidth: 10 },
     blink,
   };
@@ -752,6 +775,7 @@ function wormPlan(ctx: Ctx): Plan {
   }
   const glow = has(ctx, "glow");
   const segs: THREE.Object3D[] = [];
+  let bodyTube: THREE.Mesh | undefined;
   const hp = pts[n - 1]!;
   const head = eel ? new Ell(hp.x, hp.y + 2, hp.z + 4, 15, 13, 18) : new Ell(hp.x, hp.y + 4, hp.z, 17, 16, 16);
   if (glow) {
@@ -766,7 +790,8 @@ function wormPlan(ctx: Ctx): Plan {
   } else {
     // A snake or an eel: one smooth body tapering to the tail, a paler belly line, rings of the accent colour.
     const body = [...pts.slice(0, n - 1), Q(hp.x, hp.y, hp.z - 6)];
-    segs.push(tube(b, body, 3, 12, ctx.colour, true, { segments: 40, radial: 14 }));
+    bodyTube = tube(b, body, 3, 12, ctx.colour, true, { segments: 40, radial: 14 });
+    segs.push(bodyTube);
     const curve = new THREE.CatmullRomCurve3(body);
     // Bands all along (an eel's); stripes: a bright collar behind the head (a grass snake's).
     const rings = ctx.form.pattern === "bands" ? [0.3, 0.45, 0.6, 0.75] : ctx.form.pattern === "stripes" ? [0.84] : [];
@@ -795,7 +820,23 @@ function wormPlan(ctx: Ctx): Plan {
     }
   }
   const tail0 = pts[0]!;
+  const tubeAt = bodyTube;
+  const ink = bodyTube?.children[0] as THREE.Mesh | undefined;
   return {
+    // It bends: joints from behind the head to the tail; the smooth body is drawn through them anew.
+    spine: {
+      points: pts.slice(0, n - 1).reverse(),
+      headEnd: Q(hp.x - head.x, hp.y - head.y, hp.z - 6 - head.z),
+      ...(tubeAt
+        ? {
+            tube: tubeAt,
+            redraw: (at: THREE.Vector3[]) => {
+              taper(at, 3, 12, { segments: 40, radial: 14 }, tubeAt.geometry);
+              if (ink) taper(at, 3 + b.outlinePx * 0.8, 12 + b.outlinePx * 0.8, { segments: 40, radial: 8 }, ink.geometry);
+            },
+          }
+        : {}),
+    },
     body: new Ell(pts[3]!.x, pts[3]!.y, pts[3]!.z, 12, 11, 12),
     head,
     feet: [],
@@ -805,6 +846,7 @@ function wormPlan(ctx: Ctx): Plan {
     tailSize: 0.8,
     seat: V(pts[4]!.x, pts[4]!.y + 12, pts[4]!.z),
     feetY: G,
+    gait: "slither",
     face: { eyeSize: 12, eyePitch: 0.15 },
     hover: eel,
   };
@@ -928,6 +970,7 @@ function spiritPlan(ctx: Ctx): Plan {
     tailBase: body.at(Math.PI, -0.3, -2).px,
     seat: V(0, body.y + body.ry, 0),
     feetY: G,
+    gait: "drift",
     face: { eyeSize: head.ry * 0.4, eyePitch: 0.1 },
     hover: true,
     crown: shape === "cloud" ? V(0, 30, -6) : shape === "flame" ? V(0, 20, 6) : shape === "jelly" ? V(0, 23, 0) : undefined,

@@ -16,13 +16,25 @@ import { KANAGAWA } from "../ui/theme";
  *   landing), leaning into the flight and banking into turns, feet tucked; at rest the wings
  *   fold and flutter now and then
  *
+ * And, for monsters just going about (in the garden), a few more:
+ *
+ * - trot: four legs swinging from the hips, the diagonals together, head and tail bobbing
+ * - skitter: a bug's or a crab's quick little steps, three legs at a time
+ * - swim: a fish swimming through the air — its body curving from side to side, the tail
+ *   sweeping, never touching the ground
+ * - drift: something floating (a cloud, a spirit, a buzzing bug) leaning into where it goes,
+ *   swaying, its little arms paddling
+ *
  * Steps are paced by the distance covered, not by time, so feet never skate. The rider sits
  * on the body (or a snake's second segment), so they rise, sway and lean with it. Works on the
  * model's rig (monster-model.ts `MountRig`); a model without one simply stands.
  */
 
+/** Every way a monster can move: the riding gaits and the garden's own. */
+export type Gait = RideGait | "trot" | "skitter" | "swim" | "drift";
+
 /** How far (tiles) one full cycle of the gait carries it: two steps, one leap, one wave. */
-const STRIDE: Record<RideGait, number> = { waddle: 0.9, stomp: 1.3, bound: 1.7, slither: 1.8, glide: 0.8, fly: 1 };
+const STRIDE: Record<Gait, number> = { waddle: 0.9, stomp: 1.3, bound: 1.7, slither: 1.8, glide: 0.8, fly: 1, trot: 1.1, skitter: 0.45, swim: 1.4, drift: 1.6 };
 
 interface Puff {
   object: THREE.Object3D;
@@ -48,9 +60,11 @@ export class RideAnimator {
 
   constructor(
     private readonly model: MonsterModel,
-    private readonly gait: RideGait,
+    private readonly gait: Gait,
     private readonly scene: THREE.Scene,
     private readonly heightAt: (x: number, z: number) => number,
+    /** How high a flier rises (in its parent's units). */
+    private readonly lift = 0.5,
   ) {
     this.baseY = model.root.position.y;
     const rig = model.rig;
@@ -58,7 +72,8 @@ export class RideAnimator {
     for (const o of [rig.body, ...rig.feet, ...rig.arms, ...(rig.tail ? [rig.tail] : []), ...rig.wings.map((w) => w.pivot), ...(rig.spine ?? []), ...(rig.head ? [rig.head] : [])]) {
       this.rest.set(o, { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() });
     }
-    for (const w of rig.wings) w.pivot.userData.driven = true;
+    // (Only a flight beats the wings; otherwise they keep their own movement — a bug's buzz.)
+    if (gait === "fly") for (const w of rig.wings) w.pivot.userData.driven = true;
   }
 
   /** Where the rider goes: onto the body (or a snake's second segment), at the seat. Scale is the rider's size inside the model. */
@@ -118,7 +133,34 @@ export class RideAnimator {
         return this.glide(rig, a, moved);
       case "fly":
         return this.fly(rig, a, dt, turn, t);
+      case "trot":
+        return this.walk(rig, a, t, { lift: 0.05, reach: 0.05, roll: 0.05, bob: 0.025, arms: 0.4, pitch: 0.04, dust: 0 });
+      case "skitter":
+        return this.walk(rig, a, t, { lift: 0.04, reach: 0.03, roll: 0.04, bob: 0.012, arms: 0.3, pitch: 0, dust: 0 });
+      case "swim":
+        return this.swim(rig, a, t);
+      case "drift":
+        return this.drift(rig, a, turn, t);
     }
+  }
+
+  private swim(rig: MountRig, a: number, t: number): void {
+    // The body curves from side to side, the tail sweeping the other way — slowly at rest.
+    const p = this.phase + t * 2.2;
+    const k = 0.35 + 0.65 * a;
+    rig.body.rotation.y += Math.sin(p) * 0.22 * k;
+    rig.body.rotation.z += Math.sin(p + 0.6) * 0.05 * k;
+    rig.body.rotation.x += Math.sin(p * 0.5) * 0.05;
+    if (rig.tail) rig.tail.rotation.y += Math.sin(p - 1.2) * 0.75 * k;
+  }
+
+  private drift(rig: MountRig, a: number, turn: number, t: number): void {
+    // Leaning into where it goes, swaying a little, arms paddling.
+    rig.body.rotation.x += 0.22 * a;
+    rig.body.rotation.z += Math.sin(t * 1.3) * 0.06 + THREE.MathUtils.clamp(-turn * 0.1, -0.3, 0.3) * a;
+    this.model.root.position.y = this.baseY + Math.sin(t * 1.8) * 0.03 + 0.04 * a;
+    rig.arms.forEach((arm, i) => (arm.rotation.x += Math.sin(t * 3 + i * Math.PI) * (0.3 + 0.5 * a)));
+    if (rig.tail) rig.tail.rotation.y += Math.sin(t * 2) * 0.3;
   }
 
   // ------------------------------------------------------------ the gaits
@@ -127,9 +169,15 @@ export class RideAnimator {
     const p = this.phase;
     rig.feet.forEach((foot, i) => {
       const s = Math.sin(p + i * Math.PI);
-      foot.position.z += s * g.reach * a;
-      foot.position.y += Math.max(0, s) * g.lift * a;
-      foot.rotation.x = -Math.max(0, s) * 0.5 * a;
+      if (rig.hips) {
+        // Legs swinging from the hip: forward and back, lifted a little going forward.
+        foot.rotation.x += -s * (0.35 + g.reach * 3) * a;
+        foot.position.y += Math.max(0, s) * g.lift * 0.4 * a;
+      } else {
+        foot.position.z += s * g.reach * a;
+        foot.position.y += Math.max(0, s) * g.lift * a;
+        foot.rotation.x = -Math.max(0, s) * 0.5 * a;
+      }
     });
     rig.arms.forEach((arm, i) => (arm.rotation.x += Math.sin(p + i * Math.PI + Math.PI) * g.arms * a));
     const s = Math.sin(p);
@@ -241,12 +289,16 @@ export class RideAnimator {
     const strength = 0.12 + 0.95 * air;
     const beat = Math.sin(this.flap) * strength * (air > 0.05 ? 1 : flutter);
     for (const w of rig.wings) {
-      // Up and down about the shoulder, sweeping back a little on the downstroke; folded back at rest.
-      w.pivot.rotation.set(w.rest.x, w.side * (w.rest.y + 0.35 * (1 - air) + 0.15 * Math.cos(this.flap) * air), w.rest.z + w.side * (beat + 0.25 * air));
+      // In the air: spread out to the side, beating up and down about the shoulder and sweeping
+      // back a little on the downstroke. At rest: folded back along the body (a little more than
+      // it's built), fluttering now and then.
+      const folded = w.rest.y + w.side * 0.35;
+      const spread = w.side * 0.15 * Math.cos(this.flap);
+      w.pivot.rotation.set(w.rest.x * (1 - air), folded * (1 - air) + spread * air, w.rest.z * (1 - air) + w.side * (beat + 0.25 * air));
     }
     // It rises on each downstroke; high up it leans into the flight and banks into turns.
     const bob = -Math.sin(this.flap) * 0.035 * air;
-    this.model.root.position.y = this.baseY + air * 0.5 + bob + Math.sin(t * 1.7) * 0.02 * air;
+    this.model.root.position.y = this.baseY + air * this.lift + bob + Math.sin(t * 1.7) * 0.02 * air;
     rig.body.rotation.x += 0.2 * air;
     rig.body.rotation.z += THREE.MathUtils.clamp(-turn * 0.18, -0.45, 0.45) * air;
     rig.feet.forEach((foot) => {
