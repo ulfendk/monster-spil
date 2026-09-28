@@ -33,7 +33,12 @@ def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye
         s = size * (0.8 if kind == "fierce" else 0.55 if kind == "dot" else 1.0)
         lr = "L" if side < 0 else "R"
         e = Sculpt(INK)
-        if kind == "glow":
+        if kind == "blind":
+            # Milky, no pupil: a cave fish's.
+            e.ellipsoid(on(0, 0, 0.3), (6.4 * s, 6.4 * s, 1.6 * s), F, colour=K["katanaGray"])
+            e.ellipsoid(on(0, 0, 0.8), (5.6 * s, 5.6 * s, 1.8 * s), F, colour=K["washi"])
+            e.ball(on(side * 1.6 * s, 1.8 * s, 1.9), 1.3 * s, colour=0xFFFFFF)
+        elif kind == "glow":
             e.ellipsoid(on(0, 0, 0.3), (6.4 * s, 5.2 * s, 1.6 * s), F)
             e.ellipsoid(on(0, 0, 0.8), (5.4 * s, 4.2 * s, 1.8 * s), F, colour=iris or K["surimiOrange"])
             e.ellipsoid(on(0, 0.6 * s, 1.4), (3.2 * s, 2.4 * s, 1.6 * s), F, colour=K["carpYellow"])
@@ -53,7 +58,7 @@ def eyes(m: Model, body, parent, x, z, size=1.0, iris=None, tilt=0.12, name="eye
                 e.ball(on(-side * 1.8 * s, -3.0 * s, 1.9), 1.0 * s, colour=K["washi"])
         m.part(e, f"{name}_{lr}", parent, voxel=0.3, budget=300, role="flat", face="open", smooth=0)
         lid = Sculpt(INK)
-        if kind in ("fierce", "glow"):
+        if kind in ("fierce", "glow", "blind"):
             lid.round_cone(on(-5.5 * s, 1 * s, 1.2), on(5.5 * s, -1.5 * s, 1.2), 1.2 * s, 1.2 * s)
         else:
             arc = [on(6 * s * math.cos(a), 6 * s * math.sin(a) - 2.5 * s, 1.2) for a in (math.radians(d) for d in range(20, 170, 25))]

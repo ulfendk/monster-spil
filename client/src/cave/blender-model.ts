@@ -12,7 +12,8 @@ import { particles } from "./anatomy/surface";
  * (see tools/models/lib/model.py): pivots by name (`body`, `foot_L`, `wing_R`, `seat`…),
  * each mesh's `role`, `outline`, `opacity`, `face`, `minStage`/`maxStage` and `stageShade`,
  * pivots' `stageScale`, `flicker` (a flame, flickering about its base) and `sway` (a leaf,
- * swaying about its stem) and `ridden` (0: only when nobody rides it, 1: only when ridden),
+ * swaying about its stem), `spin` (turning about its own z, radians a second), `spine_0`… (a long
+ * body's joints, from the head back) and `ridden` (0: only when nobody rides it, 1: only when ridden),
  * a `seat_ride` for a rider if it isn't `seat`, the model's own `gait`, `hips`, `view` and
  * `flap` (how far its wings beat by themselves, `flapRate` how fast), `fit` (0: not fitted
  * to the picture's box), `hover` (1: it floats, bobbing) and `particles` (what drifts about it, instead of its species' `form`
@@ -27,12 +28,14 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
   const meshes: THREE.Mesh[] = [];
   const flames: Array<{ o: THREE.Object3D; scale: THREE.Vector3 }> = [];
   const leaves: Array<{ o: THREE.Object3D; rest: THREE.Euler; k: number }> = [];
+  const spinning: Array<{ o: THREE.Object3D; speed: number }> = [];
   root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     const grow = o.userData.stageScale as number | undefined;
     if (grow) o.scale.multiplyScalar(1 + grow * (stage - 1));
     if (o.userData.flicker) flames.push({ o, scale: o.scale.clone() });
     if (o.userData.sway) leaves.push({ o, rest: o.rotation.clone(), k: o.userData.sway as number });
+    if (o.userData.spin) spinning.push({ o, speed: o.userData.spin as number });
   });
   // (The model's own settings sit on its top node.)
   const own = (root.children[0]?.userData ?? {}) as { gait?: Gait; hips?: number; view?: number; flap?: number; flapRate?: number; fit?: number; particles?: string; hover?: number };
@@ -52,7 +55,10 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     colourVertices(geometry, (hex) => (toon ? variantColour(ud.stageShade ? shade(hex, -6 * (stage - 1)) : hex, variant) : hex));
     mesh.geometry = geometry;
     if (toon) {
-      const material = b.keep(monsterMaterial(0xffffff));
+      const material = monsterMaterial(0xffffff);
+      material.opacity = (ud.opacity as number | undefined) ?? 1;
+      if (material.opacity < 1) material.depthWrite = false;
+      b.keep(material);
       material.vertexColors = true;
       b.toon.push(material);
       mesh.material = material;
@@ -82,11 +88,13 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     ...(node("tail") ? { tail: node("tail")! } : {}),
     ...(node("head") ? { head: node("head")! } : {}),
     ...(own.hips ? { hips: true } : {}),
+    // A long body that bends: its joints from just behind the head to the tail.
+    ...(node("spine_0") ? { spine: Array.from({ length: 24 }, (_, i) => node(`spine_${i}`)).filter((g): g is THREE.Group => g !== undefined) } : {}),
     wings: pair("wing").map((pivot) => ({ pivot, side: pivot.name.endsWith("_L") ? -1 : 1, rest: pivot.rotation.clone() })),
   };
 
   // (`fit: 0`: sized by hand, as drawn — wings reaching past the box.)
-  if (own.fit !== 0) fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128);
+  if (own.fit !== 0) fit(root, body ? body.getWorldPosition(new THREE.Vector3()).y : -0.5 + 12 / 128, Boolean(own.hover), own.view ?? -0.42);
   b.root.updateMatrixWorld(true);
   // Embers, steam, sparks… drifting about it: its species' `form` extras (or the model's own list).
   const ticks: Array<(t: number) => void> = [];
@@ -117,7 +125,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
     const y = root.position.y;
     ticks.push((t) => (root.position.y = y + Math.sin(t * 2) * 2.5 * S));
   }
-  const moving = flames.length + leaves.length + wings.length + ticks.length > 0;
+  const moving = flames.length + leaves.length + spinning.length + wings.length + ticks.length > 0;
   return {
     face: setFace,
     seat,
@@ -139,6 +147,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
               w.pivot.rotation.set(w.rest.x, w.rest.y + w.side * beat, w.rest.z + w.side * beat * 0.4);
             }
             for (const f of ticks) f(t);
+            for (const { o, speed } of spinning) o.rotation.z = t * speed;
             leaves.forEach(({ o, rest, k }, i) => o.rotation.set(rest.x + Math.sin(t * 1.3 + i * 2.1) * 0.06 * k, rest.y, rest.z + Math.sin(t * 1.7 + i) * 0.1 * k));
           },
         }
@@ -150,7 +159,7 @@ export function blenderBuilt(b: Builder, source: THREE.Object3D, species: Creatu
  * Scaled to fill the picture's box like the game's own monsters (anatomy/index.ts `fitToBox`):
  * as wide as fits, feet on the ground (`ground`, the body pivot's height), centred across.
  */
-function fit(root: THREE.Object3D, ground: number): void {
+function fit(root: THREE.Object3D, ground: number, floating: boolean, view: number): void {
   root.updateMatrixWorld(true);
   const box = new THREE.Box3();
   root.traverse((o) => {
@@ -161,8 +170,17 @@ function fit(root: THREE.Object3D, ground: number): void {
   });
   if (box.isEmpty()) return;
   const size = box.getSize(new THREE.Vector3());
+  // (It's shown turned — the long ones more from the side: as wide as it looks from there.)
+  size.x = Math.abs(size.x * Math.cos(view)) + Math.abs(size.z * Math.sin(view));
   // (Up to 2.5×: a sculpt may be drawn smaller than the box.)
-  const k = Math.max(0.6, Math.min(0.9 / size.x, (0.5 - 0.03 - ground) / Math.max(0.05, box.max.y - ground), 2.5));
+  if (floating) {
+    // Floating: in the middle of the box.
+    const k = Math.max(0.6, Math.min(1 / size.x, 0.9 / size.y, 2.5));
+    root.scale.setScalar(k);
+    root.position.set((-k * (box.min.x + box.max.x)) / 2, -0.02 - (k * (box.min.y + box.max.y)) / 2, 0);
+    return;
+  }
+  const k = Math.max(0.6, Math.min(1 / size.x, (0.5 - 0.03 - ground) / Math.max(0.05, box.max.y - ground), 2.5));
   root.scale.setScalar(k);
   root.position.set((-k * (box.min.x + box.max.x)) / 2, ground * (1 - k), 0);
 }

@@ -109,3 +109,98 @@ def cracks(s: Sculpt, centre_px, radii, colour, count=7, seed=1, width=1.3, face
             pts.append(c + Vector((d2.x * radii[0], d2.y * radii[1], d2.z * radii[2])))
         for a, b in zip(pts, pts[1:]):
             s.round_cone(a, b, width, width * 0.8, op="paint", colour=colour)
+
+
+def fish_tail(m: Model, parent, base_px, colour, size=1.0, forked=True, grow=0.25):
+    """A tail fin standing upright behind `base_px` (the `tail` pivot): forked, or a round fan."""
+    pivot = m.pivot("tail", base_px * PX, parent)
+    pivot["stageScale"] = grow
+    t = Sculpt(colour)
+    F = frame(S(0, -1, 0), Vector((0, 0, 1)), Vector((1, 0, 0)))
+    pts = ([(0, 3), (9, 13), (14, 14), (8, 4), (8, -4), (14, -14), (9, -13), (0, -3)] if forked
+           else [(0, 4), (8, 12), (13, 10), (15, 0), (13, -10), (8, -12), (0, -4)])
+    t.slab(base_px, F, [(x * size, y * size) for x, y in pts], 2.4, rounding=1)
+    t.ellipsoid(base_px, (2.2 * size, 3 * size, 3.5 * size), k=1.5)
+    m.part(t, "tail_mesh", pivot, voxel=0.35, budget=500)
+    return pivot
+
+
+def side_fins(m: Model, parent, x, f, z, colour, size=1.0):
+    """Two little fins at the sides (arm_L, arm_R: they paddle)."""
+    for side in (-1, 1):
+        lr = "L" if side < 0 else "R"
+        at = S(side * x, f, z)
+        pivot = m.pivot(f"arm_{lr}", at * PX, parent)
+        F = frame(S(0, -1, 0), S(side * 0.3, 0, -1).normalized(), Vector((side, 0, 0.3)).normalized())
+        s = Sculpt(colour)
+        s.slab(at, F, [(x2 * size, y2 * size) for x2, y2 in ((0, 0), (7, 3), (10, 8), (4, 6), (0, 3))], 1.8, rounding=0.7)
+        m.part(s, f"fin_{lr}", pivot, voxel=0.3, budget=250)
+
+
+def slab_fin(s: Sculpt, base_px, points, thickness=2.2, colour=None):
+    """An upright fin in the body's middle plane (x = 0), from (f, z) points relative to `base_px`."""
+    F = frame(S(0, 1, 0), Vector((0, 0, 1)), Vector((1, 0, 0)))
+    s.slab(base_px, F, points, thickness, rounding=0.9, colour=colour, k=1.2)
+
+
+def frog_body(m: Model, colour, belly, spots=None, seed=1):
+    """A squat frog: a wide body and head in one, eye bumps on top, big back haunches; legs on four pivots (they hop). Returns (sculpt, body pivot)."""
+    m.root["gait"] = "bound"
+    m.root["hips"] = 1
+    m.root["view"] = -0.5
+    body_pivot = m.pivot("body", P(0, 0, FEET_Z))
+    s = Sculpt(colour)
+    s.ellipsoid(S(0, -2, -38), (19, 16, 12.5), k=0)
+    s.ellipsoid(S(0, 8, -32), (17, 13, 10.5), k=6)  # the head
+    for side in (-1, 1):
+        s.ball(S(side * 8.5, 9, -23), 6.5, k=3)  # eye bumps
+        s.ellipsoid(S(side * 14, -10, -42), (7, 9, 7), k=3)  # haunches
+    s.ellipsoid(S(0, 8, -44), (13, 11, 5), op="paint", colour=belly, k=2.5)
+    if spots:
+        rnd = random.Random(seed)
+        for _ in range(9):
+            a = rnd.uniform(1.0, math.tau - 1.0)
+            z = rnd.uniform(-38, -28)
+            s.ball(S(math.sin(a) * 18, -2 - math.cos(a) * 15, z), rnd.uniform(1.8, 3), op="paint", colour=spots, only=colour)
+    for i, (x, f, big) in enumerate(((-9, 11, False), (9, 11, False), (14, -10, True), (-14, -10, True))):
+        at = S(x, f, -42)
+        leg = m.pivot(f"foot_{i}", at * PX, m.root)
+        l = Sculpt(colour)
+        if big:
+            l.ellipsoid(S(x * 1.1, f + 5, FEET_Z + 2.5), (5, 9, 2.8), k=0)
+            for c in (-1, 0, 1):
+                l.ball(S(x * 1.1 + c * 3.2, f + 13, FEET_Z + 1.8), 2, k=1)
+        else:
+            l.round_cone(at, S(x * 1.1, f + 3, FEET_Z + 3), 3.2, 2.6, k=1)
+            for c in (-1, 0, 1):
+                l.ball(S(x * 1.1 + c * 2.4, f + 5.5, FEET_Z + 1.6), 1.6, k=1)
+        m.part(l, f"leg_{i}", leg, voxel=0.35, budget=350, stage_shade=True)
+    return s, body_pivot
+
+
+def troll(m: Model, colour, belly, nose=None, arm=None):
+    """A troll: a big pear of a body with the head grown into it, a big nose, long arms reaching down, short thick legs (they stomp). Returns (sculpt, body pivot)."""
+    m.root["gait"] = "stomp"
+    m.root["hips"] = 1
+    body_pivot = m.pivot("body", P(0, 0, FEET_Z))
+    s = Sculpt(colour)
+    s.ellipsoid(S(0, 0, -30), (21, 17, 17), k=0)
+    s.ellipsoid(S(0, 5, -9), (15, 13, 13), k=8)  # the head
+    s.ellipsoid(S(0, 18, -12), (6.5, 6, 6.5), k=3, colour=nose or shade(colour, -8))  # the big nose
+    s.ellipsoid(S(0, 11, -34), (13, 8, 12), op="paint", colour=belly, k=3)
+    for side in (-1, 1):
+        lr = "L" if side < 0 else "R"
+        shoulder = S(side * 18, 2, -20)
+        pivot = m.pivot(f"arm_{lr}", shoulder * PX, body_pivot)
+        a = Sculpt(arm or colour)
+        hand = S(side * 25, 8, -40)
+        a.chain([shoulder, S(side * 24, 4, -30), hand], [6, 5.4, 5], k=2)
+        a.ellipsoid(hand + S(0, 1, -3), (5.5, 5.5, 5), k=2)
+        m.part(a, f"arm_{lr}_mesh", pivot, voxel=0.4, budget=600, stage_shade=True)
+        hip = S(side * 9, 0, -42)
+        leg = m.pivot(f"foot_{lr}", hip * PX, m.root)
+        l = Sculpt(shade(colour, -6))
+        l.round_cone(hip, S(side * 9.5, 1, FEET_Z + 4), 6.5, 6, k=1.5)
+        l.ellipsoid(S(side * 9.5, 4, FEET_Z + 3), (7, 9, 3.6), k=2)
+        m.part(l, f"leg_{lr}", leg, voxel=0.4, budget=500, stage_shade=True)
+    return s, body_pivot

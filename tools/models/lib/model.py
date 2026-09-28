@@ -101,6 +101,8 @@ class Model:
             props["outline"] = 0
         if opacity < 1:
             props["opacity"] = opacity
+            if role == "toon":
+                props["outline"] = 0
         if face:
             props["face"] = face
         if stages != (1, 3):

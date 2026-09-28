@@ -70,7 +70,7 @@ class Sculpt:
 
     # --- primitives: k is the blend radius (px), op "add", "sub" or "paint"
 
-    def round_cone(self, a, b, r1, r2, k=0.0, op="add", colour=None):
+    def round_cone(self, a, b, r1, r2, k=0.0, op="add", colour=None, only=None):
         a, b = V(a), V(b)
         ba = b - a
         l2 = max(ba.dot(ba), 1e-10)
@@ -95,16 +95,16 @@ class Sculpt:
         r = max(r1, r2)
         lo = V((min(a.x, b.x) - r, min(a.y, b.y) - r, min(a.z, b.z) - r))
         hi = V((max(a.x, b.x) + r, max(a.y, b.y) + r, max(a.z, b.z) + r))
-        self._add(fn, lo, hi, k, op, colour)
+        self._add(fn, lo, hi, k, op, colour, only)
 
     def chain(self, points, radii, k=0.0, op="add", colour=None):
         """Round cones through a list of points (a tail, a horn, a curved line)."""
         for i in range(len(points) - 1):
             self.round_cone(points[i], points[i + 1], radii[i], radii[i + 1], k, op, colour)
 
-    def ball(self, c, r, k=0.0, op="add", colour=None):
+    def ball(self, c, r, k=0.0, op="add", colour=None, only=None):
         c = V(c)
-        self._add(lambda X, Y, Z: np.sqrt((X - c.x) ** 2 + (Y - c.y) ** 2 + (Z - c.z) ** 2) - r, c - V((r, r, r)), c + V((r, r, r)), k, op, colour)
+        self._add(lambda X, Y, Z: np.sqrt((X - c.x) ** 2 + (Y - c.y) ** 2 + (Z - c.z) ** 2) - r, c - V((r, r, r)), c + V((r, r, r)), k, op, colour, only)
 
     def ellipsoid(self, c, radii, R=Matrix.Identity(3), k=0.0, op="add", colour=None, only=None):
         """(A paint with `only` colours just the surface that was that colour.)"""
