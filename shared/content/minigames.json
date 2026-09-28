@@ -23,7 +23,5 @@
       { "speciesId": "oasepadde", "weight": 1 },
       { "speciesId": "gravling", "weight": 1 }
     ]
-  },
-  "swim": { "maxTiles": 16 },
-  "climb": { "maxTiles": 10 }
+  }
 }

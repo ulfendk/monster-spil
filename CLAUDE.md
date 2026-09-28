@@ -322,6 +322,13 @@ games" — with no schema state: plain messages typed in
   `BattleParticipant.boost` ({power, accuracy, moves}), which works on the next moves and wears
   off. Duels, the dragon and team fights have no items (their turns are the server's, and it
   only accepts moves and fleeing). A monster using one glows golden in 3D (`BattleStage.powerUp`).
+- **Hearts after a won wild battle:** hearts drop round me on open ground (`items.json`
+  `winHeals`: each heals `heal` of the monster's HP; as many as it takes to heal what the fight
+  cost, at most `max`; they fade after `seconds`). Walking onto one heals the monster that fought
+  (a monster at full HP leaves it lying). Not saved: they're gone when the map restarts. Pure
+  rules (tested) `winHealCount`, `healFromHeart`, `dropSpots`; `BattleScene` passes
+  `OverworldSceneData.heals`, `OverworldScene.dropHearts`/`pickUpHeart` do the rest. Icon and
+  3D model `healheart`.
 - On the 3D map items are models like the food (flasks, a feather, a clover). Picking one up
   gives a little XP and counts for the badge Skattefinder.
 
@@ -594,9 +601,10 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
 ### Caves: a 3D minigame (protocol v12)
 
 - **Caves come and go** in the mountains (online games only): about every hour one
-  opens in a mountain face you can walk up to and stays 20 minutes (the parent's
+  opens in a mountain face you can walk up to on level ground and stays 20 minutes (the parent's
   settings in the admin portal: on/off, how often, how long, randomness, open now, close).
-  The mouth stays a mountain tile, so walking and connectivity never change. Each player
+  The mouth stays a mountain tile, but nobody walks into it (they climb round it), so
+  `chooseCaveSpot` never picks one that would cut the map in two. Each player
   can go in **once per opening**.
 - **Inside**, the device runs the minigame: monsters peek out from behind boulders (at
   most two at a time), sometimes scamper to another boulder, and you shoot balls at them
@@ -733,11 +741,10 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
 
 ### Minigames: working the land (protocol v14)
 
-- **Tap a tree, water or a mountain next to you** (further away: you walk over first) for a
-  big button that starts its game: **chopping** (`ChopGame`: tap while the swinging marker is
-  in the green, three good chops fell it), **swimming** (`SwimGame`: tap as the ring meets the
-  circle; misses tire you) and **climbing** (`ClimbGame`: tap the glowing handholds before
-  your strength runs out). A **shovel button** (bottom right) shows only where you can dig
+- **Tap a tree next to you** (further away: you walk over first) for a big button that starts
+  **chopping** (`ChopGame`: tap while the swinging marker is in the green, three good chops fell
+  it). (Water and mountains have no games: you simply walk into them — see "Moving on the map".)
+  A **shovel button** (bottom right) shows only where you can dig
   (plain ground or sand, no tall grass): **digging** (`DigGame`: tap fast). All in
   `client/src/scenes/minigames/`, sharing `Minigame` (backdrop, hint below the ✕ row, ✕ to
   give up, a result, back to the paused map); played by tapping only, restarting on rotation.
@@ -745,12 +752,12 @@ picture (a kid's drawing) breathes and moves but doesn't blink.
   tree after `cut.regrowHours`; a **hole** (tile 16) fills in after `dig.healHours` and turns
   up food (into the bag), a gem (XP), a monster (a wild battle — `dig.monsters`, or
   `dig.sandMonsters` when dug in sand; Gravling, Rodnisse and the dune monsters live there) or
-  nothing (`dig.rewards` by weight); swimming and climbing carry you straight across to the
-  first walkable tile beyond (at most `swim.maxTiles` / `climb.maxTiles`). All numbers in
-  `shared/content/minigames.json`. Each earns XP and counts for a badge (Skovhugger,
-  Svømmer, Bjergbestiger, Skattejæger).
+  nothing (`dig.rewards` by weight). All numbers in `shared/content/minigames.json`. Each earns
+  XP and counts for a badge (Skovhugger, Skattejæger); swimming or climbing across at least 3
+  tiles in a row (`OverworldScene.trackCrossing`) counts `swim`/`climb` for Svømmer and
+  Bjergbestiger.
 - **Pure rules** (tested) in `shared/src/world/work.ts`: `canCut`, `canDig`, `applyCut`,
-  `applyDig`, `crossTarget`, `pickDigReward`. Healing (`healTerrain`) never grows anything
+  `applyDig`, `pickDigReward`. Healing (`healTerrain`) never grows anything
   blocking under a player (`occupied`), and never where it would cut the map in two.
 - **Shared map:** online, cuts and holes go to the server (`work {kind, x, y}` →
   `workDone`, refused unless you stand next to the tree / on the ground; `WorldEvents.work`),
@@ -1058,15 +1065,17 @@ steps are quiet. Seeing it counts for the monster book either way. A finger put 
 map keeps the card up; if a menu closed it, `update()` puts it back. The UFO's alien (tapped on
 purpose) still starts its battle at once.
 
-**Forests can be walked through, slowly.** Trees are no longer in the areas' `collisionGids`;
-the sidecar's `slow: [{gids: [tree], speed: 0.5}]` says a step onto one takes twice as long
-(`groundSpeed` in `shared/src/world/steps.ts`; riding multiplies in). The map's **outermost
+**Forests, water and mountains can be walked through, slowly.** Trees, water and mountains are
+no longer in the areas' `collisionGids`; the sidecar's `slow` says how slowly (forest 0.5, water
+0.4 — you swim, the figure half under the surface in 3D — mountain 0.35 — you climb; `groundSpeed`
+in `shared/src/world/steps.ts`; riding multiplies in). Ildbjerget's lava (its water tile) still
+blocks. A cave's mouth can't be walked into (`OverworldScene.isWalkable`). The map's **outermost
 row is always its wall** (`isMapEdge`, used by the client's `isWalkable` and the shared
 `walkableNow`, so the server's connectivity checks agree), which keeps the tree border round
-Startskoven and Snedalen shut. Tapping somewhere walks the quickest way (`findPath`: forest
-costs double, so it goes round a wood when that's quicker). Food, the dragon's perches and
-the beasts still keep to open ground (the server's food spots skip `slow` tiles). The world
-generators still treat trees as blocking while they make a map (so every part is reachable
+Startskoven and Snedalen shut. Tapping somewhere walks the quickest way (`findPath`: a step
+costs 1/speed, so it goes round a wood or a lake when that's quicker). Food, the dragon's
+perches and the beasts still keep to open ground (the server's food spots skip `slow` tiles). The world
+generators still treat trees, water and mountains as blocking while they make a map (so every part is reachable
 on foot) and write the sidecar this way. In 3D, pines near anyone lean away and shrink a
 little as they pass (`MapStage.pushTrees`, fed every frame by `Map3D` with the players'
 spots); pines between a player and the camera give way from further off, duck lower and lean

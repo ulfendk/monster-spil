@@ -25,7 +25,7 @@ export interface LevelConfig {
     beastWin: number;
     caveVisit: number;
     trade: number;
-    /** The minigames: felling a tree, climbing over a mountain, swimming across water, digging a hole. */
+    /** Working the land: felling a tree, digging a hole (minigames); climbing over a mountain, swimming across water (walked). */
     cut: number;
     climb: number;
     swim: number;

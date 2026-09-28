@@ -39,3 +39,9 @@ export function playFaintSound(): void {
 export function playBlip(frequency: number, durationMs: number): void {
   playBeep(frequency, durationMs, "triangle");
 }
+
+/** A heart picked up: two bright notes going up. */
+export function playHealSound(): void {
+  playBeep(660, 120, "sine");
+  setTimeout(() => playBeep(990, 180, "sine"), 110);
+}

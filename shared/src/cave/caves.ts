@@ -1,5 +1,5 @@
 import type { WorldPosition } from "../world/adjacency.js";
-import { inside, tileKey, tileNow, walkableNow, type AreaTerrain, type BaseArea } from "../world/terrain.js";
+import { inside, staysConnected, tileKey, tileNow, walkableNow, type AreaTerrain, type BaseArea } from "../world/terrain.js";
 
 /**
  * Caves that open in the mountains now and then and close again. A player standing next
@@ -131,10 +131,17 @@ export function caveDue(cave: CaveState, now: Date): boolean {
 
 const STRAIGHT = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
-/** A mountain tile you can walk right up to: a cave can open in its face. */
+/** Ground you walk up to a mountain face on: walkable, and not itself mountain or water (you climb and swim those). */
+function level(base: BaseArea, terrain: AreaTerrain, x: number, y: number): boolean {
+  if (!inside(base, x, y) || !walkableNow(base, terrain, x, y)) return false;
+  const ground = tileNow(base, terrain, x, y).ground;
+  return ground !== base.tiles.mountain && ground !== base.tiles.water;
+}
+
+/** A mountain tile you can walk right up to on level ground: a cave can open in its face. */
 export function caveMouthTile(base: BaseArea, terrain: AreaTerrain, x: number, y: number): boolean {
   if (tileNow(base, terrain, x, y).ground !== base.tiles.mountain) return false;
-  return STRAIGHT.some(([dx, dy]) => walkableNow(base, terrain, x + dx, y + dy));
+  return STRAIGHT.some(([dx, dy]) => level(base, terrain, x + dx, y + dy));
 }
 
 export interface CaveSpotOptions {
@@ -144,13 +151,15 @@ export interface CaveSpotOptions {
 }
 
 const MIN_FROM_START = 8;
-/** Open tiles around the mouth, so a few players can stand at it. */
+/** Level tiles around the mouth, so a few players can stand at it. */
 const MIN_FREE_NEIGHBOURS = 3;
+/** Spots tried for connectivity (each check walks the whole map). */
+const TRIES = 25;
 
 /**
  * Picks where a cave opens: a mountain face with open ground in front, away from where new
- * players appear and never on or next to anything else. The mouth stays a mountain tile
- * (it blocks walking already), so opening one never changes how the map connects.
+ * players appear and never on or next to anything else. Nobody walks into the mouth (you climb
+ * the mountain round it), so it's never one that would cut the map in two.
  */
 export function chooseCaveSpot(base: BaseArea, terrain: AreaTerrain, opts: CaveSpotOptions): { x: number; y: number } | undefined {
   const near = new Set<string>();
@@ -161,12 +170,19 @@ export function chooseCaveSpot(base: BaseArea, terrain: AreaTerrain, opts: CaveS
       if (near.has(tileKey(x, y)) || !caveMouthTile(base, terrain, x, y)) continue;
       if (Math.hypot(x - base.start.x, y - base.start.y) < MIN_FROM_START) continue;
       let free = 0;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && inside(base, x + dx, y + dy) && walkableNow(base, terrain, x + dx, y + dy)) free++;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && level(base, terrain, x + dx, y + dy)) free++;
       if (free >= MIN_FREE_NEIGHBOURS) candidates.push({ x, y });
     }
   }
-  if (candidates.length === 0) return undefined;
-  return candidates[Math.floor(opts.rand() * candidates.length)];
+  // Fisher–Yates, so every fitting spot is equally likely.
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(opts.rand() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+  }
+  for (const c of candidates.slice(0, TRIES)) {
+    if (staysConnected(base, (x, y) => walkableNow(base, terrain, x, y), new Set([tileKey(c.x, c.y)]))) return c;
+  }
+  return undefined;
 }
 
 /** Picks something by weight (weights of 0 or less never come up). */

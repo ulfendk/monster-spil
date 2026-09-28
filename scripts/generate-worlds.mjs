@@ -121,10 +121,10 @@ function writeWorld(id, c, meta, palette) {
     tilesetImagePath: `areas/${id}-tileset.png`,
     encounterZoneLayer: "graes",
     collisionLayer: "bund",
-    // Trees block while the map is made (so every part stays reachable on foot), but in the game
-    // you can walk through a forest, slowly.
-    collisionGids: BLOCKING.filter((g) => g !== 2),
-    slow: [{ gids: [2], speed: 0.5 }],
+    // Trees, water and mountains block while the map is made (so every part stays reachable on
+    // foot), but in the game you walk through a forest, swim and climb — slowly. (Lava stays shut.)
+    collisionGids: BLOCKING.filter((g) => g !== TREE && g !== MOUNTAIN && (g !== WATER || meta.look3d?.water === "lava")),
+    slow: [{ gids: [TREE], speed: 0.5 }, ...(meta.look3d?.water === "lava" ? [] : [{ gids: [WATER], speed: 0.4 }]), { gids: [MOUNTAIN], speed: 0.35 }],
     ...meta,
     terrain: TERRAIN,
     minimap: MINIMAP,

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { applyCut, applyDig, canCut, canDig, crossTarget, pickDigMonster, pickDigReward, type MinigameConfig } from "../work.js";
+import { applyCut, applyDig, canCut, canDig, pickDigMonster, pickDigReward, type MinigameConfig } from "../work.js";
 import { emptyTerrain, healTerrain, tileKey, tileNow, walkableNow, type BaseArea } from "../terrain.js";
 
 const config: MinigameConfig = JSON.parse(readFileSync(new URL("../../../content/minigames.json", import.meta.url), "utf8"));
@@ -81,20 +81,6 @@ test("digging: plain ground or sand, not grass, a path or a hole already dug", (
   healTerrain(base, terrain, later(config.dig.healHours));
   assert.equal(tileNow(base, terrain, 3, 3).ground, T.ground, "filled in again");
   assert.equal(canDig(base, terrain, 3, 3), true);
-});
-
-test("swimming takes you across the river, climbing over the ridge", () => {
-  const base = area();
-  const terrain = emptyTerrain();
-  assert.deepEqual(crossTarget(base, terrain, { x: 9, y: 5 }, { x: 10, y: 5 }, "swim", config), { x: 13, y: 5, tiles: 3 });
-  assert.deepEqual(crossTarget(base, terrain, { x: 13, y: 5 }, { x: 12, y: 5 }, "swim", config), { x: 9, y: 5, tiles: 3 }, "and back");
-  assert.deepEqual(crossTarget(base, terrain, { x: 20, y: 13 }, { x: 20, y: 14 }, "climb", config), { x: 20, y: 17, tiles: 3 });
-  assert.deepEqual(crossTarget(base, terrain, { x: 9, y: 4 }, { x: 10, y: 5 }, "swim", config), { x: 13, y: 8, tiles: 3 }, "diagonally too");
-  assert.equal(crossTarget(base, terrain, { x: 9, y: 5 }, { x: 10, y: 5 }, "climb", config), undefined, "you can't climb water");
-  assert.equal(crossTarget(base, terrain, { x: 20, y: 13 }, { x: 20, y: 14 }, "climb", { ...config, climb: { maxTiles: 2 } }), undefined, "too far");
-  // Something in the way on the far side: no crossing.
-  terrain.overrides[tileKey(13, 5)] = { ground: T.tree, grass: 0 };
-  assert.equal(crossTarget(base, terrain, { x: 9, y: 5 }, { x: 10, y: 5 }, "swim", config), undefined);
 });
 
 test("a hole turns up rewards by weight", () => {

@@ -15,12 +15,10 @@ export function barY(layout: Layout): number {
   return hintY(layout) + layout.px(56);
 }
 
-/** What every minigame gets: who plays (for the figure), how big the task is, and whom to tell how it went. */
+/** What every minigame gets: who plays (for the figure) and whom to tell how it went. */
 export interface MinigameData {
   avatarId: string;
   farve: string;
-  /** How much there is to do: tiles of water or mountain to cross (at least 1). */
-  size?: number;
   /** Called once, when the game ends: done or not (✕ or ran out of breath). */
   done: (success: boolean) => void;
 }

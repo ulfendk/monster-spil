@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { carryItem, itemDay, itemSpots, type ItemConfig } from "../items.js";
+import { carryItem, dropSpots, healFromHeart, itemDay, itemSpots, winHealCount, type ItemConfig } from "../items.js";
 import { createBattle, resolveTurn } from "../../battle/engine.js";
 import { createRng } from "../../battle/rng.js";
 import { makeMove, makeParticipant, makeSpecies } from "../../battle/__tests__/fixtures.js";
@@ -61,4 +61,31 @@ test("in a battle: a feather means no misses, a healing potion heals", () => {
   const heal = config.items.find((i) => i.id === "helbredsdrik")!;
   const healed = resolveTurn(state, [{ playerId: "player", action: { kind: "item", navn: heal.navn, effect: heal.effect } }], createRng(9));
   assert.equal(healed.participants[0].active.currentHp, 80, "30 + half of 100");
+});
+
+test("a won battle drops hearts for what the fight cost; each heals a part, never past full", () => {
+  const c: ItemConfig = { ...config, winHeals: { heal: 0.25, max: 4, seconds: 180 } };
+  assert.equal(winHealCount(c, 40, 40), 0, "unhurt: none");
+  assert.equal(winHealCount(c, 39, 40), 1);
+  assert.equal(winHealCount(c, 30, 40), 1, "a quarter gone: one heart");
+  assert.equal(winHealCount(c, 29, 40), 2);
+  assert.equal(winHealCount(c, 1, 40), 4, "at most max");
+  assert.equal(winHealCount({ ...c, winHeals: undefined }, 1, 40), 0, "no winHeals: none");
+  assert.equal(healFromHeart(c, 10, 40), 20);
+  assert.equal(healFromHeart(c, 35, 40), 40, "not past full");
+  assert.ok(config.winHeals, "items.json has winHeals");
+});
+
+test("dropped things land on free tiles round me, nearest first, never on my own tile", () => {
+  let n = 0;
+  const rand = () => ((n = (n * 9301 + 49297) % 233280) / 233280);
+  const blocked = new Set(["5,4", "6,5"]);
+  const spots = dropSpots({ x: 5, y: 5 }, 4, (x, y) => !blocked.has(`${x},${y}`), rand);
+  assert.equal(spots.length, 4);
+  assert.equal(new Set(spots.map((s) => `${s.x},${s.y}`)).size, 4, "never two on one");
+  for (const s of spots) {
+    assert.ok(!blocked.has(`${s.x},${s.y}`) && !(s.x === 5 && s.y === 5));
+    assert.equal(Math.max(Math.abs(s.x - 5), Math.abs(s.y - 5)), 1, "right round me while there's room");
+  }
+  assert.equal(dropSpots({ x: 0, y: 0 }, 3, () => false, rand).length, 0, "nowhere free: none");
 });

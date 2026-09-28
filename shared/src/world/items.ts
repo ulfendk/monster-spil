@@ -23,6 +23,8 @@ export interface ItemConfig {
   /** How many of one kind a player can carry. */
   maxCarried: number;
   items: ItemDef[];
+  /** Hearts a won wild battle drops round you: each heals `heal` of the monster's HP, at most `max`, gone after `seconds`. */
+  winHeals?: { heal: number; max: number; seconds: number };
 }
 
 export interface ItemSpot {
@@ -80,4 +82,39 @@ export function carryItem(config: ItemConfig, carried: Record<string, number>, i
 /** The day in Danish time (items move at midnight there). */
 export function itemDay(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Copenhagen", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+/**
+ * How many hearts a won battle leaves on the ground: enough to heal what the fight cost my
+ * monster (none if it's unhurt), at most `winHeals.max`.
+ */
+export function winHealCount(config: ItemConfig, hp: number, maxHp: number): number {
+  const heals = config.winHeals;
+  if (!heals || maxHp <= 0 || hp >= maxHp) return 0;
+  const missing = (maxHp - Math.max(0, hp)) / maxHp;
+  return Math.min(heals.max, Math.max(1, Math.ceil(missing / Math.max(0.01, heals.heal) - 1e-9)));
+}
+
+/** A heart picked up: my monster's HP after it (never above its full HP). */
+export function healFromHeart(config: ItemConfig, hp: number, maxHp: number): number {
+  const heal = config.winHeals?.heal ?? 0;
+  return Math.min(maxHp, Math.max(0, hp) + Math.max(1, Math.round(maxHp * heal)));
+}
+
+/**
+ * Where dropped things land round `centre`: free tiles (`ok`) a step or a few away, the
+ * nearest first (in a random order among those as near), never on `centre` itself.
+ */
+export function dropSpots(centre: { x: number; y: number }, count: number, ok: (x: number, y: number) => boolean, rand: () => number, radius = 3): Array<{ x: number; y: number }> {
+  const spots: Array<{ x: number; y: number; d: number; r: number }> = [];
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (d === 0 || !ok(centre.x + dx, centre.y + dy)) continue;
+      spots.push({ x: centre.x + dx, y: centre.y + dy, d, r: rand() });
+    }
+  }
+  // Nearest first; among those as near, spread about.
+  spots.sort((a, b) => a.d - b.d || a.r - b.r);
+  return spots.slice(0, Math.max(0, count)).map(({ x, y }) => ({ x, y }));
 }

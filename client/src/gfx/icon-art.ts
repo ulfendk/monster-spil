@@ -218,6 +218,17 @@ const ART: Record<string, (g: G) => void> = {
     shape(g, pts, K.waveRed);
     ellipse(g, 42, 40, 14, 18, K.sakuraPink, 0);
   },
+  healheart: (g) => {
+    // A plump red heart with a white healing cross: dropped after a won battle.
+    const pts: P[] = [];
+    for (let i = 0; i < 40; i++) {
+      const t = (i / 40) * Math.PI * 2;
+      pts.push({ x: 64 + 3.5 * 16 * Math.sin(t) ** 3, y: 62 - 3.3 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) });
+    }
+    shape(g, pts, K.autumnRed);
+    ellipse(g, 40, 40, 14, 18, K.sakuraPink, 0);
+    g.fillStyle(K.fujiWhite, 1).fillRect(56, 44, 16, 40).fillRect(44, 56, 40, 16);
+  },
   sword: (g) => {
     // two crossed katana
     for (const side of [-1, 1]) {

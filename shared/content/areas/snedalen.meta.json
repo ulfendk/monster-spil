@@ -4,8 +4,8 @@
   "tilesetImagePath": "areas/snedalen-tileset.png",
   "encounterZoneLayer": "graes",
   "collisionLayer": "bund",
-  "collisionGids": [4, 6, 10, 11, 13],
-  "slow": [{ "gids": [2], "speed": 0.5 }],
+  "collisionGids": [10, 11, 13],
+  "slow": [{ "gids": [2], "speed": 0.5 }, { "gids": [4], "speed": 0.4 }, { "gids": [6], "speed": 0.35 }],
   "encounterTable": [
     {
       "speciesId": "snefnug",

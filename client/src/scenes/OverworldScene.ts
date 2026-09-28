@@ -12,7 +12,8 @@ import type { InteractSceneData } from "./InteractScene";
 import { multiplayerEnabled } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { PresenceStatus } from "../net/presence";
-import { seatFor } from "../battle-participant";
+import { maxHpOf, seatFor } from "../battle-participant";
+import { playHealSound } from "../audio/beep";
 import { bossesById } from "../content/load-raid";
 import { beastsById } from "../content/load-beasts";
 import type { RaidBattleUpdate } from "../net/presence";
@@ -50,7 +51,7 @@ import { castleFor, castleProgress } from "../content/load-castles";
 import { hasKey, questSpots, questState, type CastleDef, type QuestSpot } from "@shared";
 import type { CastleSceneData } from "./CastleScene";
 import { itemById, itemConfig } from "../content/load-items";
-import { canEnterWorld, crossTarget, emptyTerrain, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind, type AreaTerrain, type BaseArea } from "@shared";
+import { canEnterWorld, dropSpots, healFromHeart, stageName, stageOf, encounterTableAt, linkAt, linkTarget, rollVariant, sceneAt, worldById, type AreaLink, type LinkKind, pickDigMonster, pickDigReward, pickFoodKind } from "@shared";
 import { minigameConfig } from "../content/load-minigames";
 import { nameWithVariant, variantConfig } from "../content/load-variants";
 import { sceneConfig } from "../content/load-scenes";
@@ -61,6 +62,8 @@ export interface OverworldSceneData {
   content: GameContent;
   /** Just arrived from another world (by boat, tunnel or bridge): the map fades in and says welcome. */
   arrived?: boolean;
+  /** Just won a wild battle: this many hearts drop round me, to heal the monster that fought. */
+  heals?: { count: number; instanceId: string };
 }
 
 interface TileCoord {
@@ -101,10 +104,15 @@ const LINK_ICONS: Record<LinkKind, string> = { boat: "boat", tunnel: "tunnel", b
 export const mapKey = (areaId: string) => `area-map-${areaId}`;
 const tilesetKey = (areaId: string) => `area-tileset-${areaId}`;
 
-/** What can be done with a blocking tile next to me: fell it, swim across, climb over. */
-type LandWork = "cut" | "swim" | "climb";
-const WORK_ICONS: Record<LandWork, string> = { cut: "axe", swim: "swim", climb: "climb" };
-const WORK_GAMES: Record<LandWork, string> = { cut: "Chop", swim: "Swim", climb: "Climb" };
+/** A heart dropped after a won battle (a 3D model on the 3D map). */
+const HEART_ICON = "healheart";
+/** Swimming or climbing at least this many tiles in a row counts as a crossing. */
+const CROSSING_TILES = 3;
+
+/** What can be done with a tile next to me: fell a tree. */
+type LandWork = "cut";
+const WORK_ICONS: Record<LandWork, string> = { cut: "axe" };
+const WORK_GAMES: Record<LandWork, string> = { cut: "Chop" };
 
 /** How another player is drawn on the map. */
 interface OtherView {
@@ -183,12 +191,15 @@ export class OverworldScene extends Phaser.Scene {
     this.save = data.save;
     this.content = data.content;
     this.arrived = Boolean(data.arrived);
+    this.healsToDrop = data.heals;
     // A save from a world this build doesn't have (a newer device's game): back to the start.
     if (!hasArea(this.save.position.areaId)) this.save.position = { areaId: worldConfig.worlds[0]!.id, x: 0, y: 0 };
   }
 
   /** Just came from another world. */
   private arrived = false;
+  /** Hearts to drop round me once the map is up (a battle was won). */
+  private healsToDrop?: { count: number; instanceId: string };
 
   preload(): void {
     // Each world's map and tileset under its own keys (they stay cached when you travel back).
@@ -366,6 +377,8 @@ export class OverworldScene extends Phaser.Scene {
     this.itemSprites = new Map();
     this.drawItems();
     this.drawCastle();
+    this.hearts = [];
+    if (this.healsToDrop) this.dropHearts(this.healsToDrop);
     if (this.arrived) {
       this.cameras.main.fadeIn(450, 22, 22, 29);
       const world = worldById(worldConfig, this.areaMeta.id);
@@ -725,6 +738,54 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     return open;
+  }
+
+  // ------------------------------------------------------------ hearts after a won battle
+
+  private hearts: Array<{ x: number; y: number; sprite: Phaser.GameObjects.Image; instanceId: string }> = [];
+
+  /** Hearts pop out round me onto open ground near by; walking onto one heals my monster. They fade after a while. */
+  private dropHearts(drop: { count: number; instanceId: string }): void {
+    const heals = itemConfig.winHeals;
+    if (!heals) return;
+    const taken = new Set([...this.itemSprites.values()].map(({ spot }) => `${spot.x},${spot.y}`));
+    const free = (x: number, y: number) =>
+      this.isWalkable(x, y) && !this.isEncounterTile(x, y) && !taken.has(`${x},${y}`) && groundSpeed(this.areaMeta, this.groundLayer.getTileAt(x, y)?.index) >= 1;
+    let spots = dropSpots(this.playerTile, drop.count, free, Math.random);
+    if (spots.length < drop.count) spots = dropSpots(this.playerTile, drop.count, free, Math.random, 6);
+    const from = this.tileCentre(this.playerTile);
+    spots.forEach((spot, i) => {
+      const c = this.tileCentre(spot);
+      const sprite = addIcon(this, from.x, from.y, HEART_ICON, 48).setDepth(3);
+      const size = sprite.scale;
+      sprite.setScale(size * 0.2);
+      this.tweens.add({ targets: sprite, x: c.x, y: c.y, scale: size, delay: 250 + i * 140, duration: 420, ease: "Back.easeOut" });
+      const heart = { ...spot, sprite, instanceId: drop.instanceId };
+      this.hearts.push(heart);
+      // Left lying: it fades away.
+      this.time.delayedCall(heals.seconds * 1000, () => {
+        if (!this.hearts.includes(heart)) return;
+        this.hearts = this.hearts.filter((h) => h !== heart);
+        this.tweens.add({ targets: sprite, alpha: 0, scale: size * 0.3, duration: 600, onComplete: () => sprite.destroy() });
+      });
+    });
+  }
+
+  /** Walked onto a heart: the monster that fought gets some HP back (a monster at full HP leaves it lying). */
+  private pickUpHeart(tile: TileCoord): void {
+    const heart = this.hearts.find((h) => h.x === tile.x && h.y === tile.y);
+    if (!heart) return;
+    const creature = this.save.creatures.find((c) => c.instanceId === heart.instanceId) ?? this.save.creatures[0];
+    const species = creature && this.content.speciesById[creature.speciesId];
+    if (!creature || !species) return;
+    const max = maxHpOf(creature, species);
+    if (creature.currentHp >= max) return;
+    creature.currentHp = healFromHeart(itemConfig, creature.currentHp, max);
+    this.hearts = this.hearts.filter((h) => h !== heart);
+    this.tweens.add({ targets: heart.sprite, y: heart.sprite.y - 30, alpha: 0, scale: heart.sprite.scale * 1.4, duration: 400, onComplete: () => heart.sprite.destroy() });
+    playHealSound();
+    this.showToast(`${ic(HEART_ICON)} ${stageName(species, stageOf(creature, species))}  ${creature.currentHp}/${max}`, 1800);
+    void persist();
   }
 
   // ------------------------------------------------------------ the castle and its quest
@@ -1485,14 +1546,12 @@ export class OverworldScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ the minigames: working the land
 
-  /** What a tap on this tile could do: fell a tree, swim across water, climb a mountain. */
+  /** What a tap on this tile could do: fell a tree. (Water and mountains are simply walked: swum and climbed.) */
   private workAt(tile: TileCoord): LandWork | undefined {
     const ids = this.areaMeta.terrain;
     if (!ids || tile.x <= 0 || tile.y <= 0 || tile.x >= this.map.width - 1 || tile.y >= this.map.height - 1) return undefined;
     const index = this.groundLayer.getTileAt(tile.x, tile.y)?.index;
     if (index === ids.tree && ids.stump !== undefined) return "cut";
-    if (index === ids.water) return "swim";
-    if (index === ids.mountain) return "climb";
     return undefined;
   }
 
@@ -1508,42 +1567,18 @@ export class OverworldScene extends Phaser.Scene {
     ]);
   }
 
-  /** The map as it is now, in the shape the shared work rules read. */
-  private landView(): { base: BaseArea; terrain: AreaTerrain } {
-    const width = this.map.width;
-    const height = this.map.height;
-    const ground: number[] = [];
-    const grass: number[] = [];
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        ground.push(this.groundLayer.getTileAt(x, y)?.index ?? 0);
-        grass.push(this.map.getTileAt(x, y, false, this.areaMeta.encounterZoneLayer)?.index ?? 0);
-      }
-    }
-    const base: BaseArea = { id: this.areaMeta.id, width, height, ground, grass, blocking: this.areaMeta.collisionGids, tiles: this.areaMeta.terrain!, start: this.areaMeta.playerStart, fixed: [] };
-    return { base, terrain: emptyTerrain() };
-  }
-
   private startWork(work: LandWork, tile: TileCoord): void {
-    let crossing: { x: number; y: number; tiles: number } | undefined;
-    if (work !== "cut") {
-      const { base, terrain } = this.landView();
-      crossing = crossTarget(base, terrain, this.playerTile, tile, work, minigameConfig);
-      if (!crossing) return this.showToast(t("work_refused"));
-    }
-    this.launchGame(WORK_GAMES[work], crossing?.tiles, (success) => {
-      if (!success) return;
-      if (work === "cut") this.fell(tile);
-      else this.crossTo(crossing!, work);
+    this.launchGame(WORK_GAMES[work], (success) => {
+      if (success) this.fell(tile);
     });
   }
 
-  private launchGame(key: string, size: number | undefined, done: (success: boolean) => void): void {
+  private launchGame(key: string, done: (success: boolean) => void): void {
     this.closePopup();
     this.pendingPath = [];
     this.drag = undefined;
     this.stick?.clear();
-    const data: MinigameData = { avatarId: this.save.player.avatarId, farve: this.save.player.farve, size, done };
+    const data: MinigameData = { avatarId: this.save.player.avatarId, farve: this.save.player.farve, done };
     this.scene.launch(key, data);
     this.scene.pause();
   }
@@ -1556,26 +1591,20 @@ export class OverworldScene extends Phaser.Scene {
     this.minimap?.refresh();
   }
 
-  /** Swam or climbed across: over the water or the mountain, tile by tile, to the far side. */
-  private crossTo(to: { x: number; y: number; tiles: number }, work: "swim" | "climb"): void {
-    recordProgress({ kind: "work", work });
-    const target = this.tileCentre(to);
-    this.isMoving = true;
-    this.tweens.add({
-      targets: this.player,
-      x: target.x,
-      y: target.y,
-      duration: 260 * (to.tiles + 1),
-      ease: "Sine.easeInOut",
-      onComplete: () => {
-        this.isMoving = false;
-        this.playerTile = { x: to.x, y: to.y };
-        this.positionDirty = true;
-        this.savePosition();
-        this.refreshDig();
-        if (multiplayerEnabled) presence.moveTo(this.myPosition());
-      },
-    });
+  /** Tiles of water swum or mountain climbed in a row, so far. */
+  private crossing?: { work: "swim" | "climb"; tiles: number };
+
+  /** Out on the other side of a lake or a mountain (a few tiles of it at least): that counts (Svømmer, Bjergbestiger). */
+  private trackCrossing(tile: TileCoord): void {
+    const ids = this.areaMeta.terrain;
+    const index = this.groundLayer.getTileAt(tile.x, tile.y)?.index;
+    const work = !ids ? undefined : index === ids.water ? "swim" : index === ids.mountain ? "climb" : undefined;
+    if (work && this.crossing?.work === work) {
+      this.crossing.tiles++;
+      return;
+    }
+    if (this.crossing && this.crossing.tiles >= CROSSING_TILES) recordProgress({ kind: "work", work: this.crossing.work });
+    this.crossing = work ? { work, tiles: 1 } : undefined;
   }
 
   /** Whether I can dig right where I stand: plain ground or sand, no tall grass, not dug already. */
@@ -1598,7 +1627,7 @@ export class OverworldScene extends Phaser.Scene {
     const tile = { ...this.playerTile };
     const ids = this.areaMeta.terrain!;
     const onSand = ids.sand !== undefined && this.groundLayer.getTileAt(tile.x, tile.y)?.index === ids.sand;
-    this.launchGame("Dig", undefined, (success) => {
+    this.launchGame("Dig", (success) => {
       if (!success) return;
       if (presence.workSupported) {
         this.pendingDig = { ...tile, onSand };
@@ -1969,6 +1998,7 @@ export class OverworldScene extends Phaser.Scene {
     if (this.beasts?.blocks(x, y)) return false; // nor through a visiting beast
     if (this.world?.spawnAt(x, y)) return false; // nor through the UFO's alien
     if (this.areaMeta.castle?.x === x && this.areaMeta.castle.y === y) return false; // nor into the castle's walls
+    if (this.caves?.caveAt(x, y)) return false; // nor into a cave's mouth (go in from beside it)
     const tile = this.groundLayer.getTileAt(x, y);
     return !!tile && !tile.collides;
   }
@@ -2036,9 +2066,11 @@ export class OverworldScene extends Phaser.Scene {
         this.playerTile = next;
         this.isMoving = false;
         this.positionDirty = true;
+        this.trackCrossing(next);
         this.pickUpFood(next);
         this.pickUpQuest(next);
         this.pickUpItem(next);
+        this.pickUpHeart(next);
         this.warmEggs();
         // Walked onto a dock, a tunnel mouth or a bridge: stop, and offer the trip.
         const link = linkAt(this.areaMeta, next.x, next.y);

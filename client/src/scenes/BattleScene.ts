@@ -19,13 +19,14 @@ import type {
   Move,
   TypeId,
 } from "@shared";
-import { bondFromWin, createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
+import { bondFromWin, winHealCount, createBattle, resolveTurn, createRng, outcomeFor, BOSS_PLAYER_ID, closenessFromFoe, passOutUntil } from "@shared";
 import { listen, say } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { RaidBattleUpdate } from "../net/presence";
 import { beastsById } from "../content/load-beasts";
 import { playCreatureSound } from "../audio/creature-sound";
 import { makeParticipant, mySpecies } from "../battle-participant";
+import type { OverworldSceneData } from "./OverworldScene";
 import type { CatchSceneData } from "./CatchScene";
 import type { BattleStage, Impact, Side } from "../cave/battle-stage";
 import { faceFrameKey, placeholderSpec } from "../gfx/placeholder-sprites";
@@ -1101,7 +1102,11 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    this.scene.start("Overworld", { save: this.battleData.save, content: this.battleData.content });
+    // Won in the wild: hearts drop round me, enough to heal what the fight cost my monster.
+    const heals = this.battleState.outcome === "won" ? winHealCount(itemConfig, player.active.currentHp, player.species.baseStats.hp) : 0;
+    const data: OverworldSceneData = { save: this.battleData.save, content: this.battleData.content };
+    if (heals > 0) data.heals = { count: heals, instanceId: player.active.instanceId };
+    this.scene.start("Overworld", data);
   }
 }
 

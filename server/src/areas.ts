@@ -78,7 +78,7 @@ export async function loadCaveConfig(): Promise<CaveConfig | undefined> {
   }
 }
 
-/** How the minigames work (shared/content/minigames.json): regrowth, digging, how far you can swim and climb. */
+/** How the minigames work (shared/content/minigames.json): regrowth and digging. */
 export async function loadMinigameConfig(): Promise<MinigameConfig | undefined> {
   try {
     return JSON.parse(await readFile(contentDir("minigames.json"), "utf-8")) as MinigameConfig;

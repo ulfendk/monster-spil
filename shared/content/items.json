@@ -1,6 +1,7 @@
 {
   "tilesPerItem": 350,
   "maxCarried": 5,
+  "winHeals": { "heal": 0.25, "max": 4, "seconds": 180 },
   "items": [
     { "id": "styrkedrik", "navn": "Styrkedrik", "icon": "potion", "weight": 3, "effect": { "power": 1.5, "moves": 3 } },
     { "id": "sigtefjer", "navn": "Sigtefjer", "icon": "feather", "weight": 2, "effect": { "accuracy": 1, "moves": 3 } },

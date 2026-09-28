@@ -25,6 +25,12 @@ export function makeParticipant(playerId: string, creature: CreatureInstance, sp
   return { playerId, active, species: staged, moves: resolveMoves(species, content.movesById) };
 }
 
+/** A monster's full HP as it is now (a later stage has more). */
+export function maxHpOf(creature: CreatureInstance, species: CreatureSpecies): number {
+  const stage = stageOf(creature, species);
+  return stage > 1 ? stageStats(species.baseStats, stage, nurtureConfig).hp : species.baseStats.hp;
+}
+
 /**
  * My monster's species as it fights for me: attack and defence grow a little with my player
  * level (levels.json: monsterBonusPerLevel, up to monsterBonusMax). HP stays as it is.

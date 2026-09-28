@@ -9,7 +9,7 @@ import { KANAGAWA } from "../ui/theme";
  * Map3D uses one in place of a food icon (`icon-apple`, …) standing on the map.
  */
 
-export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "feather", "clover", "egg", "lantern", "bell", "fan", "shell", "crystal", "castle"] as const;
+export const FOOD_MODEL_ICONS = ["apple", "strawberry", "banana", "carrot", "grapes", "potion", "healpotion", "healheart", "feather", "clover", "egg", "lantern", "bell", "fan", "shell", "crystal", "castle"] as const;
 /** Models that stand still (no bobbing or turning): the castle. */
 export const STILL_MODELS: ReadonlySet<string> = new Set(["castle"]);
 export type FoodModelIcon = (typeof FOOD_MODEL_ICONS)[number];
@@ -149,6 +149,30 @@ function flask(colour: number) {
     cork.translate(0, 0.41, 0);
     return mergeGeometries([coloured(glass, KANAGAWA.fujiWhite), coloured(brew, colour), coloured(neck, KANAGAWA.fujiWhite), coloured(cork, KANAGAWA.boatYellow1)])!;
   };
+}
+
+/** A plump red heart standing up, with a white cross on each face: dropped after a won battle. */
+function healheart(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1]) {
+    const lobe = new THREE.SphereGeometry(0.11, 14, 10);
+    lobe.scale(1, 1, 0.7);
+    lobe.translate(side * 0.085, 0.3, 0);
+    parts.push(coloured(lobe, KANAGAWA.autumnRed));
+  }
+  const point = new THREE.ConeGeometry(0.17, 0.26, 16, 1);
+  point.scale(1.12, 1, 0.55);
+  point.rotateZ(Math.PI);
+  point.translate(0, 0.17, 0);
+  parts.push(coloured(point, KANAGAWA.autumnRed));
+  for (const face of [-1, 1]) {
+    for (const [w, h] of [[0.035, 0.12], [0.12, 0.035]] as const) {
+      const bar = new THREE.BoxGeometry(w, h, 0.02);
+      bar.translate(0, 0.27, face * 0.075);
+      parts.push(coloured(bar, KANAGAWA.fujiWhite));
+    }
+  }
+  return mergeGeometries(parts)!;
 }
 
 function feather(): THREE.BufferGeometry {
@@ -342,6 +366,7 @@ const BUILDERS: Record<FoodModelIcon, () => THREE.BufferGeometry> = {
   grapes,
   potion: flask(KANAGAWA.autumnRed),
   healpotion: flask(KANAGAWA.springGreen),
+  healheart,
   feather,
   clover,
   egg,
