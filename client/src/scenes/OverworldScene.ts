@@ -13,7 +13,7 @@ import { multiplayerEnabled } from "../net/lobby";
 import { presence } from "../net/presence";
 import type { PresenceStatus } from "../net/presence";
 import { maxHpOf, seatFor } from "../battle-participant";
-import { playHealSound } from "../audio/beep";
+import { playBlip, playHealSound } from "../audio/beep";
 import { bossesById } from "../content/load-raid";
 import { beastsById } from "../content/load-beasts";
 import type { RaidBattleUpdate } from "../net/presence";
@@ -43,6 +43,7 @@ import { recordProgress } from "../progress/record";
 import { badgesById, levelConfig, ridingOn } from "../content/load-progress";
 import { profileChanged } from "../progress/record";
 import { RIDE_STEP_TIME, groundSpeed, isMapEdge, rideGait, type MountView, type RideGait } from "@shared";
+import { breathLeft, staminaRecover, staminaStep, type ClimbConfig } from "@shared";
 import { myLevel, nextCelebration, progressEvents, type Celebration } from "../progress/record";
 import type { ProfileSceneData } from "./ProfileScene";
 import { carryItem, eggSpot, itemDay, itemSpots, nestHasRoom, newEgg, walkEggs, type Egg, type ItemSpot } from "@shared";
@@ -108,6 +109,8 @@ const tilesetKey = (areaId: string) => `area-tileset-${areaId}`;
 const HEART_ICON = "healheart";
 /** Swimming or climbing at least this many tiles in a row counts as a crossing. */
 const CROSSING_TILES = 3;
+/** How long I climb before I must rest (minigames.json `climb`). */
+const climbConfig: ClimbConfig = minigameConfig.climb ?? { tilesBeforeRest: 6, restSeconds: 5 };
 
 /** What can be done with a tile next to me: fell a tree. */
 type LandWork = "cut";
@@ -274,6 +277,7 @@ export class OverworldScene extends Phaser.Scene {
           .sort(([, a], [, b]) => b.localeCompare(a))
           .map(([id]) => badgesById[id]?.icon ?? "star"),
         ...this.mountHint(ridingOn(this.save)),
+        resting: this.isResting(),
       }),
     });
     this.others.clear();
@@ -282,6 +286,10 @@ export class OverworldScene extends Phaser.Scene {
     this.encounterRest = 0;
     this.toast = undefined;
     this.pendingMeet = undefined;
+    this.breath = 0;
+    this.restUntil = 0;
+    this.breathUi = undefined;
+    this.crossing = undefined;
 
     // The map is bigger than the screen: follow the player, never showing past the edge.
     const camera = this.cameras.main;
@@ -362,6 +370,9 @@ export class OverworldScene extends Phaser.Scene {
       this.minimap?.relayout();
       this.drawBag();
       if (this.isPassedOut()) this.showPassOut();
+      for (const o of this.breathUi?.objects ?? []) o.destroy();
+      this.breathUi = undefined;
+      this.drawBreath();
     });
     if (multiplayerEnabled) this.joinWorld();
     const onResumeRecovery = () => {
@@ -1008,7 +1019,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Starts the next step in the direction the finger points, unless one is already under way. */
   private stepFromDrag(): void {
     const drag = this.drag;
-    if (!drag?.moved || this.isMoving) return;
+    if (!drag?.moved || this.isMoving || this.isResting()) return;
     // Setting off again with a wild monster in front of me: I'm leaving it be.
     if (this.encounter) this.leaveEncounter();
     // With the camera turned, "up the screen" is the way the camera faces, not north.
@@ -1158,9 +1169,10 @@ export class OverworldScene extends Phaser.Scene {
     return { mount: { key: species.spriteFront, gait, ...(mount.variant ? { variant: mount.variant } : {}), ...(mount.stage ? { stage: mount.stage } : {}) } };
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     // The animal follows my circle (which walks by tween) and fades with it when passed out.
     this.playerFace?.setPosition(this.player.x, this.player.y).setAlpha(this.player.alpha);
+    this.updateBreath(delta);
     // A wild monster waiting for an answer keeps its card (a menu opened over it may have closed it).
     if (this.encounter && this.popup.length === 0 && !this.minimap?.isOpen) this.showEncounterChoice();
     if (!this.minimap?.isOpen) return;
@@ -1607,6 +1619,95 @@ export class OverworldScene extends Phaser.Scene {
     this.crossing = work ? { work, tiles: 1 } : undefined;
   }
 
+  // ------------------------------------------------------------ out of breath on the mountains
+
+  /** Breath used climbing (world/stamina.ts): not saved, a fresh map is a rested player. */
+  private breath = 0;
+  /** When a rest on the mountain ends (scene time, ms); 0 = not resting. */
+  private restUntil = 0;
+  /** The breath meter (bottom middle) while climbing or getting my breath back. */
+  private breathUi?: { objects: Phaser.GameObjects.GameObject[]; fill: Phaser.GameObjects.Rectangle; count: Phaser.GameObjects.Text; bar: Phaser.GameObjects.GameObject[]; resting: boolean };
+
+  private isResting(): boolean {
+    return this.restUntil > 0;
+  }
+
+  private onMountain(tile: TileCoord): boolean {
+    const mountain = this.areaMeta.terrain?.mountain;
+    return mountain !== undefined && this.groundLayer.getTileAt(tile.x, tile.y)?.index === mountain;
+  }
+
+  /** A step taken: climbing uses breath, level ground gives some back. True if I must stop and rest now. */
+  private breathStep(tile: TileCoord): boolean {
+    const r = staminaStep(this.breath, this.onMountain(tile), climbConfig);
+    this.breath = r.used;
+    if (r.rest) {
+      this.restUntil = this.time.now + climbConfig.restSeconds * 1000;
+      this.savePosition();
+      playBlip(330, 260);
+    }
+    this.drawBreath();
+    return r.rest;
+  }
+
+  /**
+   * Every frame: the rest counts down (then I walk on, where the finger or the path was taking
+   * me); standing still gets breath back; the meter follows.
+   */
+  private updateBreath(delta: number): void {
+    if (this.isResting()) {
+      const left = this.restUntil - this.time.now;
+      if (left > 0) {
+        this.breathUi?.count.setText(String(Math.ceil(left / 1000)));
+        return;
+      }
+      this.restUntil = 0;
+      this.drawBreath();
+      if (this.drag?.moved) this.stepFromDrag();
+      else this.advancePath();
+      return;
+    }
+    if (this.isMoving || this.breath <= 0) return;
+    this.breath = staminaRecover(this.breath, delta / 1000, climbConfig);
+    if (this.breath <= 0 && !this.onMountain(this.playerTile)) this.drawBreath();
+    else this.breathUi?.fill.setScale(breathLeft(this.breath, climbConfig), 1);
+  }
+
+  /** The meter: a climber and a bar of breath; resting, an hourglass and the seconds left. Gone on level ground with full breath. */
+  private drawBreath(): void {
+    const resting = this.isResting();
+    const show = resting || this.breath > 0 || this.onMountain(this.playerTile);
+    if (!show) {
+      for (const o of this.breathUi?.objects ?? []) o.destroy();
+      this.breathUi = undefined;
+      return;
+    }
+    if (!this.breathUi || this.breathUi.resting !== resting) {
+      for (const o of this.breathUi?.objects ?? []) o.destroy();
+      const layout = getLayout(this);
+      const w = layout.px(300);
+      const h = Math.max(56, layout.px(72));
+      const cx = layout.width / 2;
+      const cy = layout.height - layout.safe.bottom - layout.px(24) - h / 2;
+      const bg = this.add.rectangle(cx, cy, w, h, C.background, 0.9).setStrokeStyle(3, resting ? C.accent : C.border);
+      const icon = addIcon(this, cx - w / 2 + h * 0.55, cy, resting ? "hourglass" : "climb", h * 0.72);
+      const barW = w - h * 1.4;
+      const barX = cx - w / 2 + h * 1.1;
+      const track = this.add.rectangle(barX, cy, barW, h * 0.32, C.buttonQuiet).setOrigin(0, 0.5);
+      const fill = this.add.rectangle(barX, cy, barW, h * 0.32, C.ok).setOrigin(0, 0.5);
+      const count = this.add.text(barX + barW / 2, cy, "", { fontFamily: FONT, fontSize: layout.font(40), color: CSS.accent }).setOrigin(0.5);
+      const objects = [bg, icon, track, fill, count];
+      for (const o of objects) o.setScrollFactor(0).setDepth(19);
+      this.breathUi = { objects, fill, count, bar: [track, fill], resting };
+      if (resting) this.showToast(`${ic("climb")} ${t("climb_rest")}`, 2200);
+    }
+    const ui = this.breathUi;
+    for (const o of ui.bar) (o as Phaser.GameObjects.Rectangle).setVisible(!resting);
+    ui.count.setVisible(resting);
+    const left = breathLeft(this.breath, climbConfig);
+    ui.fill.setScale(left, 1).setFillStyle(left > 0.34 ? C.ok : C.danger);
+  }
+
   /** Whether I can dig right where I stand: plain ground or sand, no tall grass, not dug already. */
   private canDigHere(): boolean {
     const ids = this.areaMeta.terrain;
@@ -2048,7 +2149,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private advancePath(): void {
-    if (this.isMoving || this.pendingPath.length === 0 || this.encounter) return;
+    if (this.isMoving || this.pendingPath.length === 0 || this.encounter || this.isResting()) return;
     const next = this.pendingPath.shift()!;
     this.isMoving = true;
     this.lastStep = { dx: next.x - this.playerTile.x, dy: next.y - this.playerTile.y };
@@ -2083,6 +2184,8 @@ export class OverworldScene extends Phaser.Scene {
           this.offerTravel(link);
           return;
         }
+        // Out of breath on the mountain: rest first (then on the way I was going).
+        if (this.breathStep(next)) return;
 
         if (this.isEncounterTile(next.x, next.y) && this.rollEncounter()) {
           this.pendingPath = [];

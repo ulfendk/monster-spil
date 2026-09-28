@@ -66,7 +66,7 @@ const CHUNK = 16;
 /** Land vertices per tile along each side (a vertex at every half tile). */
 const SUB = 2;
 /** The water's surface (the beds lie below it, the land above). */
-const WATER_Y = -0.14;
+export const WATER_Y = -0.14;
 /** How the camera looks down on the map (degrees above the horizon) and its field of view. */
 const PITCH = 57;
 const FOV = 38;
@@ -338,6 +338,17 @@ export class MapStage {
     p.project(this.camera);
     const perTile = this.size.height / (2 * Math.tan((FOV * Math.PI) / 360) * distance);
     return { x: ((p.x + 1) / 2) * this.size.width, y: ((1 - p.y) / 2) * this.size.height, perTile, behind: p.z > 1 };
+  }
+
+  /** What the ground is at a point (tiles), for how a figure there moves: water (swimming), a mountain (climbing) or neither. */
+  groundKind(x: number, z: number): "water" | "mountain" | undefined {
+    const tx = Math.floor(x), tz = Math.floor(z);
+    if (tx < 0 || tz < 0 || tx >= this.source.width || tz >= this.source.height) return undefined;
+    const ground = this.source.tileAt(tx, tz).ground;
+    const ids = this.source.ids;
+    if (ids.water !== undefined && ground === ids.water && this.source.look?.water !== "lava") return "water";
+    if (ids.mountain !== undefined && ground === ids.mountain) return "mountain";
+    return undefined;
   }
 
   /** The land's height at a point (tiles): what things standing there stand on (never below the water). */

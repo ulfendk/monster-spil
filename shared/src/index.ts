@@ -181,6 +181,8 @@ export {
 export type { AwardResult, Badge, LevelConfig, Progress, ProgressEvent } from "./player/progress.js";
 export { applyCut, applyDig, canCut, canDig, pickDigMonster, pickDigReward } from "./world/work.js";
 export type { DigReward, MinigameConfig, WorkKind } from "./world/work.js";
+export { breathLeft, staminaRecover, staminaStep } from "./world/stamina.js";
+export type { ClimbConfig } from "./world/stamina.js";
 export { isVariantId, rollVariant, variantById, variantName } from "./creature/variants.js";
 export type { VariantConfig, VariantDef, VariantLook } from "./creature/variants.js";
 export { SCENE_DECOR, SCENE_PARTICLES, sceneAt } from "./world/scenes.js";

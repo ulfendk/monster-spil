@@ -17,7 +17,7 @@ export interface MapHint {
   /** A monster the game draws, stood on the map as its model: in these colours (a rare variant). */
   variant?: string;
   /** A player's face: stands as their animal figure in 3D, with the headwear and badges this says (read every frame) — riding the monster whose front picture is `mount.key`, if they are. */
-  avatar?: () => { id: string; look?: string; badges: string[]; mount?: { key: string; gait: RideGait; variant?: string; stage?: number } };
+  avatar?: () => { id: string; look?: string; badges: string[]; mount?: { key: string; gait: RideGait; variant?: string; stage?: number }; resting?: boolean };
 }
 
 const KEY = "map3d";

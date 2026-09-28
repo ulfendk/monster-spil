@@ -190,6 +190,9 @@ const ANIMALS: Record<string, Animal> = {
   },
 };
 
+/** How the figure moves where it is: walking, swimming (in water), climbing (on a mountain), or resting to get its breath back. */
+export type AvatarMotion = "walk" | "swim" | "climb" | "rest";
+
 export interface AvatarModel {
   root: THREE.Group;
   /**
@@ -197,6 +200,14 @@ export interface AvatarModel {
    * the feet step, the arms swing, the body bobs and rocks from side to side.
    */
   walk(phase: number, amount: number): void;
+  /**
+   * Moving the way the ground asks (eased from one way to the next over `dt` seconds; `t` is the
+   * clock): walking as `walk`; swimming — low in the water, lying forward, arms pulling crawl
+   * strokes, feet kicking (treading water when still); climbing — a backpack with a coiled rope,
+   * an ice axe in hand, leaning into the slope, hand over hand with knees high; resting — sat
+   * down, panting, sweat flying off.
+   */
+  animate(motion: AvatarMotion, phase: number, amount: number, dt: number, t: number): void;
   dispose(): void;
 }
 
@@ -235,21 +246,126 @@ export function buildAvatarModel(spec: AvatarSpec, badgeTexture: (icon: string) 
   for (const child of [...p.root.children]) if (!feet.includes(child as THREE.Mesh)) upper.add(child);
   p.root.add(upper);
   const armHome = arms.map((arm) => arm.position.clone());
-  const walk = (phase: number, amount: number) => {
+
+  // Climbing gear, worn only on a mountain: a backpack with a coiled rope, and an ice axe in the right paw.
+  const gear = new THREE.Group();
+  upper.add(gear);
+  p.add(new THREE.BoxGeometry(0.22, 0.24, 0.12), K.waveBlue2, [0, 0.24, -0.21], [1, 1, 1], true, gear);
+  p.add(new THREE.BoxGeometry(0.2, 0.07, 0.13), K.crystalBlue, [0, 0.35, -0.21], [1, 1, 1], true, gear);
+  const coil = p.add(new THREE.TorusGeometry(0.09, 0.025, 6, 16), K.boatYellow2, [0, 0.2, -0.29], [1, 1, 1], true, gear);
+  coil.rotation.y = Math.PI / 2;
+  for (const side of [-1, 1]) {
+    const strap = p.flat(new THREE.BoxGeometry(0.035, 0.26, 0.02), K.waveBlue2, [side * 0.1, 0.24, 0.12], [1, 1, 1], gear);
+    strap.rotation.x = -0.2;
+  }
+  const axe = new THREE.Group();
+  gear.add(axe);
+  p.add(new THREE.CylinderGeometry(0.014, 0.016, 0.34, 6), K.boatYellow1, [0, 0.13, 0], [1, 1, 1], true, axe);
+  const pick = p.add(new THREE.BoxGeometry(0.2, 0.035, 0.03), K.katanaGray, [0.02, 0.3, 0], [1, 1, 1], true, axe);
+  pick.rotation.z = -0.25;
+  p.add(new THREE.ConeGeometry(0.02, 0.06, 4), K.katanaGray, [0, -0.06, 0], [1, 1, 1], false, axe).rotation.x = Math.PI;
+
+  // Sweat flying off while resting.
+  const drops = [-1, 1, -1, 1].map((side) => p.flat(new THREE.SphereGeometry(0.04, 8, 6), K.crystalBlue, [side * 0.3, 0.7, 0.05], [0.8, 1.3, 0.8], upper));
+
+  /** How far each way of moving is blended in (eased, so one flows into the next). */
+  const weight = { swim: 0, climb: 0, rest: 0 };
+  const feetAt = feet.map(() => new THREE.Vector3());
+  const armsAt = arms.map(() => new THREE.Vector3());
+
+  const pose = (phase: number, amount: number, t: number) => {
     const k = Math.max(0, Math.min(1, amount));
-    feet.forEach((foot, i) => {
-      const s = Math.sin(phase + i * Math.PI);
-      foot.position.z = 0.06 + s * 0.09 * k;
-      foot.position.y = 0.035 + Math.max(0, s) * 0.05 * k;
+    const { swim: sw, climb: cl, rest: re } = weight;
+    const wk = Math.max(0, 1 - sw - cl - re);
+    let upperY = 0, rotX = 0, rotZ = 0, sink = 0, breathe = 0;
+    for (const v of [...feetAt, ...armsAt]) v.set(0, 0, 0);
+    const mix = (v: THREE.Vector3, w: number, x: number, y: number, z: number) => v.set(v.x + w * x, v.y + w * y, v.z + w * z);
+
+    // Walking: feet step, arms swing against them, a bob and a rock.
+    if (wk > 0) {
+      feet.forEach((_, i) => {
+        const s = Math.sin(phase + i * Math.PI);
+        mix(feetAt[i]!, wk, feet[i]!.position.x, 0.035 + Math.max(0, s) * 0.05 * k, 0.06 + s * 0.09 * k);
+      });
+      arms.forEach((_, i) => {
+        const s = Math.sin(phase + i * Math.PI + Math.PI);
+        mix(armsAt[i]!, wk, armHome[i]!.x, armHome[i]!.y + Math.abs(s) * 0.02 * k, armHome[i]!.z + s * 0.07 * k);
+      });
+      upperY += wk * Math.abs(Math.sin(phase)) * 0.045 * k;
+      rotZ += wk * Math.sin(phase) * 0.09 * k;
+    }
+    // Swimming: low in the water, lying forward, crawl strokes and kicking feet; still, treading water.
+    if (sw > 0) {
+      const ps = phase * 0.6;
+      arms.forEach((_, i) => {
+        const a = ps + i * Math.PI;
+        const tread = Math.sin(t * 5 + i * Math.PI) * 0.035 * (1 - k);
+        // (Wide of the big head, so the strokes show from the camera up above.)
+        mix(armsAt[i]!, sw, armHome[i]!.x * (1.6 + 0.4 * Math.max(0, Math.sin(a)) * k), armHome[i]!.y + 0.12 + Math.sin(a) * 0.22 * k + tread, armHome[i]!.z + Math.cos(a) * 0.26 * k + 0.04 * (1 - k));
+      });
+      feet.forEach((_, i) => mix(feetAt[i]!, sw, feet[i]!.position.x, 0.1 + Math.sin(t * 9 + i * Math.PI) * 0.05, 0.02 - 0.12 * k));
+      upperY += sw * (Math.sin(t * 2.2) * 0.02);
+      rotX += sw * (0.1 + 0.7 * k);
+      rotZ += sw * Math.sin(ps) * 0.12 * k;
+      sink += sw * -0.12;
+    }
+    // Climbing: leaning into the slope, hand over hand (the axe bites in), knees high.
+    let reach = 0;
+    if (cl > 0) {
+      const pc = phase * 0.8;
+      arms.forEach((_, i) => {
+        const up = Math.max(0, Math.sin(pc + i * Math.PI));
+        if (i === 1) reach = up;
+        mix(armsAt[i]!, cl, armHome[i]!.x * 0.9, armHome[i]!.y + 0.05 + up * 0.22 * k + 0.04 * (1 - k), armHome[i]!.z + 0.08 + up * 0.05);
+      });
+      feet.forEach((_, i) => {
+        const s = Math.sin(pc + i * Math.PI);
+        mix(feetAt[i]!, cl, feet[i]!.position.x, 0.035 + Math.max(0, -s) * 0.1 * k, 0.06 - s * 0.05 * k);
+      });
+      upperY += cl * Math.max(0, Math.sin(pc * 2)) * 0.04 * k;
+      rotX += cl * 0.3;
+      rotZ += cl * Math.sin(pc) * 0.06 * k;
+    }
+    // Resting: sat down, feet out in front, paws on the knees, panting.
+    if (re > 0) {
+      feet.forEach((_, i) => mix(feetAt[i]!, re, feet[i]!.position.x, 0.03, 0.17));
+      arms.forEach((_, i) => mix(armsAt[i]!, re, armHome[i]!.x * 1.05, armHome[i]!.y - 0.06, armHome[i]!.z + 0.09));
+      upperY += re * -0.09;
+      rotX += re * -0.12;
+      breathe += re * Math.sin(t * 10) * 0.035;
+    }
+
+    feet.forEach((foot, i) => foot.position.set(foot.position.x, feetAt[i]!.y, feetAt[i]!.z));
+    arms.forEach((arm, i) => arm.position.copy(armsAt[i]!));
+    upper.position.y = upperY;
+    upper.rotation.set(rotX, 0, rotZ);
+    upper.scale.set(1, 1 + breathe, 1);
+    p.root.position.y = sink;
+    gear.visible = cl > 0.4;
+    if (gear.visible) {
+      axe.position.copy(arms[1]!.position).add(new THREE.Vector3(0.02, -0.02, 0.04));
+      axe.rotation.set(0.3 + reach * 0.7 * k, 0, -0.2);
+    }
+    drops.forEach((drop, j) => {
+      drop.visible = re > 0.5;
+      if (!drop.visible) return;
+      const c = (t * 1.3 + j * 0.27) % 1;
+      const side = j % 2 ? 1 : -1;
+      drop.position.set(side * (0.28 + c * 0.22), 0.8 + c * 0.14 - c * c * 0.3, 0.05);
+      drop.scale.setScalar(1 - c * 0.6);
     });
-    arms.forEach((arm, i) => {
-      const s = Math.sin(phase + i * Math.PI + Math.PI); // arms swing against the feet
-      arm.position.set(armHome[i]!.x, armHome[i]!.y + Math.abs(s) * 0.02 * k, armHome[i]!.z + s * 0.07 * k);
-    });
-    upper.position.y = Math.abs(Math.sin(phase)) * 0.045 * k;
-    upper.rotation.z = Math.sin(phase) * 0.09 * k;
   };
-  return { root: p.root, walk, dispose: () => p.dispose() };
+
+  const walk = (phase: number, amount: number) => {
+    weight.swim = weight.climb = weight.rest = 0;
+    pose(phase, amount, 0);
+  };
+  const animate = (motion: AvatarMotion, phase: number, amount: number, dt: number, t: number) => {
+    const ease = Math.min(1, dt * 6);
+    for (const key of ["swim", "climb", "rest"] as const) weight[key] += ((motion === key ? 1 : 0) - weight[key]) * ease;
+    pose(phase, amount, t);
+  };
+  return { root: p.root, walk, animate, dispose: () => p.dispose() };
 }
 
 /** The headwear a level has unlocked, on the head. */

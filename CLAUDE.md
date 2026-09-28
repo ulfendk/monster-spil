@@ -1069,7 +1069,17 @@ purpose) still starts its battle at once.
 no longer in the areas' `collisionGids`; the sidecar's `slow` says how slowly (forest 0.5, water
 0.4 — you swim, the figure half under the surface in 3D — mountain 0.35 — you climb; `groundSpeed`
 in `shared/src/world/steps.ts`; riding multiplies in). Ildbjerget's lava (its water tile) still
-blocks. A cave's mouth can't be walked into (`OverworldScene.isWalkable`). The map's **outermost
+blocks. A cave's mouth can't be walked into (`OverworldScene.isWalkable`).
+**Climbing takes breath:** each mountain step uses some; after `climb.tilesBeforeRest` in a row
+(`minigames.json`) the player must stop and rest `climb.restSeconds` — a meter (climber icon and
+a bar) at the bottom middle, then an hourglass and a countdown; the walk (drag or path) goes on
+by itself afterwards. Level ground and standing still give breath back. Pure rules (tested) in
+`shared/src/world/stamina.ts`; not saved. **In 3D the figure moves the way the ground asks**
+(`AvatarModel.animate`, the motion picked by `Map3D` from `MapStage.groundKind` under each
+figure, so other players too): swimming low in the water with crawl strokes and kicking feet
+(treading water when still), rings spreading round it (`world3d/ripples.ts`); climbing with a
+backpack, a coiled rope and an ice axe, leaning into the slope, hand over hand, knees high;
+resting (my own figure, the avatar hint's `resting`) sat down, panting, sweat flying off. The map's **outermost
 row is always its wall** (`isMapEdge`, used by the client's `isWalkable` and the shared
 `walkableNow`, so the server's connectivity checks agree), which keeps the tree border round
 Startskoven and Snedalen shut. Tapping somewhere walks the quickest way (`findPath`: a step

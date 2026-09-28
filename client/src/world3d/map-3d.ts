@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import * as THREE from "three";
-import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, type MapTileIds, type MapView } from "./map-stage";
+import { DEFAULT_VIEW, MapStage, VIEW_LIMITS, WATER_Y, type MapTileIds, type MapView } from "./map-stage";
 import { mapHint } from "../gfx/map-hints";
 import { placeholderSpec } from "../gfx/placeholder-sprites";
 import { buildMonsterModel, type MonsterModel } from "../cave/monster-model";
 import { buildFoodModel, foodModelFor, STILL_MODELS, type FoodModelIcon } from "./food-models";
-import { buildAvatarModel, type AvatarModel } from "./avatar-model";
+import { buildAvatarModel, type AvatarModel, type AvatarMotion } from "./avatar-model";
+import { Ripples } from "./ripples";
 import { RideAnimator } from "./mount-gaits";
 import { PeekLayer } from "./peeks";
 import type { AreaLook3d } from "@shared";
@@ -59,7 +60,7 @@ interface Mirror {
   ride?: THREE.Group;
   rideAnim?: RideAnimator;
   /** Walking: where it was last frame, how much it's walking (eased), the step's phase, which way it faces. */
-  walk?: { x: number; z: number; amount: number; phase: number; heading?: number };
+  walk?: { x: number; z: number; amount: number; phase: number; heading?: number; ripple?: number };
   shadow?: THREE.Mesh;
   textureKey?: string;
   seen: boolean;
@@ -97,6 +98,8 @@ export class Map3D {
   private readonly T: number;
   /** Monsters peeking out of the tall grass (OverworldScene decides where and who). */
   readonly peeks: PeekLayer;
+  /** Rings on the water round swimmers. */
+  private readonly ripples: Ripples;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -122,6 +125,7 @@ export class Map3D {
     }
     this.disc = this.makeDisc();
     this.peeks = new PeekLayer(this.stage);
+    this.ripples = new Ripples(this.stage.scene);
     this.stage.view = Map3D.loadView();
     options.ground.setVisible(false);
     options.grass.setVisible(false);
@@ -226,6 +230,7 @@ export class Map3D {
     for (const t of this.textures.values()) t.dispose();
     this.disc.dispose();
     this.peeks.destroy();
+    this.ripples.destroy();
     this.stage.destroy();
     this.canvas.remove();
   }
@@ -254,6 +259,7 @@ export class Map3D {
     const sy = shake.isRunning ? shake._offsetY : 0;
     this.stage.lookAt((this.centre.x - sx) / this.T, (this.centre.y - sy) / this.T);
     this.peeks.update();
+    this.ripples.update(delta / 1000);
 
     for (const m of this.mirrors.values()) m.seen = false;
     this.moved = [];
@@ -386,7 +392,21 @@ export class Map3D {
       if (moving) w.heading = Math.atan2(x - w.x, z - w.z);
       w.x = x;
       w.z = z;
-      if (!m.mount) m.avatar.walk(w.phase, w.amount);
+      if (!m.mount) {
+        // Swimming in water, climbing on a mountain (the tile under them), or sat getting their breath back.
+        const ground = this.stage.groundKind(x, z);
+        const motion: AvatarMotion = spec.resting ? "rest" : ground === "water" ? "swim" : ground === "mountain" ? "climb" : "walk";
+        const t = performance.now() / 1000;
+        m.avatar.animate(motion, w.phase, w.amount, dt, t);
+        if (motion === "swim" && visible) {
+          // Rings spread round a swimmer: quick ones with each stroke, slow ones treading water.
+          w.ripple = (w.ripple ?? 0) - dt;
+          if (w.ripple <= 0) {
+            w.ripple = moving ? 0.28 : 0.9;
+            this.ripples.add(x, WATER_Y, z, moving ? 0.9 : 0.7);
+          }
+        }
+      }
       const cam = this.stage.camera.position;
       const toCamera = Math.atan2(cam.x - x, cam.z - z);
       const target = w.heading !== undefined && w.amount > 0.05 ? w.heading : toCamera;

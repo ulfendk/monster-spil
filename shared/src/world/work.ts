@@ -1,4 +1,5 @@
 import { baseTile, inside, setTile, tileKey, tileNow, type AreaTerrain, type BaseArea } from "./terrain.js";
+import type { ClimbConfig } from "./stamina.js";
 
 /**
  * Working the land with the minigames: cutting a tree down opens a path (its stump grows
@@ -19,6 +20,8 @@ export interface MinigameConfig {
   cut: { regrowHours: number };
   /** `sandMonsters` hide in sand instead of `monsters` (optional: without it, sand has the same ones). */
   dig: { healHours: number; rewards: DigReward[]; monsters: Array<{ speciesId: string; weight: number }>; sandMonsters?: Array<{ speciesId: string; weight: number }> };
+  /** How long you climb before you must rest (world/stamina.ts). */
+  climb?: ClimbConfig;
 }
 
 export type WorkKind = "cut" | "dig";

@@ -113,6 +113,7 @@ const strings = {
   dig_nothing: "Kun jord og sten",
   dig_here_not: "Her kan du ikke grave",
   work_refused: "Det gik ikke her",
+  climb_rest: "Puh! Hvil lidt",
   cave_free: "Den slap fri!",
   cave_out_of_balls: "Ikke flere lassoer",
   cave_everyone_caught: "Du fangede dem alle!",

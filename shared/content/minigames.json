@@ -23,5 +23,6 @@
       { "speciesId": "oasepadde", "weight": 1 },
       { "speciesId": "gravling", "weight": 1 }
     ]
-  }
+  },
+  "climb": { "tilesBeforeRest": 6, "restSeconds": 5 }
 }
