@@ -460,5 +460,96 @@
     "tris": 7119,
     "parts": 11,
     "bytes": 53544
+  },
+  "dryppesten": {
+    "hash": "7035bf9bacf7",
+    "file": "dryppesten.glb",
+    "tris": 8119,
+    "parts": 16,
+    "bytes": 67620
+  },
+  "fjeldmurmel": {
+    "hash": "e4fb4bc9b6b5",
+    "file": "fjeldmurmel.glb",
+    "tris": 9318,
+    "parts": 16,
+    "bytes": 76484
+  },
+  "granitgnom": {
+    "hash": "f2a8b3645122",
+    "file": "granitgnom.glb",
+    "tris": 9919,
+    "parts": 16,
+    "bytes": 78828
+  },
+  "gravling": {
+    "hash": "4a882fc39da4",
+    "file": "gravling.glb",
+    "tris": 9320,
+    "parts": 16,
+    "bytes": 76016
+  },
+  "grusgekko": {
+    "hash": "960b9f11601d",
+    "file": "grusgekko.glb",
+    "tris": 10519,
+    "parts": 17,
+    "bytes": 84256
+  },
+  "krystaltusse": {
+    "hash": "a7afd5f05465",
+    "file": "krystaltusse.glb",
+    "tris": 9820,
+    "parts": 17,
+    "bytes": 82272
+  },
+  "muldmus": {
+    "hash": "472985f7ce55",
+    "file": "muldmus.glb",
+    "tris": 10420,
+    "parts": 18,
+    "bytes": 85180
+  },
+  "revnekrabbe": {
+    "hash": "818e09e611a7",
+    "file": "revnekrabbe.glb",
+    "tris": 10439,
+    "parts": 21,
+    "bytes": 90912
+  },
+  "sandhvisker": {
+    "hash": "a971b105794d",
+    "file": "sandhvisker.glb",
+    "tris": 11020,
+    "parts": 18,
+    "bytes": 93712
+  },
+  "slangeunge": {
+    "hash": "72cdf97d4a14",
+    "file": "slangeunge.glb",
+    "tris": 11319,
+    "parts": 20,
+    "bytes": 103056
+  },
+  "stenbid": {
+    "hash": "b2be5d0a9ce8",
+    "file": "stenbid.glb",
+    "tris": 7915,
+    "parts": 13,
+    "bytes": 64132
+  },
+  "stenged": {
+    "hash": "474769ced877",
+    "file": "stenged.glb",
+    "tris": 10819,
+    "parts": 19,
+    "bytes": 94748
+  },
+  "stoevtrold": {
+    "hash": "da7fedb13b57",
+    "file": "stoevtrold.glb",
+    "tris": 10118,
+    "parts": 14,
+    "bytes": 78012
   }
 }

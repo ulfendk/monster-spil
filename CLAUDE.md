@@ -187,11 +187,12 @@ game-drawn models.
   `pose`: ridden, Flammeskæl's mane of flames is lower and parted, and the rider sits in the gap
   (its mane grows with each stage and would hide them). Flammeskæl has flames painted up its
   sides and back, wings glowing red to orange to yellow, and an orange tail.
-- **Monsters sculpted in Blender** (Drageunge, Flammeskæl — after its drawing, replacing the
-  hand-made model, which stays as the fallback — the starters Flammepels, Dryppel, Løvgro and
-  every fire, water, grass and lightning monster so far; the rest one at a time, the kids' favourites first — an automatic conversion of the
-  `form` monsters was tried and dropped: joining their crisp parts gained little and blurred
-  their colours). `tools/models/monsters/<id>.py`
+- **Every monster is sculpted in Blender** (Flammeskæl after its drawing). The game's own
+  builders (`anatomy/` from each species' `form`, the hand-made Flammeskæl, the dragon, serpent
+  and eagle builders) stay as the fallback if a model doesn't load, and still draw the bosses.
+  An automatic conversion of the `form` monsters was tried and dropped: joining their crisp
+  parts gained little and blurred their colours. A new monster works from its `form` alone;
+  a script in `tools/models/monsters/` then makes it a sculpt. `tools/models/monsters/<id>.py`
   sculpts a monster from code as signed distance fields (`lib/sdf.py`, after antego's
   pipeline: smooth unions, so the head grows out of the body without a seam; painted colour
   regions; a paint with `only` recolours just one colour), `lib/model.py` hangs the parts on
